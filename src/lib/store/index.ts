@@ -2,7 +2,7 @@ import {create} from 'zustand';
 import {subscribeWithSelector} from 'zustand/middleware';
 import {immer} from 'zustand/middleware/immer';
 import {persist} from 'zustand/middleware';
-import type {Message, Session, ChatConfig, Theme, McpConfig, AiModelConfig} from '../../types';
+import type {Message, Session, ChatConfig, Theme, McpConfig, AiModelConfig, ContentSegment} from '../../types';
 import {databaseService} from '../database';
 import {apiClient} from '../api/client';
 // import { generateId } from '../utils';
@@ -326,15 +326,17 @@ export const useChatStore = create<ChatState & ChatActions>()
                             status: 'streaming' as const,
                             createdAt: assistantMessageTime,
                             metadata: {
-                                model: selectedModel.model_name,
-                                modelConfig: {
-                                    id: selectedModel.id,
-                                    name: selectedModel.name,
-                                    base_url: selectedModel.base_url,
-                                    model_name: selectedModel.model_name,
+                                    model: selectedModel.model_name,
+                                    modelConfig: {
+                                        id: selectedModel.id,
+                                        name: selectedModel.name,
+                                        base_url: selectedModel.base_url,
+                                        model_name: selectedModel.model_name,
+                                    },
+                                    toolCalls: [], // 初始化工具调用数组
+                                    contentSegments: [{ content: '', type: 'text' as const }], // 初始化内容分段
+                                    currentSegmentIndex: 0 // 当前正在写入的分段索引
                                 },
-                                toolCalls: [] // 初始化工具调用数组
-                            },
                         };
 
                         set((state) => {
@@ -361,12 +363,27 @@ export const useChatStore = create<ChatState & ChatActions>()
                                 // 更新流式消息内容
                                 set((state) => {
                                     const message = state.messages.find(m => m.id === tempAssistantMessage.id);
-                                    if (message) {
+                                    if (message && message.metadata) {
                                         // 确保data.content是字符串，如果是对象则提取content字段
                                         const content = typeof data.content === 'string' ? data.content :
                                             (typeof data === 'string' ? data :
                                                 (data.content || ''));
-                                        message.content += content;
+                                        
+                                        // 获取当前分段索引
+                                        const currentIndex = message.metadata.currentSegmentIndex || 0;
+                                        const segments = message.metadata.contentSegments || [];
+                                        
+                                        // 确保当前分段存在且为文本类型
+                                        if (segments[currentIndex] && segments[currentIndex].type === 'text') {
+                                            segments[currentIndex].content += content;
+                                        } else {
+                                            // 如果当前分段不存在或不是文本类型，创建新的文本分段
+                                            segments.push({ content, type: 'text' as const });
+                                            message.metadata.currentSegmentIndex = segments.length - 1;
+                                        }
+                                        
+                                        // 更新完整内容用于向后兼容
+                                         message.content = segments.filter((s: any) => s.type === 'text').map((s: any) => s.content).join('');
                                     }
                                 });
                             },
@@ -376,59 +393,92 @@ export const useChatStore = create<ChatState & ChatActions>()
                                 set((state) => {
                                     const message = state.messages.find(m => m.id === tempAssistantMessage.id);
                                     if (message && message.metadata) {
-                                        // 记录工具调用发生时的内容位置
-                                        const currentContentLength = message.content.length;
-                                        
                                         // 将工具调用添加到消息的metadata中
                                         if (!message.metadata.toolCalls) {
                                             message.metadata.toolCalls = [];
                                         }
                                         
-                                        // 初始化内容分段数组
-                                        if (!message.metadata.contentSegments) {
-                                            message.metadata.contentSegments = [];
-                                        }
+                                        const segments = message.metadata.contentSegments || [];
                                         
                                         // 添加新的工具调用
                                         if (Array.isArray(toolCalls)) {
-                                            message.metadata.toolCalls.push(...toolCalls.map((tc: any) => ({
-                                                id: tc.id,
-                                                messageId: message.id,
-                                                name: tc.function?.name || tc.name,
-                                                arguments: tc.function?.arguments || tc.arguments,
-                                                result: '',
-                                                createdAt: new Date(),
-                                                contentPositionBefore: currentContentLength // 记录工具调用前的内容位置
-                                            })));
+                                            toolCalls.forEach((tc: any) => {
+                                                const toolCall = {
+                                                    id: tc.id,
+                                                    messageId: message.id,
+                                                    name: tc.function?.name || tc.name,
+                                                    arguments: tc.function?.arguments || tc.arguments,
+                                                    result: '',
+                                                    createdAt: new Date()
+                                                };
+                                                message.metadata!.toolCalls!.push(toolCall);
+                                                
+                                                // 添加工具调用分段
+                                        segments.push({
+                                            content: '',
+                                            type: 'tool_call' as const,
+                                            toolCallId: toolCall.id
+                                        });
+                                            });
                                         } else {
-                                            message.metadata.toolCalls.push({
+                                            const toolCall = {
                                                 id: toolCalls.id,
                                                 messageId: message.id,
                                                 name: toolCalls.function?.name || toolCalls.name,
                                                 arguments: toolCalls.function?.arguments || toolCalls.arguments,
                                                 result: '',
-                                                createdAt: new Date(),
-                                                contentPositionBefore: currentContentLength // 记录工具调用前的内容位置
-                                            });
+                                                createdAt: new Date()
+                                            };
+                                            message.metadata!.toolCalls!.push(toolCall);
+                                            
+                                            // 添加工具调用分段
+                                             segments.push({ 
+                                                 content: '',
+                                                 type: 'tool_call' as const,
+                                                 toolCallId: toolCalls.id
+                                             });
                                         }
+                                        
+                                        // 为工具调用后的内容创建新的文本分段
+                                        segments.push({ content: '', type: 'text' as const });
+                                        message.metadata!.currentSegmentIndex = segments.length - 1;
                                     }
                                 });
                             },
                             onToolResult: (results: any) => {
                                 // 处理工具结果
                                 console.log('Tool results:', results);
+                                set((state) => {
+                                     const message = state.messages.find(m => m.id === tempAssistantMessage.id);
+                                     if (message && message.metadata && message.metadata.toolCalls) {
+                                         // 更新对应工具调用的结果
+                                         if (Array.isArray(results)) {
+                                             results.forEach((result: any) => {
+                                                 const toolCall = message.metadata!.toolCalls!.find((tc: any) => tc.id === result.toolCallId);
+                                                 if (toolCall) {
+                                                     toolCall.result = result.result;
+                                                 }
+                                             });
+                                         } else if (results.toolCallId) {
+                                             const toolCall = message.metadata!.toolCalls!.find((tc: any) => tc.id === results.toolCallId);
+                                             if (toolCall) {
+                                                 toolCall.result = results.result;
+                                             }
+                                         }
+                                     }
+                                 });
                             },
                             onToolStreamChunk: (data: any) => {
                                 // 更新工具调用的流式返回内容
                                 set((state) => {
-                                    const message = state.messages.find(m => m.id === tempAssistantMessage.id);
-                                    if (message && message.metadata?.toolCalls) {
-                                        const toolCall = message.metadata.toolCalls.find((tc: any) => tc.id === data.toolCallId);
-                                        if (toolCall) {
-                                            toolCall.result = (toolCall.result || '') + data.chunk;
-                                        }
-                                    }
-                                });
+                                     const message = state.messages.find(m => m.id === tempAssistantMessage.id);
+                                     if (message && message.metadata && message.metadata.toolCalls) {
+                                         const toolCall = message.metadata.toolCalls.find((tc: any) => tc.id === data.toolCallId);
+                                         if (toolCall) {
+                                             toolCall.result = (toolCall.result || '') + data.chunk;
+                                         }
+                                     }
+                                 });
                             },
                             onComplete: async (data: any) => {
                                 // 完成流式响应，将临时消息转换为真实消息并保存

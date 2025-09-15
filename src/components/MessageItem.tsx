@@ -142,121 +142,58 @@ export const MessageItem: React.FC<MessageItemProps> = ({
           </div>
         ) : (
           <div className="space-y-3">
-            {/* 始终保持内容在前，工具调用在后的顺序 */}
+            {/* 使用新的内容分段渲染机制 */}
             {(() => {
+              const contentSegments = message.metadata?.contentSegments || [];
               const hasContent = message.content && message.content.trim().length > 0;
-              const hasToolCalls = toolCalls && toolCalls.length > 0;
               const isCurrentlyStreaming = isStreaming && isLast;
               
-              // 如果没有工具调用，直接渲染内容
-              if (!hasToolCalls) {
-                return hasContent ? (
+              // 如果有内容分段，使用分段渲染
+              if (contentSegments.length > 0) {
+                return (
+                  <div className="space-y-3">
+                    {contentSegments.map((segment, index) => {
+                       if (segment.type === 'text') {
+                         return (
+                           <div key={`segment-${index}`} className="prose prose-sm max-w-none">
+                             <MarkdownRenderer
+                               content={segment.content as string}
+                               isStreaming={isCurrentlyStreaming && index === contentSegments.length - 1}
+                             />
+                           </div>
+                         );
+                       } else if (segment.type === 'tool_call') {
+                         // 根据toolCallId查找对应的工具调用
+                         const toolCall = toolCalls.find(tc => tc.id === segment.toolCallId);
+                         if (toolCall) {
+                           return (
+                             <div key={`tool-${toolCall.id}`}>
+                               <ToolCallRenderer
+                                 toolCall={toolCall}
+                               />
+                             </div>
+                           );
+                         }
+                       }
+                       return null;
+                     })}
+                  </div>
+                );
+              }
+              
+              // 回退到传统渲染方式（向后兼容）
+              if (hasContent) {
+                return (
                   <div className="prose prose-sm max-w-none">
                     <MarkdownRenderer
                       content={message.content}
                       isStreaming={isCurrentlyStreaming}
                     />
                   </div>
-                ) : null;
+                );
               }
               
-              // 有工具调用时，需要按时间顺序渲染，并分割内容
-               const renderItems: Array<{
-                 type: 'content';
-                 content: string;
-                 timestamp: Date;
-               } | {
-                 type: 'tool';
-                 toolCall: any;
-                 timestamp: Date;
-               }> = [];
-               
-               // 按工具调用的位置分割内容
-               const sortedToolCalls = [...toolCalls].sort((a, b) => {
-                 const posA = a.contentPositionBefore || 0;
-                 const posB = b.contentPositionBefore || 0;
-                 return posA - posB;
-               });
-               
-               let lastPosition = 0;
-               
-               sortedToolCalls.forEach((toolCall, index) => {
-                 const position = toolCall.contentPositionBefore || 0;
-                 
-                 // 添加工具调用前的内容片段
-                 if (position > lastPosition) {
-                   const contentSegment = message.content.slice(lastPosition, position);
-                   if (contentSegment.trim()) {
-                     renderItems.push({
-                       type: 'content',
-                       content: contentSegment,
-                       timestamp: new Date(message.createdAt.getTime() + lastPosition) // 使用位置作为时间偏移
-                     });
-                   }
-                 }
-                 
-                 // 添加工具调用
-                 renderItems.push({
-                   type: 'tool',
-                   toolCall,
-                   timestamp: toolCall.createdAt || message.createdAt
-                 });
-                 
-                 lastPosition = position;
-               });
-               
-               // 添加最后一个工具调用后的内容
-               if (lastPosition < message.content.length) {
-                 const remainingContent = message.content.slice(lastPosition);
-                 if (remainingContent.trim()) {
-                   renderItems.push({
-                     type: 'content',
-                     content: remainingContent,
-                     timestamp: new Date(message.createdAt.getTime() + lastPosition + 1000) // 确保在工具调用之后
-                   });
-                 }
-               }
-               
-               // 如果没有工具调用但有内容，直接添加全部内容
-               if (renderItems.length === 0 && hasContent) {
-                 renderItems.push({
-                   type: 'content',
-                   content: message.content,
-                   timestamp: message.createdAt
-                 });
-               }
-              
-              // 按时间戳排序
-              renderItems.sort((a, b) => {
-                const timeA = new Date(a.timestamp).getTime();
-                const timeB = new Date(b.timestamp).getTime();
-                return timeA - timeB;
-              });
-              
-              return (
-                <div className="space-y-3">
-                  {renderItems.map((item, index) => {
-                    if (item.type === 'content') {
-                      return (
-                        <div key={`content-${index}`} className="prose prose-sm max-w-none">
-                          <MarkdownRenderer
-                            content={item.content}
-                            isStreaming={isCurrentlyStreaming && index === renderItems.length - 1}
-                          />
-                        </div>
-                      );
-                    } else {
-                      return (
-                        <div key={`tool-${item.toolCall.id}`}>
-                          <ToolCallRenderer
-                            toolCall={item.toolCall}
-                          />
-                        </div>
-                      );
-                    }
-                  })}
-                </div>
-              );
+              return null;
             })()}
           </div>
         )}

@@ -22,6 +22,8 @@ export interface Message {
   metadata?: {
     attachments?: Attachment[];
     toolCalls?: ToolCall[];
+    contentSegments?: ContentSegment[];
+    currentSegmentIndex?: number;
     model?: string;
     [key: string]: any;
   };
@@ -62,7 +64,13 @@ export interface ToolCall {
   result?: any;
   error?: string;
   createdAt: Date;
-  contentPositionBefore?: number; // 记录工具调用前的内容位置
+}
+
+// 内容分段接口
+export interface ContentSegment {
+  content: string | ToolCall;
+  type: 'text' | 'tool_call';
+  toolCallId?: string;
 }
 
 // 聊天配置
