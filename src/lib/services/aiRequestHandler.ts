@@ -229,40 +229,7 @@ class AiRequestHandler {
             // 最后把完整的消息添加到messages列表
             this.messages.push(message);
 
-            // 保存助手消息到数据库
-            try {
-                console.log('Final message content before saving:', message.content);
-                console.log('Final message content length:', message.content?.length || 0);
-
-                // 检查是否有内容需要保存
-                if (!message.content && (!message.tool_calls || message.tool_calls.length === 0)) {
-                    console.warn('No content or tool calls to save, skipping message save');
-                    return;
-                }
-
-                const messageData = {
-                    role: 'assistant',
-                    content: message.content || '',
-                    reasoning_content: message.reasoning_content || ''
-                };
-
-                // 只有在有工具调用时才添加相关字段
-                if (message.tool_calls && message.tool_calls.length > 0) {
-                    (messageData as any).tool_calls = message.tool_calls;
-                }
-                if (message.function_calls && message.function_calls.length > 0) {
-                    (messageData as any).function_calls = message.function_calls;
-                }
-
-                console.log('Saving assistant message:', messageData);
-                await conversationsApi.addMessage(this.conversationId, messageData);
-                console.log('Assistant message saved successfully');
-            } catch (saveError: any) {
-            console.error('Failed to save assistant message:', saveError);
-                console.error('Save error details:', saveError.response?.data);
-            }
-
-            // AI响应处理完成，消息已保存
+            // AI响应处理完成，消息将由store的onComplete回调保存
 
         } catch (error) {
             console.error('Stream processing error:', error);

@@ -15,13 +15,14 @@ export interface Session {
 export interface Message {
   id: string;
   sessionId: string;
-  role: 'user' | 'assistant' | 'system';
+  role: 'user' | 'assistant' | 'system' | 'tool';
   content: string;
   rawContent?: string;
   tokensUsed?: number;
   status: 'pending' | 'streaming' | 'completed' | 'error';
   createdAt: Date;
   updatedAt?: Date;
+  toolCallId?: string;
   metadata?: {
     attachments?: any[];
     toolCalls?: any[];

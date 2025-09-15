@@ -1,4 +1,6 @@
 // API客户端，用于与后端服务器通信
+// 移除messageManager导入，避免重复保存
+
 const API_BASE_URL = 'http://localhost:3001/api';
 
 // HTTP请求工具函数

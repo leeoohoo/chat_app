@@ -4,6 +4,7 @@ import { conversationsApi } from '../api';
 import http from '../utils/http';
 import AiClient from "./aiClient";
 import McpToolsExecute from "./mcpToolExecute";
+import { messageManager } from './messageManager';
 import type { Message, AiModelConfig } from '../../types';
 
 type CallbackType = 'chunk' | 'tool_call' | 'tool_result' | 'tool_stream_chunk' | 'conversation_complete' | 'error' | 'complete';
@@ -269,11 +270,14 @@ class AiServer {
      */
     async addMessage(message: string, role: string = 'user'): Promise<any> {
         try {
-            const response = await conversationsApi.addMessage(this.conversationId, {
+            // 使用统一的消息管理器保存消息
+            const savedMessage = await messageManager.saveMessage({
                 content: message,
-                role
-            });
-            return response.data;
+                role,
+                sessionId: this.conversationId,
+                createdAt: new Date()
+            } as Message);
+            return { message: savedMessage };
         } catch (error: any) {
             console.error('addMessage failed:', error);
             throw error;

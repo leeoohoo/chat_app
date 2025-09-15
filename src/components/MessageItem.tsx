@@ -11,6 +11,7 @@ interface MessageItemProps {
   isStreaming?: boolean;
   onEdit?: (messageId: string, content: string) => void;
   onDelete?: (messageId: string) => void;
+  allMessages?: Message[]; // 添加所有消息的引用
   customRenderer?: {
     renderMessage?: (message: Message) => React.ReactNode;
     renderAttachment?: (attachment: Attachment) => React.ReactNode;
@@ -23,6 +24,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   isStreaming = false,
   onEdit,
   onDelete,
+  allMessages = [],
   customRenderer,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
@@ -32,6 +34,12 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   const isUser = message.role === 'user';
   const isAssistant = message.role === 'assistant';
   const isSystem = message.role === 'system';
+  const isTool = message.role === 'tool';
+
+  // 隐藏tool角色的消息，因为它们应该作为工具调用的结果显示
+  if (isTool) {
+    return null;
+  }
 
   // 使用自定义渲染器
   if (customRenderer?.renderMessage) {
@@ -59,7 +67,24 @@ export const MessageItem: React.FC<MessageItemProps> = ({
   };
 
   const attachments = message.metadata?.attachments || [];
-  const toolCalls = message.metadata?.toolCalls || [];
+  // 处理工具调用：优先使用metadata中的toolCalls，如果没有则从message.tool_calls转换
+  let toolCalls = message.metadata?.toolCalls || [];
+  
+  // 如果metadata中没有toolCalls但message中有toolCalls或tool_calls，则转换格式
+  if (toolCalls.length === 0 && ((message as any).toolCalls || (message as any).tool_calls)) {
+    const rawToolCalls = (message as any).toolCalls || (message as any).tool_calls;
+    // 确保rawToolCalls是数组类型
+    if (Array.isArray(rawToolCalls)) {
+      toolCalls = rawToolCalls.map((tc: any) => ({
+        id: tc.id,
+        messageId: message.id,
+        name: tc.function?.name || tc.name,
+        arguments: tc.function?.arguments || tc.arguments,
+        result: '', // 历史消息的结果会从tool角色消息中获取
+        createdAt: message.createdAt
+      }));
+    }
+  }
 
   return (
     <div
@@ -68,6 +93,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
         isUser && 'bg-user-message ml-12',
         isAssistant && 'bg-assistant-message mr-12',
         isSystem && 'bg-muted mx-12 border-l-4 border-primary',
+        isTool && 'bg-blue-50 dark:bg-blue-950/20 mx-12 border-l-4 border-blue-500',
         'hover:bg-opacity-80'
       )}
       onMouseEnter={() => setShowActions(true)}
@@ -79,9 +105,10 @@ export const MessageItem: React.FC<MessageItemProps> = ({
           'w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium',
           isUser && 'bg-primary text-primary-foreground',
           isAssistant && 'bg-secondary text-secondary-foreground',
-          isSystem && 'bg-muted text-muted-foreground'
+          isSystem && 'bg-muted text-muted-foreground',
+          isTool && 'bg-blue-500 text-white'
         )}>
-          {isUser ? 'U' : isAssistant ? 'AI' : 'S'}
+          {isUser ? 'U' : isAssistant ? 'AI' : isTool ? 'T' : 'S'}
         </div>
       </div>
 
@@ -90,7 +117,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
         {/* 消息头部 */}
         <div className="flex items-center gap-2 mb-1">
           <span className="text-sm font-medium">
-            {isUser ? 'You' : isAssistant ? 'Assistant' : 'System'}
+            {isUser ? 'You' : isAssistant ? 'Assistant' : isTool ? 'Tool Result' : 'System'}
           </span>
           <span className="text-xs text-muted-foreground">
             {formatTime(message.createdAt)}
@@ -170,6 +197,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                              <div key={`tool-${toolCall.id}`}>
                                <ToolCallRenderer
                                  toolCall={toolCall}
+                                 allMessages={allMessages}
                                />
                              </div>
                            );
@@ -182,18 +210,33 @@ export const MessageItem: React.FC<MessageItemProps> = ({
               }
               
               // 回退到传统渲染方式（向后兼容）
-              if (hasContent) {
-                return (
-                  <div className="prose prose-sm max-w-none">
-                    <MarkdownRenderer
-                      content={message.content}
-                      isStreaming={isCurrentlyStreaming}
-                    />
-                  </div>
-                );
-              }
-              
-              return null;
+              return (
+                <div className="space-y-3">
+                  {/* 渲染文本内容 */}
+                  {hasContent && (
+                    <div className="prose prose-sm max-w-none">
+                      <MarkdownRenderer
+                        content={message.content}
+                        isStreaming={isCurrentlyStreaming}
+                      />
+                    </div>
+                  )}
+                  
+                  {/* 渲染工具调用（历史消息兼容） */}
+                  {toolCalls.length > 0 && (
+                    <div className="space-y-2">
+                      {toolCalls.map((toolCall) => (
+                        <div key={`tool-${toolCall.id}`}>
+                          <ToolCallRenderer
+                            toolCall={toolCall}
+                            allMessages={allMessages}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
             })()}
           </div>
         )}

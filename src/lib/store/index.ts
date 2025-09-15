@@ -5,6 +5,7 @@ import {persist} from 'zustand/middleware';
 import type {Message, Session, ChatConfig, Theme, McpConfig, AiModelConfig, ContentSegment} from '../../types';
 import {databaseService} from '../database';
 import {apiClient} from '../api/client';
+import {messageManager} from '../services/messageManager';
 // import { generateId } from '../utils';
 
 // 聊天状态接口
@@ -157,14 +158,31 @@ export const useChatStore = create<ChatState & ChatActions>()
 
                 selectSession: async (sessionId: string) => {
                     try {
+                        console.log('🔍 selectSession 被调用，sessionId:', sessionId);
                         set((state) => {
                             state.isLoading = true;
                             state.error = null;
                         });
+                        console.log('✅ isLoading 已设置为 true');
 
                         const {conversationsApi} = await import('../api');
                         const sessionResponse = await conversationsApi.getDetails(sessionId);
                         const messagesResponse = await conversationsApi.getMessages(sessionId);
+                        console.log('✅ API 调用完成，获取到会话和消息数据');
+                        console.log('📊 原始消息数据结构:', messagesResponse);
+                        const messages = messagesResponse.data?.messages || [];
+                        console.log('📊 解析后的消息数组:', messages.length, '条消息');
+                        messages.forEach((msg: any, index: number) => {
+                            console.log(`📝 消息 ${index + 1}:`, {
+                                id: msg.id,
+                                role: msg.role,
+                                content: msg.content ? msg.content.substring(0, 100) + '...' : '(空内容)',
+                                metadata: msg.metadata,
+                                hasToolCalls: !!(msg.metadata && msg.metadata.toolCalls),
+                                toolCallsCount: msg.metadata?.toolCalls ? msg.metadata.toolCalls.length : 0,
+                                toolCallsPreview: msg.metadata?.toolCalls ? msg.metadata.toolCalls.map((tc: any) => tc.name || tc.type) : []
+                            });
+                        });
 
                         set((state) => {
                             state.currentSessionId = sessionId;
@@ -182,12 +200,21 @@ export const useChatStore = create<ChatState & ChatActions>()
                                 metadata: (conversation as any).metadata || null
                             };
                             // 转换消息格式并确保正确排序
-                            const messages = messagesResponse.data.messages.map((msg: any) => ({
-                                ...msg,
-                                createdAt: new Date(msg.created_at || msg.createdAt),
-                                updatedAt: msg.updated_at ? new Date(msg.updated_at) : undefined,
-                                status: msg.status || 'completed'
-                            }));
+                            const messages = messagesResponse.data.messages.map((msg: any, index: number) => {
+                                const processed = {
+                                    ...msg,
+                                    createdAt: new Date(msg.created_at || msg.createdAt),
+                                    updatedAt: msg.updated_at ? new Date(msg.updated_at) : undefined,
+                                    status: msg.status || 'completed'
+                                };
+                                console.log(`🔄 处理消息 ${index + 1} (${msg.id}):`, {
+                                    原始content: msg.content,
+                                    原始metadata: msg.metadata,
+                                    处理后content: processed.content,
+                                    处理后metadata: processed.metadata
+                                });
+                                return processed;
+                            });
 
                             // 按创建时间排序，确保最早的消息在前面，最新的在后面
                             state.messages = messages.sort((a: any, b: any) => {
@@ -195,9 +222,12 @@ export const useChatStore = create<ChatState & ChatActions>()
                                 const timeB = b.createdAt.getTime();
                                 return timeA - timeB;
                             });
+                            console.log('✅ 最终存储的messages数量:', messages.length);
                             state.isLoading = false;
                         });
+                        console.log('✅ selectSession 完成，currentSessionId 已设置为:', sessionId);
                     } catch (error) {
+                        console.error('❌ selectSession 失败:', error);
                         set((state) => {
                             state.error = error instanceof Error ? error.message : 'Failed to load session';
                             state.isLoading = false;
@@ -252,13 +282,37 @@ export const useChatStore = create<ChatState & ChatActions>()
                         const {conversationsApi} = await import('../api');
                         const messagesResponse = await conversationsApi.getMessages(sessionId);
 
+                        console.log('=== loadMessages Debug ===');
+                        console.log('Session ID:', sessionId);
+                        console.log('Raw messages from API:', messagesResponse.data.messages.length);
+                        
+                        messagesResponse.data.messages.forEach((msg: any, index: number) => {
+                            console.log(`Message ${index + 1}:`, {
+                                id: msg.id,
+                                role: msg.role,
+                                content: msg.content ? msg.content.substring(0, 100) + '...' : '[EMPTY]',
+                                hasToolCalls: !!(msg.toolCalls || msg.metadata?.toolCalls),
+                                tool_calls: msg.tool_calls ? 'YES' : 'NO'
+                            });
+                        });
+
                         set((state) => {
                             // 转换消息格式并确保正确排序
-                            const messages = messagesResponse.data.messages.map((msg: any) => ({
-                                ...msg,
-                                createdAt: new Date(msg.created_at || msg.createdAt),
-                                status: msg.status || 'completed'
-                            }));
+                            const messages = messagesResponse.data.messages.map((msg: any) => {
+                                // 构建metadata对象，确保工具调用正确映射
+                                const metadata = {
+                                    ...msg.metadata,
+                                    // 将服务器返回的toolCalls字段映射到metadata.toolCalls
+                                    toolCalls: msg.toolCalls || msg.metadata?.toolCalls || [],
+                                };
+
+                                return {
+                                    ...msg,
+                                    createdAt: new Date(msg.created_at || msg.createdAt),
+                                    status: msg.status || 'completed',
+                                    metadata
+                                };
+                            });
 
                             // 按创建时间排序，确保最早的消息在前面，最新的在后面
                             state.messages = messages.sort((a: any, b: any) => {
@@ -266,8 +320,20 @@ export const useChatStore = create<ChatState & ChatActions>()
                                 const timeB = b.createdAt.getTime();
                                 return timeA - timeB;
                             });
+                            
+                            console.log('Final processed messages:', state.messages.length);
+                            state.messages.forEach((msg: any, index: number) => {
+                                console.log(`Processed ${index + 1}:`, {
+                                    id: msg.id,
+                                    role: msg.role,
+                                    content: msg.content ? msg.content.substring(0, 50) + '...' : '[EMPTY]',
+                                    hasMetadataToolCalls: !!(msg.metadata?.toolCalls?.length),
+                                    toolCallsCount: msg.metadata?.toolCalls?.length || 0
+                                });
+                            });
                         });
                     } catch (error) {
+                        console.error('loadMessages error:', error);
                         set((state) => {
                             state.error = error instanceof Error ? error.message : 'Failed to load messages';
                         });
@@ -293,7 +359,7 @@ export const useChatStore = create<ChatState & ChatActions>()
                     try {
                         // 创建用户消息
                         const userMessageTime = new Date();
-                        const userMessage = await databaseService.createMessage({
+                        const userMessage = await messageManager.saveUserMessage({
                             sessionId: currentSessionId,
                             role: 'user',
                             content,
@@ -485,15 +551,48 @@ export const useChatStore = create<ChatState & ChatActions>()
                                 try {
                                     const tempMessage = get().messages.find(m => m.id === tempAssistantMessage.id);
                                     if (tempMessage) {
-                                        // 保存助手消息到数据库
-                                        const savedMessage = await databaseService.createMessage({
+                                        // 准备保存数据，包含工具调用信息
+                                        const messageData: any = {
                                             sessionId: currentSessionId,
                                             role: 'assistant',
                                             content: tempMessage.content,
                                             status: 'completed',
                                             createdAt: tempMessage.createdAt,
                                             metadata: tempMessage.metadata
-                                        });
+                                        };
+                                        
+                                        // 如果有工具调用，添加toolCalls字段
+                                        if (tempMessage.metadata?.toolCalls && tempMessage.metadata.toolCalls.length > 0) {
+                                            messageData.toolCalls = tempMessage.metadata.toolCalls.map((tc: any) => ({
+                                                id: tc.id,
+                                                function: {
+                                                    name: tc.name,
+                                                    arguments: typeof tc.arguments === 'string' ? tc.arguments : JSON.stringify(tc.arguments)
+                                                }
+                                            }));
+                                        }
+                                        
+                                        // 保存助手消息到数据库
+                                        const savedMessage = await messageManager.saveAssistantMessage(messageData);
+                                        
+                                        // 如果有工具调用结果，保存tool角色消息
+                                        if (tempMessage.metadata?.toolCalls && tempMessage.metadata.toolCalls.length > 0) {
+                                            for (const toolCall of tempMessage.metadata.toolCalls) {
+                                                if (toolCall.result) {
+                                                    await messageManager.saveToolMessage({
+                                                        sessionId: currentSessionId,
+                                                        role: 'tool',
+                                                        content: toolCall.result,
+                                                        status: 'completed',
+                                                        createdAt: new Date(tempMessage.createdAt.getTime() + 1),
+                                                        metadata: {
+                                                            toolCallId: toolCall.id,
+                                                            toolName: toolCall.name,
+                                                        },
+                                                    });
+                                                }
+                                            }
+                                        }
                                         
                                         // 更新状态，用真实消息替换临时消息
                                         set((state) => {
@@ -505,6 +604,11 @@ export const useChatStore = create<ChatState & ChatActions>()
                                             state.isStreaming = false;
                                             state.streamingMessageId = null;
                                         });
+                                        
+                                        // 重新选择当前会话以确保工具调用正确显示
+                                        if (currentSessionId) {
+                                            await get().selectSession(currentSessionId);
+                                        }
                                     }
                                 } catch (error) {
                                     console.error('Failed to save assistant message:', error);
@@ -539,7 +643,19 @@ export const useChatStore = create<ChatState & ChatActions>()
 
                 updateMessage: async (messageId: string, updates: Partial<Message>) => {
                     try {
-                        await databaseService.updateMessage(messageId, updates);
+                        // 过滤掉数据库不支持的字段，特别是'tool'角色
+                        const dbUpdates = {
+                            ...updates,
+                            // 如果role是'tool'，则不更新role字段
+                            ...(updates.role === 'tool' ? { role: undefined } : {})
+                        };
+                        
+                        // 移除undefined的role字段
+                        if (dbUpdates.role === undefined) {
+                            delete (dbUpdates as any).role;
+                        }
+                        
+                        await databaseService.updateMessage(messageId, dbUpdates as any);
 
                         set((state) => {
                             const messageIndex = state.messages.findIndex(m => m.id === messageId);

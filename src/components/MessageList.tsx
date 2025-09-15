@@ -43,6 +43,7 @@ export const MessageList: React.FC<MessageListProps> = ({
             isStreaming={isStreaming && index === messages.length - 1}
             onEdit={onMessageEdit}
             onDelete={onMessageDelete}
+            allMessages={messages}
             customRenderer={customRenderer}
           />
         ))}

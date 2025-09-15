@@ -159,12 +159,11 @@ class AiClient {
                     return;
                 }
 
-                // 保存工具调用结果
+                // 保存工具调用结果到消息列表（数据库保存由store的onComplete回调处理）
                 for (const result of executeResult) {
                     // 处理工具调用结果的内容，提取实际文本而不是JSON格式
                     const processedResult = this.processToolResult(result);
-                    await conversationsApi.addMessage(this.conversationId, processedResult);
-                    this.messages.push(processedResult); // 修复: 使用 push 添加消息
+                    this.messages.push(processedResult); // 只添加到消息列表，不重复保存到数据库
                 }
 
                 // 通过callback通知展示层工具执行结果

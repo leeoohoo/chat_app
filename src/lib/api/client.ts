@@ -65,6 +65,7 @@ class ApiClient {
     role: string;
     content: string;
     metadata?: any;
+    toolCalls?: any[];
     createdAt?: Date;
     status?: string;
   }): Promise<any> {

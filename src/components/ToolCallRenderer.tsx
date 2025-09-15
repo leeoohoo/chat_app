@@ -1,22 +1,33 @@
 import React, { useState } from 'react';
 import { cn } from '../lib/utils';
-import type { ToolCall } from '../types';
+import type { ToolCall, Message } from '../types';
 
 interface ToolCallRendererProps {
   toolCall: ToolCall;
+  allMessages?: Message[];
   className?: string;
 }
 
 export const ToolCallRenderer: React.FC<ToolCallRendererProps> = ({
   toolCall,
+  allMessages = [],
   className,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showArguments, setShowArguments] = useState(false);
   const [showResult, setShowResult] = useState(false);
 
+  // 查找对应的tool角色消息作为结果
+  const toolResultMessage = allMessages.find(msg => 
+    msg.role === 'tool' && 
+    ((msg as any).toolCallId === toolCall.id || (msg as any).tool_call_id === toolCall.id)
+  );
+  
+  // 优先使用tool消息的内容，其次使用toolCall.result
+  const resultContent = toolResultMessage?.content || toolCall.result;
+  
   const hasError = !!toolCall.error;
-  const hasResult = !!toolCall.result;
+  const hasResult = !!resultContent;
   const hasArguments = toolCall.arguments && Object.keys(toolCall.arguments).length > 0;
 
   const formatJson = (obj: any) => {
@@ -130,7 +141,7 @@ export const ToolCallRenderer: React.FC<ToolCallRendererProps> = ({
               
               {showResult && (
                 <pre className="mt-2 p-2 bg-background border rounded text-xs overflow-x-auto">
-                  <code>{formatJson(toolCall.result)}</code>
+                  <code>{resultContent}</code>
                 </pre>
               )}
             </div>

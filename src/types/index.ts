@@ -1,7 +1,7 @@
 import { ReactNode } from 'react';
 
 // 基础消息类型
-export type MessageRole = 'user' | 'assistant' | 'system';
+export type MessageRole = 'user' | 'assistant' | 'system' | 'tool';
 export type MessageStatus = 'pending' | 'streaming' | 'completed' | 'error';
 export type AttachmentType = 'image' | 'file' | 'audio';
 
