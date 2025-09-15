@@ -1,0 +1,182 @@
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+@import 'katex/dist/katex.min.css';
+@import 'highlight.js/styles/github.css';
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222.2 84% 4.9%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222.2 84% 4.9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 84% 4.9%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 94.1%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* AI Chat specific styles */
+.ai-chat-container {
+  @apply flex flex-col h-full bg-background;
+}
+
+.ai-chat-header {
+  @apply flex items-center justify-between p-4 border-b border-border bg-card;
+}
+
+.ai-chat-messages {
+  @apply flex-1 overflow-y-auto p-4 space-y-4;
+}
+
+.ai-chat-input {
+  @apply border-t border-border bg-card p-4;
+}
+
+/* Message styles */
+.message-user {
+  @apply bg-user-message text-user-message-foreground p-4 rounded-lg;
+}
+
+.message-assistant {
+  @apply bg-assistant-message text-assistant-message-foreground;
+}
+
+.message-avatar {
+  @apply w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold;
+}
+
+.message-avatar-user {
+  @apply bg-primary text-primary-foreground;
+}
+
+.message-avatar-assistant {
+  @apply bg-secondary text-secondary-foreground;
+}
+
+/* Typing indicator */
+.typing-indicator {
+  @apply flex space-x-1;
+}
+
+.typing-dot {
+  @apply w-2 h-2 bg-muted-foreground rounded-full animate-typing;
+}
+
+.typing-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+/* Code highlighting */
+.hljs {
+  @apply bg-muted text-muted-foreground p-4 rounded-lg overflow-x-auto;
+}
+
+/* Markdown styles */
+.markdown-content {
+  @apply prose prose-sm max-w-none;
+}
+
+.markdown-content pre {
+  @apply bg-muted p-4 rounded-lg overflow-x-auto;
+}
+
+.markdown-content code {
+  @apply bg-muted px-1 py-0.5 rounded text-sm;
+}
+
+.markdown-content blockquote {
+  @apply border-l-4 border-border pl-4 italic;
+}
+
+/* Session dropdown */
+.session-dropdown {
+  @apply absolute top-full left-0 mt-2 w-80 bg-popover border border-border rounded-lg shadow-lg z-50;
+}
+
+.session-item {
+  @apply p-3 hover:bg-accent hover:text-accent-foreground cursor-pointer border-b border-border last:border-b-0;
+}
+
+.session-item-active {
+  @apply bg-primary text-primary-foreground;
+}
+
+/* Scrollbar styles */
+.custom-scrollbar::-webkit-scrollbar {
+  @apply w-2;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  @apply bg-muted;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  @apply bg-muted-foreground rounded-full;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  @apply bg-foreground;
+}
+
+/* Animation utilities */
+.fade-in {
+  @apply animate-fade-in;
+}
+
+.slide-up {
+  @apply animate-slide-up;
+}
+
+.slide-down {
+  @apply animate-slide-down;
+}
