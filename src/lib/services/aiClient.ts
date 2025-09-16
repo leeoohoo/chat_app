@@ -1,5 +1,7 @@
 import AiRequestHandler from './aiRequestHandler';
 import { conversationsApi } from '../api/index';
+import { ToolResultProcessor } from './toolResultProcessor';
+import { messageManager } from './messageManager';
 import type { Message, ToolCall, AiModelConfig } from '../../types';
 
 interface McpToolExecute {
@@ -8,7 +10,7 @@ interface McpToolExecute {
     toolSupportsStreaming(toolName: string): boolean;
 }
 
-type CallbackType = 'chunk' | 'tool_call' | 'error' | 'complete' | 'tool_stream_chunk' | 'tool_result' | 'conversation_complete';
+type CallbackType = 'chunk' | 'tool_call' | 'error' | 'complete' | 'tool_stream_chunk' | 'tool_result' | 'conversation_complete' | 'summary_chunk';
 
 interface CallbackData {
     type?: string;
@@ -27,6 +29,7 @@ class AiClient {
     private payLoad: any;
     private isAborted: boolean;
     private currentAiRequestHandler: AiRequestHandler | null;
+    private toolResultProcessor: ToolResultProcessor;
 
     constructor(messages: Message[], conversationId: string, tools: any[], modelConfig: AiModelConfig, callBack: (type: CallbackType, data?: any) => void, mcpToolExecute: McpToolExecute | null) {
         this.messages = messages;
@@ -39,6 +42,8 @@ class AiClient {
         // 添加中止控制
         this.isAborted = false;
         this.currentAiRequestHandler = null;
+        // 初始化工具结果处理器
+        this.toolResultProcessor = new ToolResultProcessor(messageManager, this.modelConfig, this.conversationId, this.callBack);
     }
 
 
@@ -104,7 +109,7 @@ class AiClient {
                                 // onChunk: 接收流式数据
                                 (chunk) => {
                                     if (this.isAborted) return;
-                                    
+                                    console.log("chunk", chunk)
                                     // 处理chunk数据，提取实际文本内容
                                     const processedChunk = this.processChunk(chunk);
                                     toolResult.content += processedChunk;
@@ -158,13 +163,12 @@ class AiClient {
                     console.log('AiClient: Aborted after tool execution');
                     return;
                 }
-
-                // 保存工具调用结果到消息列表（数据库保存由store的onComplete回调处理）
-                for (const result of executeResult) {
-                    // 处理工具调用结果的内容，提取实际文本而不是JSON格式
-                    const processedResult = this.processToolResult(result);
-                    this.messages.push(processedResult); // 只添加到消息列表，不重复保存到数据库
-                }
+                debugger
+                // 使用简化的工具结果处理器
+                const toolMessage = await this.toolResultProcessor.processToolResult(executeResult, this.conversationId);
+                
+                // 将处理后的结果添加到消息列表（已经是总结版本或原版本）
+                this.messages.push(toolMessage);
 
                 // 通过callback通知展示层工具执行结果
                 this.callBack("tool_result", executeResult);
@@ -184,6 +188,7 @@ class AiClient {
                     return;
                 }
                 
+                // 继续递归调用
                 await this.handleToolCallRecursively(maxRounds, currentRound + 1);
             } else {
                 // 没有工具调用，对话完成
@@ -308,29 +313,64 @@ class AiClient {
      * @param {Object} result - 工具调用结果
      * @returns {Object} 处理后的结果
      */
-    processToolResult(result: any): any {
-        // 对于流式工具调用，内容已经在chunk级别处理过了，直接返回
-        // 对于非流式工具调用，内容可能仍然是JSON格式，需要处理
-        if (!result || !result.content) {
-            return result;
-        }
 
-        let processedContent = result.content;
-        
-        // 检查是否是JSON格式的工具调用结果
-        if (typeof processedContent === 'string' && processedContent.trim().startsWith('{')) {
-            try {
-                const parsed = JSON.parse(processedContent);
-                // 如果是标准的工具调用结果格式，保持原样
-                if (parsed.error || parsed.result !== undefined) {
-                    return result;
+
+
+
+
+
+    /**
+     * 生成内容总结
+     * @param {string} content - 需要总结的内容
+     * @returns {Promise<string|null>} 总结内容
+     */
+    private async generateContentSummary(content: string): Promise<string | null> {
+        try {
+            // 创建总结请求的消息
+            const summaryMessages: Message[] = [
+                {
+                    id: Date.now().toString() + '_system',
+                    sessionId: this.conversationId,
+                    role: 'system',
+                    content: '请帮我总结一下这个内容，对其内容进行精简，将主要信息提取出来。请用简洁明了的语言概括核心要点。',
+                    rawContent: '请帮我总结一下这个内容，对其内容进行精简，将主要信息提取出来。请用简洁明了的语言概括核心要点。',
+                    status: 'completed',
+                    createdAt: new Date()
+                },
+                {
+                    id: Date.now().toString() + '_user',
+                    sessionId: this.conversationId,
+                    role: 'user', 
+                    content: `请帮我对以下内容进行总结：\n\n${content}`,
+                    rawContent: `请帮我对以下内容进行总结：\n\n${content}`,
+                    status: 'completed',
+                    createdAt: new Date()
                 }
-            } catch {
-                // 不是有效JSON，保持原样
-            }
-        }
+            ];
 
-        return result;
+            let summaryContent = '';
+            
+            // 创建AI请求处理器
+            const aiRequestHandler = new AiRequestHandler(
+                summaryMessages,
+                [], // 空工具列表
+                this.conversationId,
+                (type: string, data: any) => {
+                    if (type === 'chunk' && data?.content) {
+                        summaryContent += data.content;
+                    }
+                },
+                this.modelConfig
+            );
+
+            // 发送总结请求
+            await aiRequestHandler.chatCompletion();
+
+            return summaryContent.trim() || null;
+        } catch (error) {
+            console.error('[AI Summary] 生成总结时发生错误:', error);
+            return null;
+        }
     }
 }
 export default AiClient;

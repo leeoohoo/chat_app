@@ -26,6 +26,9 @@ export const ToolCallRenderer: React.FC<ToolCallRendererProps> = ({
   // 优先使用tool消息的内容，其次使用toolCall.result
   const resultContent = toolResultMessage?.content || toolCall.result;
   
+  // 获取AI生成的总结
+  const resultSummary = toolResultMessage?.summary || toolResultMessage?.metadata?.summary;
+  
   const hasError = !!toolCall.error;
   const hasResult = !!resultContent;
   const hasArguments = toolCall.arguments && Object.keys(toolCall.arguments).length > 0;
@@ -124,25 +127,60 @@ export const ToolCallRenderer: React.FC<ToolCallRendererProps> = ({
           {/* 结果 */}
           {hasResult && (
             <div>
-              <button
-                onClick={() => setShowResult(!showResult)}
-                className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <svg 
-                  className={cn('w-3 h-3 transition-transform', showResult && 'rotate-90')} 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-                Result
-              </button>
-              
-              {showResult && (
-                <pre className="mt-2 p-2 bg-background border rounded text-xs overflow-x-auto">
-                  <code>{resultContent}</code>
-                </pre>
+              {/* 如果有AI总结，优先显示总结 */}
+              {resultSummary ? (
+                <div className="space-y-2">
+                  <div className="text-sm font-medium text-muted-foreground">AI Summary</div>
+                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
+                    {resultSummary}
+                  </div>
+                  
+                  {/* 查看完整结果的按钮 */}
+                  <button
+                    onClick={() => setShowResult(!showResult)}
+                    className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <svg 
+                      className={cn('w-3 h-3 transition-transform', showResult && 'rotate-90')} 
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    {showResult ? 'Hide Full Result' : 'Show Full Result'}
+                  </button>
+                  
+                  {showResult && (
+                    <pre className="mt-2 p-2 bg-background border rounded text-xs overflow-x-auto">
+                      <code>{resultContent}</code>
+                    </pre>
+                  )}
+                </div>
+              ) : (
+                /* 没有总结时的原始显示方式 */
+                <div>
+                  <button
+                    onClick={() => setShowResult(!showResult)}
+                    className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <svg 
+                      className={cn('w-3 h-3 transition-transform', showResult && 'rotate-90')} 
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    Result
+                  </button>
+                  
+                  {showResult && (
+                    <pre className="mt-2 p-2 bg-background border rounded text-xs overflow-x-auto">
+                      <code>{resultContent}</code>
+                    </pre>
+                  )}
+                </div>
               )}
             </div>
           )}

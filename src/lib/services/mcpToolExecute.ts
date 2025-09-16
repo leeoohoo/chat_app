@@ -388,6 +388,7 @@ class McpToolExecute {
                     return false;
 
                 case 'data':
+                    console.log('Stream data:', data);
                     if (data.chunk) {
                         onChunk(data.chunk);
                     }

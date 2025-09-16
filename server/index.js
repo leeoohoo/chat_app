@@ -41,6 +41,7 @@ async function initDatabase() {
         session_id TEXT NOT NULL,
         role TEXT NOT NULL,
         content TEXT NOT NULL,
+        summary TEXT, -- AI generated content summary
         tool_calls TEXT, -- JSON array of tool calls
         tool_call_id TEXT, -- For tool responses
         reasoning TEXT, -- AI reasoning process
@@ -195,7 +196,7 @@ app.get('/api/sessions/:id/messages', async (req, res) => {
 // 创建消息
 app.post('/api/messages', async (req, res) => {
   try {
-    const { id, sessionId, role, content, toolCalls, toolCallId, reasoning, metadata, createdAt } = req.body;
+    const { id, sessionId, role, content, summary, toolCalls, toolCallId, reasoning, metadata, createdAt } = req.body;
     
     // 为可选字段提供默认值
     const toolCallsJson = toolCalls ? JSON.stringify(toolCalls) : null;
@@ -203,8 +204,8 @@ app.post('/api/messages', async (req, res) => {
     const messageCreatedAt = createdAt || new Date().toISOString();
     
     await db.run(
-      'INSERT INTO messages (id, session_id, role, content, tool_calls, tool_call_id, reasoning, metadata, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [id, sessionId, role, content, toolCallsJson, toolCallId || null, reasoning || null, metadataJson, messageCreatedAt]
+      'INSERT INTO messages (id, session_id, role, content, summary, tool_calls, tool_call_id, reasoning, metadata, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, sessionId, role, content, summary || null, toolCallsJson, toolCallId || null, reasoning || null, metadataJson, messageCreatedAt]
     );
     
     // 更新会话的 updated_at

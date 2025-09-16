@@ -575,24 +575,8 @@ export const useChatStore = create<ChatState & ChatActions>()
                                         // 保存助手消息到数据库
                                         const savedMessage = await messageManager.saveAssistantMessage(messageData);
                                         
-                                        // 如果有工具调用结果，保存tool角色消息
-                                        if (tempMessage.metadata?.toolCalls && tempMessage.metadata.toolCalls.length > 0) {
-                                            for (const toolCall of tempMessage.metadata.toolCalls) {
-                                                if (toolCall.result) {
-                                                    await messageManager.saveToolMessage({
-                                                        sessionId: currentSessionId,
-                                                        role: 'tool',
-                                                        content: toolCall.result,
-                                                        status: 'completed',
-                                                        createdAt: new Date(tempMessage.createdAt.getTime() + 1),
-                                                        metadata: {
-                                                            toolCallId: toolCall.id,
-                                                            toolName: toolCall.name,
-                                                        },
-                                                    });
-                                                }
-                                            }
-                                        }
+                                        // 工具调用结果的保存由toolResultProcessor统一处理，避免重复保存
+                                        // 这里只保存assistant消息，tool消息由ToolResultProcessor处理
                                         
                                         // 更新状态，用真实消息替换临时消息
                                         set((state) => {

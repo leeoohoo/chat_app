@@ -15,6 +15,7 @@ export interface Message {
   role: MessageRole;
   content: string;
   rawContent?: string;
+  summary?: string; // AI生成的内容总结
   tokensUsed?: number;
   status: MessageStatus;
   createdAt: Date;
@@ -25,6 +26,7 @@ export interface Message {
     contentSegments?: ContentSegment[];
     currentSegmentIndex?: number;
     model?: string;
+    summary?: string; // AI生成的内容总结（也可以存储在这里）
     [key: string]: any;
   };
 }

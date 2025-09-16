@@ -22,6 +22,7 @@ export const messages = sqliteTable('messages', {
   role: text('role', { enum: ['user', 'assistant', 'system'] }).notNull(),
   content: text('content').notNull(),
   rawContent: text('raw_content'), // 原始内容（用于编辑）
+  summary: text('summary'), // AI生成的内容总结
   tokensUsed: integer('tokens_used'),
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }),
