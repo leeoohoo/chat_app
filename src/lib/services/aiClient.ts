@@ -163,10 +163,9 @@ class AiClient {
                     console.log('AiClient: Aborted after tool execution');
                     return;
                 }
-                debugger
                 // 使用简化的工具结果处理器
-                const toolMessage = await this.toolResultProcessor.processToolResult(executeResult, this.conversationId);
-                
+                const toolMessage = await this.toolResultProcessor.processToolResult(executeResult[0], this.conversationId);
+                debugger
                 // 将处理后的结果添加到消息列表（已经是总结版本或原版本）
                 this.messages.push(toolMessage);
 

@@ -140,6 +140,15 @@ export class ChatService {
                 accumulated: chunkContent
               });
               break;
+            case 'summary_chunk':
+              const summaryChunkContent = typeof data === 'string' ? data : 
+                                 (data.content || data.accumulated || '');
+              callbacks.onChunk?.({
+                type: 'text',
+                content: summaryChunkContent,
+                accumulated: summaryChunkContent
+              });
+              break
             case 'tool_call':
               callbacks.onToolCall?.(data);
               break;

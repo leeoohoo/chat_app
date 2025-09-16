@@ -242,8 +242,8 @@ class McpToolExecute {
      */
     async callMcpToolStream(serverUrl: string, toolName: string, arguments_: any, onChunk: (chunk: string) => void, onComplete: () => void, onError: (error: Error) => void): Promise<void> {
         try {
-            // 构建 SSE URL
-            const sseUrl = `${serverUrl}/sse/tool/call`;
+            // 构建 SSE URL - 使用OpenAI格式的端点
+            const sseUrl = `${serverUrl}/sse/openai/tool/call`;
 
             console.log('MCP Stream Tool Call URL:', sseUrl);
 
@@ -349,14 +349,24 @@ class McpToolExecute {
 
             if (line === '') {
                 // 空行表示事件结束
-                if ((currentEvent as any).event && (currentEvent as any).data) {
+                if ((currentEvent as any).data) {
+                    // 对于OpenAI格式，可能没有event字段，只有data字段
+                    if (!(currentEvent as any).event) {
+                        (currentEvent as any).event = 'data'; // 默认为data事件
+                    }
                     events.push(currentEvent);
                 }
                 currentEvent = {};
             } else if (line.startsWith('event:')) {
                 (currentEvent as any).event = line.substring(6).trim();
             } else if (line.startsWith('data:')) {
-                (currentEvent as any).data = line.substring(5).trim();
+                const dataContent = line.substring(5).trim();
+                if (dataContent === '[DONE]') {
+                    // OpenAI格式的结束标记
+                    events.push({ event: 'end', data: '{}' });
+                } else {
+                    (currentEvent as any).data = dataContent;
+                }
             }
 
             i++;
@@ -389,7 +399,22 @@ class McpToolExecute {
 
                 case 'data':
                     console.log('Stream data:', data);
-                    if (data.chunk) {
+                    // 检查是否是OpenAI格式的响应
+                    if (data.choices && data.choices.length > 0) {
+                        // OpenAI 格式
+                        const choice = data.choices[0];
+                        if (choice.delta) {
+                            const delta = choice.delta;
+                            if (delta.content && delta.content) {
+                                onChunk(delta.content);
+                            } else if (delta.function_call && delta.function_call.arguments) {
+                                // 处理函数调用
+                                onChunk(delta.function_call.arguments);
+                            }
+                        }
+                    }
+                    // 兼容旧格式：查找 chunk 字段
+                    else if (data.chunk) {
                         onChunk(data.chunk);
                     }
                     return false;

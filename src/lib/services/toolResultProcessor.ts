@@ -31,6 +31,7 @@ export class ToolResultProcessor {
     async processToolResult(executeResult: any, sessionId: string): Promise<any> {
         // 直接使用累积的工具结果，executeResult 就是单个工具消息对象
         const result = executeResult;
+        debugger
         
         // 检查是否需要生成总结
         const contentLength = (result.content || '').length;
@@ -120,7 +121,7 @@ export class ToolResultProcessor {
                      if (type === 'chunk' && data?.content) {
                          summaryContent += data.content;
                          // 流式展示总结生成过程
-                         this.callback('summary_chunk', {
+                         this.callback('chunk', {
                              content: data.content,
                              accumulated: summaryContent
                          });
