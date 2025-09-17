@@ -1,5 +1,6 @@
 // API客户端，用于连接后端服务
-const API_BASE_URL = 'http://localhost:3001/api';
+// 使用相对路径，让浏览器自动处理协议和域名
+const API_BASE_URL = '/api';
 
 class ApiClient {
   private baseUrl: string;

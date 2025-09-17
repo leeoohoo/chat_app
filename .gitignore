@@ -3,3 +3,4 @@ data/chat.db
 /node_modules
 /release
 /.idea
+/examples/complete-example/node_modules
