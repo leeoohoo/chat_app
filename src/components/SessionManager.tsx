@@ -23,8 +23,8 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ children }) => {
   const sessions = useSessions();
   const currentSession = useCurrentSession();
   const sidebarOpen = useSidebarOpen();
-  const store = useChatStore();
-  const { loadSessions, toggleSidebar } = store;
+  const storeResult = useChatStore();
+  const { loadSessions, toggleSidebar } = storeResult;
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
@@ -61,7 +61,7 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ children }) => {
       {/* 桌面端侧边栏 */}
       {!isMobile && sidebarOpen && (
         <div className="w-80 flex-shrink-0">
-          <SessionList />
+          <SessionList store={useChatStore} />
         </div>
       )}
 
@@ -121,7 +121,7 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ children }) => {
                 </button>
               </div>
               <div className="h-96">
-                <SessionList onClose={handleCloseModal} />
+                <SessionList onClose={handleCloseModal} store={useChatStore} />
               </div>
             </div>
           </div>

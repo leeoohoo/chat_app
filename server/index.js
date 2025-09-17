@@ -32,6 +32,8 @@ async function initDatabase() {
       CREATE TABLE IF NOT EXISTS sessions (
         id TEXT PRIMARY KEY,
         title TEXT NOT NULL,
+        user_id TEXT,
+        project_id TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
@@ -56,6 +58,7 @@ async function initDatabase() {
         command TEXT NOT NULL,
         args TEXT,
         env TEXT,
+        user_id TEXT,
         enabled BOOLEAN DEFAULT true,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
@@ -67,6 +70,7 @@ async function initDatabase() {
         model TEXT NOT NULL,
         api_key TEXT,
         base_url TEXT,
+        user_id TEXT,
         enabled BOOLEAN DEFAULT true,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
@@ -89,6 +93,45 @@ async function initDatabase() {
       );
     `);
     
+    // 检查并添加新字段（如果不存在）
+    try {
+      // 为sessions表添加user_id字段
+      const sessionsTableInfo = await db.all("PRAGMA table_info(sessions)");
+      const hasUserId = sessionsTableInfo.some(column => column.name === 'user_id');
+      const hasProjectId = sessionsTableInfo.some(column => column.name === 'project_id');
+      
+      if (!hasUserId) {
+        await db.exec("ALTER TABLE sessions ADD COLUMN user_id TEXT");
+        console.log('已为sessions表添加user_id字段');
+      }
+      
+      if (!hasProjectId) {
+        await db.exec("ALTER TABLE sessions ADD COLUMN project_id TEXT");
+        console.log('已为sessions表添加project_id字段');
+      }
+      
+      // 为mcp_configs表添加user_id字段
+      const mcpTableInfo = await db.all("PRAGMA table_info(mcp_configs)");
+      const mcpHasUserId = mcpTableInfo.some(column => column.name === 'user_id');
+      
+      if (!mcpHasUserId) {
+        await db.exec("ALTER TABLE mcp_configs ADD COLUMN user_id TEXT");
+        console.log('已为mcp_configs表添加user_id字段');
+      }
+      
+      // 为ai_model_configs表添加user_id字段
+      const aiModelTableInfo = await db.all("PRAGMA table_info(ai_model_configs)");
+      const aiModelHasUserId = aiModelTableInfo.some(column => column.name === 'user_id');
+      
+      if (!aiModelHasUserId) {
+        await db.exec("ALTER TABLE ai_model_configs ADD COLUMN user_id TEXT");
+        console.log('已为ai_model_configs表添加user_id字段');
+      }
+    } catch (error) {
+      // 如果字段已存在，忽略错误
+      console.log('字段迁移处理:', error.message);
+    }
+    
     console.log('数据库初始化成功');
   } catch (error) {
     console.error('数据库初始化失败:', error);
@@ -100,15 +143,44 @@ async function initDatabase() {
 // 获取所有会话
 app.get('/api/sessions', async (req, res) => {
   try {
-    const sessions = await db.all('SELECT * FROM sessions ORDER BY updated_at DESC');
+    const { userId, projectId } = req.query;
+    console.log('🔍 GET /api/sessions 请求参数:', { userId, projectId });
+    
+    let query = 'SELECT * FROM sessions';
+    let params = [];
+    let conditions = [];
+    
+    if (userId) {
+      conditions.push('user_id = ?');
+      params.push(userId);
+    }
+    
+    if (projectId) {
+      conditions.push('project_id = ?');
+      params.push(projectId);
+    }
+    
+    if (conditions.length > 0) {
+      query += ' WHERE ' + conditions.join(' AND ');
+    }
+    
+    query += ' ORDER BY updated_at DESC';
+    
+    console.log('🔍 执行SQL查询:', query, '参数:', params);
+    const sessions = await db.all(query, params);
+    console.log('🔍 查询结果:', sessions.length, '条会话');
+    
     // 转换字段名：数据库使用下划线命名，前端使用驼峰命名
     const formattedSessions = sessions.map(session => ({
       ...session,
+      userId: session.user_id,
+      projectId: session.project_id,
       createdAt: session.created_at,
       updatedAt: session.updated_at
     }));
     res.json(formattedSessions);
   } catch (error) {
+    console.error('❌ GET /api/sessions 错误:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -116,14 +188,20 @@ app.get('/api/sessions', async (req, res) => {
 // 创建新会话
 app.post('/api/sessions', async (req, res) => {
   try {
-    const { id, title } = req.body;
+    const { id, title, userId, projectId } = req.body;
+    console.log('🔍 POST /api/sessions 请求数据:', { id, title, userId, projectId });
+    
     const result = await db.run(
-      'INSERT INTO sessions (id, title) VALUES (?, ?)',
-      [id, title]
+      'INSERT INTO sessions (id, user_id, project_id, title) VALUES (?, ?, ?, ?)',
+      [id, userId, projectId, title]
     );
+    console.log('🔍 插入结果:', result);
+    
     const session = await db.get('SELECT * FROM sessions WHERE id = ?', [id]);
+    console.log('🔍 创建的会话:', session);
     res.json(session);
   } catch (error) {
+    console.error('❌ POST /api/sessions 错误:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -138,6 +216,7 @@ app.get('/api/sessions/:id', async (req, res) => {
     // 转换字段名：数据库使用下划线命名，前端使用驼峰命名
     const formattedSession = {
       ...session,
+      userId: session.user_id,
       createdAt: session.created_at,
       updatedAt: session.updated_at
     };
@@ -225,7 +304,17 @@ app.post('/api/messages', async (req, res) => {
 // 获取 MCP 配置
 app.get('/api/mcp-configs', async (req, res) => {
   try {
-    const configs = await db.all('SELECT * FROM mcp_configs ORDER BY created_at DESC');
+    const { userId } = req.query;
+    let query = 'SELECT * FROM mcp_configs';
+    let params = [];
+    
+    if (userId) {
+      query += ' WHERE user_id = ?';
+      params.push(userId);
+    }
+    
+    query += ' ORDER BY created_at DESC';
+    const configs = await db.all(query, params);
     res.json(configs);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -235,10 +324,10 @@ app.get('/api/mcp-configs', async (req, res) => {
 // 创建 MCP 配置
 app.post('/api/mcp-configs', async (req, res) => {
   try {
-    const { id, name, command, args, env, enabled } = req.body;
+    const { id, name, command, args, env, userId, enabled } = req.body;
     await db.run(
-      'INSERT INTO mcp_configs (id, name, command, args, env, enabled) VALUES (?, ?, ?, ?, ?, ?)',
-      [id, name, command, JSON.stringify(args), JSON.stringify(env), enabled]
+      'INSERT INTO mcp_configs (id, name, command, args, env, user_id, enabled) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [id, name, command, JSON.stringify(args), JSON.stringify(env), userId, enabled]
     );
     const config = await db.get('SELECT * FROM mcp_configs WHERE id = ?', [id]);
     res.json(config);
@@ -250,10 +339,10 @@ app.post('/api/mcp-configs', async (req, res) => {
 // 更新 MCP 配置
 app.put('/api/mcp-configs/:id', async (req, res) => {
   try {
-    const { name, command, args, env, enabled } = req.body;
+    const { name, command, args, env, userId, enabled } = req.body;
     await db.run(
-      'UPDATE mcp_configs SET name = ?, command = ?, args = ?, env = ?, enabled = ? WHERE id = ?',
-      [name, command, JSON.stringify(args), JSON.stringify(env), enabled, req.params.id]
+      'UPDATE mcp_configs SET name = ?, command = ?, args = ?, env = ?, user_id = ?, enabled = ? WHERE id = ?',
+      [name, command, JSON.stringify(args), JSON.stringify(env), userId, enabled, req.params.id]
     );
     const config = await db.get('SELECT * FROM mcp_configs WHERE id = ?', [req.params.id]);
     res.json(config);
@@ -277,7 +366,18 @@ app.delete('/api/mcp-configs/:id', async (req, res) => {
 // 获取所有AI模型配置
 app.get('/api/ai-model-configs', async (req, res) => {
   try {
-    const configs = await db.all('SELECT * FROM ai_model_configs ORDER BY created_at DESC');
+    const { userId } = req.query;
+    let query = 'SELECT * FROM ai_model_configs';
+    let params = [];
+    
+    if (userId) {
+      query += ' WHERE user_id = ?';
+      params.push(userId);
+    }
+    
+    query += ' ORDER BY created_at DESC';
+    
+    const configs = await db.all(query, params);
     res.json(configs);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -287,10 +387,10 @@ app.get('/api/ai-model-configs', async (req, res) => {
 // 创建AI模型配置
 app.post('/api/ai-model-configs', async (req, res) => {
   try {
-    const { id, name, provider, model, apiKey, baseUrl, enabled = true } = req.body;
+    const { id, name, provider, model, apiKey, baseUrl, userId, enabled = true } = req.body;
     await db.run(
-      'INSERT INTO ai_model_configs (id, name, provider, model, api_key, base_url, enabled) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [id, name, provider, model, apiKey, baseUrl, enabled]
+      'INSERT INTO ai_model_configs (id, name, provider, model, api_key, base_url, user_id, enabled) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, name, provider, model, apiKey, baseUrl, userId, enabled]
     );
     res.json({ success: true });
   } catch (error) {
@@ -301,10 +401,10 @@ app.post('/api/ai-model-configs', async (req, res) => {
 // 更新AI模型配置
 app.put('/api/ai-model-configs/:id', async (req, res) => {
   try {
-    const { name, provider, model, apiKey, baseUrl, enabled } = req.body;
+    const { name, provider, model, apiKey, baseUrl, userId, enabled } = req.body;
     await db.run(
-      'UPDATE ai_model_configs SET name = ?, provider = ?, model = ?, api_key = ?, base_url = ?, enabled = ? WHERE id = ?',
-      [name, provider, model, apiKey, baseUrl, enabled, req.params.id]
+      'UPDATE ai_model_configs SET name = ?, provider = ?, model = ?, api_key = ?, base_url = ?, user_id = ?, enabled = ? WHERE id = ?',
+      [name, provider, model, apiKey, baseUrl, userId, enabled, req.params.id]
     );
     res.json({ success: true });
   } catch (error) {

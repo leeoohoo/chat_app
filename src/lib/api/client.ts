@@ -9,6 +9,10 @@ class ApiClient {
     this.baseUrl = baseUrl;
   }
 
+  getBaseUrl(): string {
+    return this.baseUrl;
+  }
+
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
     const config: RequestInit = {
@@ -34,11 +38,17 @@ class ApiClient {
   }
 
   // 会话相关API
-  async getSessions(): Promise<any[]> {
-    return this.request<any[]>('/sessions');
+  async getSessions(userId?: string, projectId?: string): Promise<any[]> {
+    const params = new URLSearchParams();
+    if (userId) params.append('userId', userId);
+    if (projectId) params.append('projectId', projectId);
+    const queryString = params.toString();
+    console.log('🔍 getSessions API调用:', { userId, projectId, queryString });
+    return this.request<any[]>(`/sessions${queryString ? `?${queryString}` : ''}`);
   }
 
-  async createSession(data: { id: string; title: string }): Promise<any> {
+  async createSession(data: { id: string; title: string; userId: string; projectId: string }): Promise<any> {
+    console.log('🔍 createSession API调用:', data);
     return this.request<any>('/sessions', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -81,8 +91,10 @@ class ApiClient {
   }
 
   // MCP配置相关API
-  async getMcpConfigs() {
-    return this.request('/mcp-configs');
+  async getMcpConfigs(userId?: string) {
+    const params = userId ? `?userId=${encodeURIComponent(userId)}` : '';
+    console.log('🔍 getMcpConfigs API调用:', { userId, params });
+    return this.request(`/mcp-configs${params}`);
   }
 
   async createMcpConfig(data: {
@@ -92,6 +104,7 @@ class ApiClient {
     args?: any;
     env?: any;
     enabled: boolean;
+    userId?: string;
   }) {
     return this.request('/mcp-configs', {
       method: 'POST',
@@ -108,6 +121,42 @@ class ApiClient {
 
   async deleteMcpConfig(id: string) {
     return this.request(`/mcp-configs/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // AI模型配置相关API
+  async getAiModelConfigs(userId?: string) {
+    const params = userId ? `?userId=${encodeURIComponent(userId)}` : '';
+    console.log('🔍 getAiModelConfigs API调用:', { userId, params });
+    return this.request(`/ai-model-configs${params}`);
+  }
+
+  async createAiModelConfig(data: {
+    id: string;
+    name: string;
+    provider: string;
+    model: string;
+    apiKey: string;
+    baseUrl: string;
+    userId?: string;
+    enabled: boolean;
+  }) {
+    return this.request('/ai-model-configs', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateAiModelConfig(id: string, data: any) {
+    return this.request(`/ai-model-configs/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteAiModelConfig(id: string) {
+    return this.request(`/ai-model-configs/${id}`, {
       method: 'DELETE',
     });
   }

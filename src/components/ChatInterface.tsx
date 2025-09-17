@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useChatStore } from '../lib/store';
+import { useChatStoreFromContext } from '../lib/store/ChatStoreContext';
 import { MessageList } from './MessageList';
 import { InputArea } from './InputArea';
 import { SessionList } from './SessionList';
@@ -29,7 +29,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     selectedModelId,
     setSelectedModel,
     loadAiModelConfigs,
-  } = useChatStore();
+  } = useChatStoreFromContext();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);

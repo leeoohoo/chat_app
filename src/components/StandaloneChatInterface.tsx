@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useChatStore } from '../lib/store';
+import { createChatStore } from '../lib/store/createChatStore';
 import { MessageList } from './MessageList';
 import { InputArea } from './InputArea';
 import { SessionList } from './SessionList';
@@ -8,18 +9,59 @@ import McpManager from './McpManager';
 import AiModelManager from './AiModelManager';
 import SystemContextEditor from './SystemContextEditor';
 import { cn } from '../lib/utils';
+import ApiClient from '../lib/api/client';
 
 export interface StandaloneChatInterfaceProps {
   className?: string;
+  apiBaseUrl?: string;
+  port?: number;
+  userId?: string;
+  projectId?: string;
 }
 
 /**
  * 完全独立的聊天界面组件
- * 不需要任何外部props，内部包含所有状态管理和逻辑
+ * 支持自定义API端口和基础URL
  */
 export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = ({
   className,
+  apiBaseUrl,
+  port,
+  userId,
+  projectId,
 }) => {
+  // 根据传入的port或apiBaseUrl创建自定义的API基础URL
+  const customApiBaseUrl = React.useMemo(() => {
+    if (apiBaseUrl) {
+      return apiBaseUrl;
+    }
+    if (port) {
+      return `http://localhost:${port}/api`;
+    }
+    return undefined;
+  }, [apiBaseUrl, port]);
+
+  // 创建自定义的ApiClient实例
+  const customApiClient = React.useMemo(() => {
+    if (customApiBaseUrl) {
+      return new ApiClient(customApiBaseUrl);
+    }
+    return undefined;
+  }, [customApiBaseUrl]);
+
+  // Create custom store if we have custom parameters or custom API client
+  const customStore = React.useMemo(() => {
+    if (customApiClient || userId || projectId) {
+      return createChatStore(customApiClient, {
+        userId,
+        projectId
+      });
+    }
+    return null;
+  }, [customApiClient, userId, projectId]);
+  // Use custom store if available, otherwise use default store
+  const store = customStore || useChatStore;
+  
   const {
     currentSession,
     messages,
@@ -33,7 +75,7 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
     selectedModelId,
     setSelectedModel,
     loadAiModelConfigs,
-  } = useChatStore();
+  } = store();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);
@@ -189,7 +231,7 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
               </button>
             </div>
             <div className="overflow-y-auto max-h-[60vh]">
-              <SessionList onClose={() => setIsSessionModalOpen(false)} />
+              <SessionList onClose={() => setIsSessionModalOpen(false)} store={store} />
             </div>
           </div>
         </div>

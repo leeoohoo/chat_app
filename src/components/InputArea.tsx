@@ -122,16 +122,14 @@ export const InputArea: React.FC<InputAreaProps> = ({
       {/* 模型选择器 */}
       {showModelSelector && (
         <div className="mb-3">
-          <label className="block text-sm font-medium text-foreground mb-2">
-            选择AI模型
-          </label>
+         
           {availableModels.length > 0 ? (
             <select
               value={selectedModelId || ''}
               onChange={(e) => onModelChange?.(e.target.value || null)}
               disabled={disabled}
               className={cn(
-                'w-full px-3 py-2 border border-input bg-background rounded-md',
+                'w-80 max-w-full px-3 py-2 border border-input bg-background rounded-md',
                 'text-sm text-foreground placeholder:text-muted-foreground',
                 'focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent',
                 'disabled:opacity-50 disabled:cursor-not-allowed'
@@ -148,7 +146,7 @@ export const InputArea: React.FC<InputAreaProps> = ({
               }
             </select>
           ) : (
-            <div className="w-full px-3 py-2 border border-input bg-muted rounded-md text-sm text-muted-foreground">
+            <div className="w-80 max-w-full px-3 py-2 border border-input bg-muted rounded-md text-sm text-muted-foreground">
               暂无可用模型，请先在右上角配置AI模型
             </div>
           )}

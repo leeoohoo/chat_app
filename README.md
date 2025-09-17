@@ -1,4 +1,4 @@
-# @ai-chat/react-component
+# @leeoohoo/aichat
 
 一个功能完整的React AI聊天组件，支持会话管理、MCP集成和SQLite持久化存储。
 
@@ -18,12 +18,34 @@
 ### 安装
 
 ```bash
-npm install @ai-chat/react-component
-# 或
-yarn add @ai-chat/react-component
-# 或
-pnpm add @ai-chat/react-component
+# 使用 npm 
+npm install @leeoohoo/aichat
+
+# 或使用 yarn 
+yarn add @leeoohoo/aichat
+
+# 或使用 pnpm 
+pnpm add @leeoohoo/aichat
 ```
+
+### 启动后端服务
+
+组件需要后端API服务支持，请先启动后端服务：
+
+```bash
+# 方式一：使用npm脚本启动
+npx @leeoohoo/aichat start:server
+
+# 方式二：直接运行服务器文件
+node node_modules/@leeoohoo/aichat/server/index.js
+```
+
+后端服务默认运行在 `http://localhost:3001`，提供以下API：
+- 会话管理 (`/api/sessions`)
+- 消息管理 (`/api/messages`) 
+- MCP配置 (`/api/mcp-configs`)
+- AI模型配置 (`/api/ai-model-configs`)
+- 系统上下文 (`/api/system-context`)
 
 ### 基础使用（推荐）
 
@@ -31,8 +53,8 @@ pnpm add @ai-chat/react-component
 
 ```tsx
 import React from 'react';
-import StandaloneChatInterface from '@ai-chat/react-component';
-import '@ai-chat/react-component/styles';
+import StandaloneChatInterface from '@leeoohoo/aichat';
+import '@leeoohoo/aichat/styles';
 
 function App() {
   return (
@@ -51,7 +73,7 @@ export default App;
 
 ```tsx
 import React from 'react';
-import { ChatInterface, type Message, type Attachment } from '@ai-chat/react-component';
+import { ChatInterface, type Message, type Attachment } from '@leeoohoo/aichat';
 
 function App() {
   const handleMessageSend = (content: string, attachments?: Attachment[]) => {
@@ -75,7 +97,7 @@ function App() {
 
 ```tsx
 import React from 'react';
-import { ChatInterface, type Message, type Attachment } from '@ai-chat/react-component';
+import { ChatInterface, type Message, type Attachment } from '@leeoohoo/aichat';
 
 function App() {
   const customRenderer = {
@@ -128,7 +150,7 @@ function App() {
 聊天状态管理Hook。
 
 ```tsx
-import { useChatStore } from '@ai-chat/react-component';
+import { useChatStore } from '@leeoohoo/aichat';
 
 function MyComponent() {
   const {
@@ -149,7 +171,7 @@ function MyComponent() {
 主题管理Hook。
 
 ```tsx
-import { useTheme } from '@ai-chat/react-component';
+import { useTheme } from '@leeoohoo/aichat';
 
 function MyComponent() {
   const { theme, setTheme, actualTheme } = useTheme();
@@ -180,7 +202,7 @@ VITE_API_BASE_URL=http://localhost:3001
 ### 数据库初始化
 
 ```tsx
-import { initDatabase } from '@ai-chat/react-component';
+import { initDatabase } from '@leeoohoo/aichat';
 
 // 在应用启动时初始化数据库
 initDatabase().then(() => {
@@ -239,7 +261,7 @@ import type {
   MessageListProps,
   InputAreaProps,
   SessionListProps,
-} from '@ai-chat/react-component';
+} from '@leeoohoo/aichat';
 ```
 
 ## 许可证

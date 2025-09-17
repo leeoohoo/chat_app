@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { useChatStore, useSessions, useCurrentSession } from '../lib/store';
+import { useChatStoreFromContext, useChatStoreContext } from '../lib/store/ChatStoreContext';
+import { useChatStore } from '../lib/store';
 import type { Session } from '../types';
 import { PlusIcon, DotsVerticalIcon, PencilIcon, TrashIcon, ChatIcon } from './ui/icons';
 
@@ -43,13 +44,25 @@ const formatTimeAgo = (date: string | Date | undefined | null) => {
 
 interface SessionListProps {
   onClose?: () => void;
+  store?: typeof useChatStore;
 }
 
-export const SessionList: React.FC<SessionListProps> = ({ onClose }) => {
-  const sessions = useSessions();
-  const currentSession = useCurrentSession();
-  const store = useChatStore();
-  const { createSession, selectSession, deleteSession, updateSession } = store;
+export const SessionList: React.FC<SessionListProps> = ({ onClose, store }) => {
+  // 尝试从Context获取store（如果可用）
+  let contextStore = null;
+  try {
+    contextStore = useChatStoreFromContext();
+  } catch (error) {
+    // 如果Context不可用，contextStore保持为null
+  }
+  
+  const storeToUse = store ? store() : contextStore;
+  
+  if (!storeToUse) {
+    throw new Error('SessionList must be used within a ChatStoreProvider or receive a store prop');
+  }
+  
+  const { sessions, currentSession, createSession, selectSession, deleteSession, updateSession } = storeToUse;
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
 

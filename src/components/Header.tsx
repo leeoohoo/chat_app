@@ -1,9 +1,9 @@
 import React from 'react';
-import { useChatStore } from '../lib/store';
+import { useChatStoreFromContext } from '../lib/store/ChatStoreContext';
 import { ThemeToggle } from './ThemeToggle';
 
 export const Header: React.FC = () => {
-  const { currentSession, toggleSidebar } = useChatStore();
+  const { currentSession, toggleSidebar } = useChatStoreFromContext();
 
   return (
     <header className="flex items-center justify-between p-4 border-b border-border bg-background">

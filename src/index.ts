@@ -1,6 +1,9 @@
 // 主要组件 - 独立聊天界面（推荐使用）
 export { default as StandaloneChatInterface } from './components/StandaloneChatInterface';
 
+// AiChat 类 - 支持实例化的聊天组件
+export { default as AiChat } from './lib/AiChat';
+
 // 其他组件（高级用法）
 export { ChatInterface } from './components/ChatInterface';
 export { MessageList } from './components/MessageList';
@@ -32,7 +35,7 @@ export * from './lib/api';
 // export { default as ChatService } from './lib/services';
 
 // 数据库导出（避免类型冲突）
-export { databaseService } from './lib/database';
+export { DatabaseService } from './lib/database';
 // export { getDatabase } from './lib/database'; // 已移除
 
 // 工具函数导出
@@ -64,3 +67,5 @@ export type {
   InputAreaProps,
   SessionListProps
 } from './types';
+
+export type { StandaloneChatInterfaceProps } from './components/StandaloneChatInterface';

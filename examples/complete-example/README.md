@@ -9,13 +9,23 @@
    npm install
    ```
 
-2. **启动开发服务器**
+2. **启动后端服务**
    ```bash
-   npm run dev
+   # 方式一：启动完整开发环境（前端+后端）
+   npm run dev:full
+   
+   # 方式二：分别启动
+   # 终端1：启动后端服务
+   npm run dev:server
+   # 终端2：启动前端服务
+   npm run dev:frontend-only
+   
+   # 方式三：如果后端已在运行，只启动前端
+   npm run dev:frontend-only
    ```
 
 3. **打开浏览器**
-   访问 http://localhost:3000
+   访问 http://localhost:3008
 
 ## 项目结构
 

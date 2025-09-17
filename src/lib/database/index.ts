@@ -17,11 +17,17 @@ export function closeDatabase(): Promise<void> {
 
 // 数据库服务类
 export class DatabaseService {
-  constructor() {}
+  private userId: string;
+  private projectId: string;
+
+  constructor(userId: string, projectId: string) {
+    this.userId = userId;
+    this.projectId = projectId;
+  }
 
   // 会话相关操作
   async createSession(data: Omit<Session, 'id'>): Promise<Session> {
-    const sessionData = { id: crypto.randomUUID(), title: data.title };
+    const sessionData = { id: crypto.randomUUID(), title: data.title, userId: this.userId, projectId: this.projectId };
     const session = await apiClient.createSession(sessionData);
     return {
       id: session.id,
@@ -59,13 +65,17 @@ export class DatabaseService {
   }
 
   async getAllSessions(): Promise<Session[]> {
-    const sessions = await apiClient.getSessions();
+    console.log('🔍 DatabaseService.getAllSessions 调用:', { userId: this.userId, projectId: this.projectId });
+    
+    const sessions = await apiClient.getSessions(this.userId, this.projectId);
+    console.log('🔍 API返回的会话数据:', sessions);
+    
     // 转换字段名：数据库使用下划线命名，前端使用驼峰命名
-    return sessions.map((session: any) => ({
+    const formattedSessions = sessions.map((session: any) => ({
       id: session.id,
       title: session.title,
-      createdAt: new Date(session.created_at),
-      updatedAt: new Date(session.updated_at),
+      createdAt: new Date(session.created_at || session.createdAt),
+      updatedAt: new Date(session.updated_at || session.updatedAt),
       messageCount: 0, // 默认值，可以后续优化
       tokenUsage: 0, // 默认值，可以后续优化
       pinned: false, // 默认值
@@ -73,6 +83,9 @@ export class DatabaseService {
       tags: null,
       metadata: null
     }));
+    
+    console.log('🔍 格式化后的会话数据:', formattedSessions);
+    return formattedSessions;
   }
 
   async updateSession(_id: string, _updates: Partial<Session>): Promise<Session | null> {
@@ -167,9 +180,6 @@ export class DatabaseService {
   //   });
   // }
 }
-
-// 导出默认实例
-export const databaseService = new DatabaseService();
 
 // 导出类型
 export type { Session, Message };

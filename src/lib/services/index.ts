@@ -3,9 +3,14 @@ import type { McpConfig } from '../database/schema';
 
 // import McpToolExecute from './mcpToolExecute';
 import AiServer from './aiServer';
+import { MessageManager } from './messageManager';
 
 // 扩展DatabaseService以包含MCP相关方法
 class ExtendedDatabaseService extends DatabaseService {
+  constructor(userId: string, projectId: string) {
+    super(userId, projectId);
+  }
+
   async getAllMcpConfigs(): Promise<McpConfig[]> {
     // 实现获取所有MCP配置的逻辑
     return [];
@@ -57,12 +62,13 @@ export interface ChatServiceCallbacks {
  * 聊天服务管理器
  */
 export class ChatService {
-  // private mcpToolExecute: any = null;
   private currentAiClient: any = null;
   private dbService: ExtendedDatabaseService;
+  private messageManager: MessageManager;
 
-  constructor() {
-    this.dbService = new ExtendedDatabaseService();
+  constructor(userId: string, projectId: string, messageManager: MessageManager) {
+    this.dbService = new ExtendedDatabaseService(userId, projectId);
+    this.messageManager = messageManager;
   }
 
 
@@ -107,7 +113,7 @@ export class ChatService {
 
 
       // 使用AiServer进行AI调用
-      const aiServer = new AiServer(sessionId, finalModelConfig as any);
+      const aiServer = new AiServer(sessionId, this.messageManager, finalModelConfig as any);
       
       // 添加初始化重试机制
       let initRetries = 3;
@@ -227,6 +233,3 @@ export class ChatService {
 
 
 }
-
-// 导出单例实例
-export const chatService = new ChatService();

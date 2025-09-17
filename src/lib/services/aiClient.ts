@@ -1,7 +1,7 @@
 import AiRequestHandler from './aiRequestHandler';
 // import { conversationsApi } from '../api/index';
 import { ToolResultProcessor } from './toolResultProcessor';
-import { messageManager } from './messageManager';
+import { MessageManager } from './messageManager';
 import type { Message, ToolCall, AiModelConfig } from '../../types';
 
 interface McpToolExecute {
@@ -31,7 +31,7 @@ class AiClient {
     private currentAiRequestHandler: AiRequestHandler | null;
     private toolResultProcessor: ToolResultProcessor;
 
-    constructor(messages: Message[], conversationId: string, tools: any[], modelConfig: AiModelConfig, callBack: (type: CallbackType, data?: any) => void, mcpToolExecute: McpToolExecute | null) {
+    constructor(messages: Message[], conversationId: string, tools: any[], modelConfig: AiModelConfig, callBack: (type: CallbackType, data?: any) => void, mcpToolExecute: McpToolExecute | null, messageManager: MessageManager) {
         this.messages = messages;
         this.conversationId = conversationId;
         this.tools = tools;

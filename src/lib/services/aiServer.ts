@@ -4,7 +4,7 @@ import { conversationsApi } from '../api';
 // import http from '../utils/http';
 import AiClient from "./aiClient";
 import McpToolsExecute from "./mcpToolExecute";
-import { messageManager } from './messageManager';
+import { MessageManager } from './messageManager';
 import type { Message, AiModelConfig } from '../../types';
 
 type CallbackType = 'chunk' | 'tool_call' | 'tool_result' | 'tool_stream_chunk' | 'conversation_complete' | 'error' | 'complete';
@@ -37,8 +37,9 @@ class AiServer {
     private modelConfig: AiModelConfig | null;
     private currentAiClient: AiClient | null;
     private isAborted: boolean;
+    private messageManager: MessageManager;
 
-    constructor(conversation_id: string, customModelConfig: AiModelConfig | null = null){
+    constructor(conversation_id: string, messageManager: MessageManager, customModelConfig: AiModelConfig | null = null){
         this.conversationId = conversation_id
         this.conversation = null;
         this.mcpServers = []
@@ -46,6 +47,7 @@ class AiServer {
         this.tools = []
         this.mcpToolsExecute= null
         this.modelConfig = customModelConfig;
+        this.messageManager = messageManager;
         // 添加中止控制
         this.currentAiClient = null;
         this.isAborted = false;
@@ -182,7 +184,7 @@ class AiServer {
                 created_at: (m as any).created_at
             })));
             //3. 调用AI
-            const aiClient = new AiClient(this.messages, this.conversationId, this.tools, this.modelConfig!, (type: any, data?: any) => this.callback(type, data), this.mcpToolsExecute);
+            const aiClient = new AiClient(this.messages, this.conversationId, this.tools, this.modelConfig!, (type: any, data?: any) => this.callback(type, data), this.mcpToolsExecute, this.messageManager);
             this.currentAiClient = aiClient;
 
             try {
@@ -230,7 +232,7 @@ class AiServer {
             console.log('Messages prepared for AI:', this.messages);
             
             // 调用AI（不使用工具）
-            const aiClient = new AiClient(this.messages, this.conversationId, [], this.modelConfig!, (type: any, data?: any) => this.callback(type, data), null);
+            const aiClient = new AiClient(this.messages, this.conversationId, [], this.modelConfig!, (type: any, data?: any) => this.callback(type, data), null, this.messageManager);
             this.currentAiClient = aiClient;
             
             try {
@@ -271,7 +273,7 @@ class AiServer {
     async addMessage(message: string, role: string = 'user'): Promise<any> {
         try {
             // 使用统一的消息管理器保存消息
-            const savedMessage = await messageManager.saveMessage({
+            const savedMessage = await this.messageManager.saveMessage({
                 content: message,
                 role,
                 sessionId: this.conversationId,

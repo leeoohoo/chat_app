@@ -36,6 +36,7 @@ export default defineConfig({
         'react/jsx-runtime',
       ],
       output: {
+        exports: "named",
         globals: {
           react: 'React',
           'react-dom': 'ReactDOM',

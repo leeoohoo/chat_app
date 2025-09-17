@@ -1,4 +1,4 @@
-import { databaseService } from '../database';
+import type { DatabaseService } from '../database';
 import type { Message } from '../../types';
 
 /**
@@ -6,17 +6,12 @@ import type { Message } from '../../types';
  * 负责管理所有消息的保存逻辑，避免重复保存
  */
 export class MessageManager {
-  private static instance: MessageManager;
   private pendingSaves = new Set<string>(); // 跟踪正在保存的消息ID
   private savedMessages = new Map<string, Message>(); // 缓存已保存的消息
+  private databaseService: DatabaseService;
 
-  private constructor() {}
-
-  static getInstance(): MessageManager {
-    if (!MessageManager.instance) {
-      MessageManager.instance = new MessageManager();
-    }
-    return MessageManager.instance;
+  constructor(databaseService: DatabaseService) {
+    this.databaseService = databaseService;
   }
 
   /**
@@ -38,7 +33,7 @@ export class MessageManager {
     this.pendingSaves.add(messageKey);
     
     try {
-      const savedMessage = await databaseService.createMessage(data);
+      const savedMessage = await this.databaseService.createMessage(data);
       this.savedMessages.set(messageKey, savedMessage);
       return savedMessage;
     } finally {
@@ -65,7 +60,7 @@ export class MessageManager {
     this.pendingSaves.add(messageKey);
     
     try {
-      const savedMessage = await databaseService.createMessage(data);
+      const savedMessage = await this.databaseService.createMessage(data);
       this.savedMessages.set(messageKey, savedMessage);
       return savedMessage;
     } finally {
@@ -92,7 +87,7 @@ export class MessageManager {
     this.pendingSaves.add(messageKey);
     
     try {
-      const savedMessage = await databaseService.createMessage(data);
+      const savedMessage = await this.databaseService.createMessage(data);
       this.savedMessages.set(messageKey, savedMessage);
       return savedMessage;
     } finally {
@@ -113,7 +108,7 @@ export class MessageManager {
         return this.saveToolMessage(data);
       default:
         // 对于其他角色，直接保存
-        return databaseService.createMessage(data);
+        return this.databaseService.createMessage(data);
     }
   }
 
@@ -134,6 +129,3 @@ export class MessageManager {
     };
   }
 }
-
-// 导出单例实例
-export const messageManager = MessageManager.getInstance();
