@@ -1,36 +1,36 @@
 
 import OpenAI from 'openai';
-import { conversationsApi } from '../api/index';
+// import { conversationsApi } from '../api/index';
 import type { Message, AiModelConfig } from '../../types';
 
 type CallbackType = 'chunk' | 'error' | 'complete';
 
-interface CallbackData {
-    type?: string;
-    content?: string;
-    accumulated?: string;
-}
+// interface CallbackData {
+//     type?: string;
+//     content?: string;
+//     accumulated?: string;
+// }
 
 class AiRequestHandler {
     private messages: Message[];
     private tools: any[];
-    private conversationId: string;
+    // private _conversationId: string;
     private callback: (type: CallbackType, data?: any) => void;
     private modelConfig: AiModelConfig;
-    private stream: boolean;
-    private useOpenAIPackage: boolean;
+    // private _stream: boolean;
+    // private _useOpenAIPackage: boolean;
     private abortController: AbortController;
     private isAborted: boolean;
 
-    constructor(messages: Message[], tools: any[], conversationId: string, callback: (type: CallbackType, data?: any) => void, modelConfig: AiModelConfig) {
+    constructor(messages: Message[], tools: any[], _conversationId: string, callback: (type: CallbackType, data?: any) => void, modelConfig: AiModelConfig) {
         this.messages = messages;
         this.tools = tools;
-        this.conversationId = conversationId;
+        // this._conversationId = conversationId;
         this.callback = callback;
         this.modelConfig = modelConfig;
-        this.stream = true;
+        // this._stream = true;
         // 添加一个标志来控制是否使用 OpenAI 包
-        this.useOpenAIPackage = true; // 默认使用 OpenAI 包
+        // this._useOpenAIPackage = true; // 默认使用 OpenAI 包
         // 添加中止控制器
         this.abortController = new AbortController();
         this.isAborted = false;

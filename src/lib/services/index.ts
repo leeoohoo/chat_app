@@ -1,7 +1,7 @@
 import { DatabaseService } from '../database';
 import type { McpConfig } from '../database/schema';
 
-import McpToolExecute from './mcpToolExecute';
+// import McpToolExecute from './mcpToolExecute';
 import AiServer from './aiServer';
 
 // 扩展DatabaseService以包含MCP相关方法
@@ -57,7 +57,7 @@ export interface ChatServiceCallbacks {
  * 聊天服务管理器
  */
 export class ChatService {
-  private mcpToolExecute: any = null;
+  // private mcpToolExecute: any = null;
   private currentAiClient: any = null;
   private dbService: ExtendedDatabaseService;
 
@@ -73,7 +73,7 @@ export class ChatService {
   async sendMessage(
     sessionId: string,
     content: string,
-    attachments: any[] = [],
+    _attachments: any[] = [],
     callbacks: ChatServiceCallbacks = {},
     modelConfig?: {
       model_name: string;

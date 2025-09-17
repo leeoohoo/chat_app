@@ -1,6 +1,10 @@
 // API客户端，用于与后端服务器通信
 // 移除messageManager导入，避免重复保存
 
+// 注释掉未使用的导入
+// import { mcpApi } from './mcp';
+// import { systemApi } from './system';
+
 const API_BASE_URL = 'http://localhost:3001/api';
 
 // HTTP请求工具函数
@@ -64,7 +68,7 @@ export const conversationsApi = {
     }
   },
 
-  async getAssistant(conversationId: string) {
+  async getAssistant(_conversationId: string) {
     try {
       // 获取AI模型配置
       const configs = await request('/ai-model-configs');
@@ -110,7 +114,7 @@ export const conversationsApi = {
     }
   },
 
-  async getMcpServers(conversationId?: string) {
+  async getMcpServers(_conversationId?: string) {
     try {
       // 直接获取全局MCP配置，而不是基于会话的配置
       const mcpConfigs = await request('/mcp-configs');
@@ -175,7 +179,7 @@ export const conversationsApi = {
     }
   },
 
-  async getMessages(conversationId: string, params: any = {}) {
+  async getMessages(conversationId: string, _params: any = {}) {
     try {
       const messages = await request(`/sessions/${conversationId}/messages`);
       return {

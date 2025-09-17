@@ -7,10 +7,7 @@ export function initDatabase(): Promise<void> {
   return Promise.resolve();
 }
 
-// 获取数据库实例
-export function getDatabase() {
-  return apiClient;
-}
+
 
 // 关闭数据库连接
 export function closeDatabase(): Promise<void> {
@@ -24,19 +21,37 @@ export class DatabaseService {
 
   // 会话相关操作
   async createSession(data: Omit<Session, 'id'>): Promise<Session> {
-    const id = Math.random().toString(36).substr(2, 9);
-    const sessionData = { id, ...data };
-    return await apiClient.createSession(sessionData);
+    const sessionData = { id: crypto.randomUUID(), title: data.title };
+    const session = await apiClient.createSession(sessionData);
+    return {
+      id: session.id,
+      title: session.title,
+      createdAt: new Date(session.created_at),
+      updatedAt: new Date(session.updated_at),
+      messageCount: 0,
+      tokenUsage: 0,
+      pinned: false,
+      archived: false,
+      tags: null,
+      metadata: null
+    };
   }
 
   async getSession(id: string): Promise<Session | null> {
     try {
       const session = await apiClient.getSession(id);
-      // 转换字段名：数据库使用下划线命名，前端使用驼峰命名
+      if (!session) return null;
       return {
-        ...session,
-        createdAt: session.created_at,
-        updatedAt: session.updated_at
+        id: session.id,
+        title: session.title,
+        createdAt: new Date(session.created_at),
+        updatedAt: new Date(session.updated_at),
+        messageCount: 0,
+        tokenUsage: 0,
+        pinned: false,
+        archived: false,
+        tags: null,
+        metadata: null
       };
     } catch (error) {
       return null;
@@ -46,10 +61,17 @@ export class DatabaseService {
   async getAllSessions(): Promise<Session[]> {
     const sessions = await apiClient.getSessions();
     // 转换字段名：数据库使用下划线命名，前端使用驼峰命名
-    return sessions.map(session => ({
-      ...session,
-      createdAt: session.created_at,
-      updatedAt: session.updated_at
+    return sessions.map((session: any) => ({
+      id: session.id,
+      title: session.title,
+      createdAt: new Date(session.created_at),
+      updatedAt: new Date(session.updated_at),
+      messageCount: 0, // 默认值，可以后续优化
+      tokenUsage: 0, // 默认值，可以后续优化
+      pinned: false, // 默认值
+      archived: false, // 默认值
+      tags: null,
+      metadata: null
     }));
   }
 
@@ -70,24 +92,55 @@ export class DatabaseService {
 
   // 消息相关操作
   async createMessage(data: Omit<Message, 'id'>): Promise<Message> {
-    const id = Math.random().toString(36).substr(2, 9);
-    const messageData = { id, ...data };
-    const result = await apiClient.createMessage(messageData);
-    // 转换字段名：数据库使用下划线命名，前端使用驼峰命名
+    const messageData = {
+      id: crypto.randomUUID(),
+      session_id: data.sessionId,
+      role: data.role,
+      content: data.content,
+      summary: data.rawContent,
+      tool_calls: data.metadata?.toolCalls ? JSON.stringify(data.metadata.toolCalls) : undefined,
+      tool_call_id: data.toolCallId,
+      reasoning: undefined,
+      metadata: data.metadata ? JSON.stringify(data.metadata) : undefined
+    };
+    const messageRequestData = {
+      id: messageData.id,
+      sessionId: messageData.session_id,
+      role: messageData.role,
+      content: messageData.content,
+      metadata: messageData.metadata ? JSON.parse(messageData.metadata) : undefined,
+      toolCalls: messageData.tool_calls ? JSON.parse(messageData.tool_calls) : undefined
+    };
+    const result = await apiClient.createMessage(messageRequestData);
     return {
-      ...result,
-      createdAt: new Date(result.created_at || result.createdAt),
-      updatedAt: result.updated_at ? new Date(result.updated_at) : (result.updatedAt ? new Date(result.updatedAt) : undefined)
+      id: result.id,
+      sessionId: result.session_id,
+      role: result.role as any,
+      content: result.content,
+      rawContent: result.summary,
+      tokensUsed: data.tokensUsed,
+      status: data.status || 'completed',
+      createdAt: new Date(result.created_at),
+      updatedAt: data.updatedAt,
+      toolCallId: result.tool_call_id,
+      metadata: result.metadata ? JSON.parse(result.metadata) : data.metadata
     };
   }
 
   async getSessionMessages(sessionId: string): Promise<Message[]> {
     const messages = await apiClient.getSessionMessages(sessionId);
-    // 转换字段名：数据库使用下划线命名，前端使用驼峰命名
     return messages.map(message => ({
-      ...message,
-      createdAt: new Date(message.created_at || message.createdAt),
-      updatedAt: message.updated_at ? new Date(message.updated_at) : (message.updatedAt ? new Date(message.updatedAt) : undefined)
+      id: message.id,
+      sessionId: message.session_id,
+      role: message.role as any,
+      content: message.content,
+      rawContent: message.summary,
+      tokensUsed: undefined,
+      status: 'completed' as const,
+      createdAt: new Date(message.created_at),
+      updatedAt: undefined,
+      toolCallId: message.tool_call_id,
+      metadata: message.metadata ? JSON.parse(message.metadata) : undefined
     }));
   }
 

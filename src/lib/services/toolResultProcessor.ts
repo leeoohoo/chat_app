@@ -121,7 +121,7 @@ export class ToolResultProcessor {
                      if (type === 'chunk' && data?.content) {
                          summaryContent += data.content;
                          // 流式展示总结生成过程
-                         this.callback('chunk', {
+                         this.callback('summary_chunk', {
                              content: data.content,
                              accumulated: summaryContent
                          });

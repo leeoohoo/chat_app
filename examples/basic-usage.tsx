@@ -1,4 +1,4 @@
-import React from 'react';
+// import React from 'react';
 import StandaloneChatInterface from '../src';
 import '../src/styles/index.css';
 

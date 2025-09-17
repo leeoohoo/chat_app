@@ -29,9 +29,11 @@ export { useChatStore } from './lib/store';
 // 服务导出
 export * from './lib/services';
 export * from './lib/api';
+// export { default as ChatService } from './lib/services';
 
 // 数据库导出（避免类型冲突）
-export { initDatabase, getDatabase } from './lib/database';
+export { databaseService } from './lib/database';
+// export { getDatabase } from './lib/database'; // 已移除
 
 // 工具函数导出
 export * from './lib/utils';

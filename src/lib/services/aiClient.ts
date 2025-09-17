@@ -1,5 +1,5 @@
 import AiRequestHandler from './aiRequestHandler';
-import { conversationsApi } from '../api/index';
+// import { conversationsApi } from '../api/index';
 import { ToolResultProcessor } from './toolResultProcessor';
 import { messageManager } from './messageManager';
 import type { Message, ToolCall, AiModelConfig } from '../../types';
@@ -12,13 +12,13 @@ interface McpToolExecute {
 
 type CallbackType = 'chunk' | 'tool_call' | 'error' | 'complete' | 'tool_stream_chunk' | 'tool_result' | 'conversation_complete' | 'summary_chunk';
 
-interface CallbackData {
-    type?: string;
-    content?: string;
-    accumulated?: string;
-    toolCallId?: string;
-    chunk?: string;
-}
+// interface CallbackData {
+//     type?: string;
+//     content?: string;
+//     accumulated?: string;
+//     toolCallId?: string;
+//     chunk?: string;
+// }
 class AiClient {
     private messages: Message[];
     private conversationId: string;
@@ -26,7 +26,7 @@ class AiClient {
     private modelConfig: AiModelConfig;
     private callBack: (type: CallbackType, data?: any) => void;
     private mcpToolExecute: McpToolExecute | null;
-    private payLoad: any;
+    // private payLoad: any;
     private isAborted: boolean;
     private currentAiRequestHandler: AiRequestHandler | null;
     private toolResultProcessor: ToolResultProcessor;
@@ -38,7 +38,7 @@ class AiClient {
         this.modelConfig = modelConfig;
         this.callBack = callBack;
         this.mcpToolExecute = mcpToolExecute;
-        this.payLoad = {}
+        // this.payLoad = {}
         // 添加中止控制
         this.isAborted = false;
         this.currentAiRequestHandler = null;
@@ -318,58 +318,6 @@ class AiClient {
 
 
 
-    /**
-     * 生成内容总结
-     * @param {string} content - 需要总结的内容
-     * @returns {Promise<string|null>} 总结内容
-     */
-    private async generateContentSummary(content: string): Promise<string | null> {
-        try {
-            // 创建总结请求的消息
-            const summaryMessages: Message[] = [
-                {
-                    id: Date.now().toString() + '_system',
-                    sessionId: this.conversationId,
-                    role: 'system',
-                    content: '请帮我总结一下这个内容，对其内容进行精简，将主要信息提取出来。请用简洁明了的语言概括核心要点。',
-                    rawContent: '请帮我总结一下这个内容，对其内容进行精简，将主要信息提取出来。请用简洁明了的语言概括核心要点。',
-                    status: 'completed',
-                    createdAt: new Date()
-                },
-                {
-                    id: Date.now().toString() + '_user',
-                    sessionId: this.conversationId,
-                    role: 'user', 
-                    content: `请帮我对以下内容进行总结：\n\n${content}`,
-                    rawContent: `请帮我对以下内容进行总结：\n\n${content}`,
-                    status: 'completed',
-                    createdAt: new Date()
-                }
-            ];
 
-            let summaryContent = '';
-            
-            // 创建AI请求处理器
-            const aiRequestHandler = new AiRequestHandler(
-                summaryMessages,
-                [], // 空工具列表
-                this.conversationId,
-                (type: string, data: any) => {
-                    if (type === 'chunk' && data?.content) {
-                        summaryContent += data.content;
-                    }
-                },
-                this.modelConfig
-            );
-
-            // 发送总结请求
-            await aiRequestHandler.chatCompletion();
-
-            return summaryContent.trim() || null;
-        } catch (error) {
-            console.error('[AI Summary] 生成总结时发生错误:', error);
-            return null;
-        }
-    }
 }
 export default AiClient;

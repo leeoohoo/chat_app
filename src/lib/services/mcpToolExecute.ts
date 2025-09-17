@@ -226,7 +226,7 @@ class McpToolExecute {
      * @param {string} toolName - 工具名称
      * @returns {boolean}
      */
-    toolSupportsStreaming(toolName: string): boolean {
+    toolSupportsStreaming(_toolName: string): boolean {
         // 新框架中所有工具都支持流式输出
         return true;
     }

@@ -2,8 +2,9 @@ import {create} from 'zustand';
 import {subscribeWithSelector} from 'zustand/middleware';
 import {immer} from 'zustand/middleware/immer';
 import {persist} from 'zustand/middleware';
-import type {Message, Session, ChatConfig, Theme, McpConfig, AiModelConfig, ContentSegment} from '../../types';
+import type {Message, Session, ChatConfig, Theme, McpConfig, AiModelConfig} from '../../types';
 import {databaseService} from '../database';
+
 import {apiClient} from '../api/client';
 import {messageManager} from '../services/messageManager';
 // import { generateId } from '../utils';
@@ -546,7 +547,7 @@ export const useChatStore = create<ChatState & ChatActions>()
                                      }
                                  });
                             },
-                            onComplete: async (data: any) => {
+                            onComplete: async () => {
                                 // 完成流式响应，将临时消息转换为真实消息并保存
                                 try {
                                     const tempMessage = get().messages.find(m => m.id === tempAssistantMessage.id);
@@ -747,7 +748,7 @@ export const useChatStore = create<ChatState & ChatActions>()
                                 serverUrl: config.command, // 后端使用command字段存储serverUrl
                                 enabled: config.enabled,
                                 createdAt: new Date(config.created_at),
-                                updatedAt: new Date(config.updated_at)
+                                updatedAt: new Date(config.created_at) // 使用created_at作为updatedAt
                             }));
                         });
                     } catch (error) {
@@ -767,8 +768,8 @@ export const useChatStore = create<ChatState & ChatActions>()
                                 name: config.name,
                                 command: config.serverUrl, // 后端使用command字段存储serverUrl
                                 enabled: config.enabled,
-                                args: [],
-                                env: {}
+                                args: '[]',
+                                env: '{}'
                             });
                         } else {
                             // 创建新配置
@@ -777,8 +778,8 @@ export const useChatStore = create<ChatState & ChatActions>()
                                 name: config.name,
                                 command: config.serverUrl, // 后端使用command字段存储serverUrl
                                 enabled: config.enabled,
-                                args: [],
-                                env: {}
+                                args: '[]',
+                                env: '{}'
                             });
                         }
 

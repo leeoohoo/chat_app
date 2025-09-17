@@ -1,4 +1,4 @@
-import React from 'react';
+// import React from 'react';
 import { StandaloneChatInterface } from '@ai-chat/react-component';
 import '@ai-chat/react-component/styles';
 

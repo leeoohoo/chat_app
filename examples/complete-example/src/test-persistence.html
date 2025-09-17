@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>wa-sqlite + OPFS 持久化测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .success {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .error {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .info {
+            color: #17a2b8;
+        }
+        #results {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗄️ wa-sqlite + OPFS 持久化测试</h1>
+        
+        <div class="test-section">
+            <h3>📝 测试说明</h3>
+            <p>这个测试页面验证 wa-sqlite + OPFS 的数据持久化功能：</p>
+            <ul>
+                <li>✅ 创建数据库并插入测试数据</li>
+                <li>✅ 验证数据可以正常读取</li>
+                <li>🔄 <strong>关闭浏览器标签页，重新打开此页面</strong></li>
+                <li>✅ 验证数据是否仍然存在（持久化测试）</li>
+            </ul>
+        </div>
+
+        <div class="test-section">
+            <h3>🚀 操作按钮</h3>
+            <button onclick="initDatabase()">初始化数据库</button>
+            <button onclick="insertTestData()">插入测试数据</button>
+            <button onclick="queryData()">查询所有数据</button>
+            <button onclick="clearData()">清空数据</button>
+            <button onclick="clearResults()">清空结果</button>
+        </div>
+
+        <div class="test-section">
+            <h3>📊 测试结果</h3>
+            <div id="results">点击上方按钮开始测试...</div>
+        </div>
+
+        <div class="test-section">
+            <h3>💡 持久化验证步骤</h3>
+            <ol>
+                <li>点击 "初始化数据库" 按钮</li>
+                <li>点击 "插入测试数据" 按钮</li>
+                <li>点击 "查询所有数据" 验证数据已插入</li>
+                <li><strong>关闭此浏览器标签页</strong></li>
+                <li><strong>重新打开此页面</strong></li>
+                <li>点击 "初始化数据库" 按钮</li>
+                <li>点击 "查询所有数据" 按钮</li>
+                <li>如果能看到之前插入的数据，说明持久化成功！</li>
+            </ol>
+        </div>
+    </div>
+
+    <script type="module">
+        // 导入 wa-sqlite
+        import SQLiteESMFactory from '/node_modules/wa-sqlite/dist/wa-sqlite.mjs';
+        import * as SQLiteAPI from '/node_modules/wa-sqlite/src/sqlite-api.js';
+
+        let sqlite3 = null;
+        let db = null;
+        const dbName = 'test-persistence.db';
+
+        function log(message, type = 'info') {
+            const results = document.getElementById('results');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : 'info';
+            results.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+            results.scrollTop = results.scrollHeight;
+        }
+
+        // OPFS VFS 简化实现
+        class SimpleOPFSVfs {
+            constructor() {
+                this.opfsRoot = null;
+                this.fileHandle = null;
+                this.accessHandle = null;
+            }
+
+            async init() {
+                try {
+                    if ('storage' in navigator && 'getDirectory' in navigator.storage) {
+                        this.opfsRoot = await navigator.storage.getDirectory();
+                        log('OPFS 初始化成功', 'success');
+                        return true;
+                    } else {
+                        log('此浏览器不支持 OPFS', 'error');
+                        return false;
+                    }
+                } catch (error) {
+                    log(`OPFS 初始化失败: ${error.message}`, 'error');
+                    return false;
+                }
+            }
+
+            async openFile(filename) {
+                try {
+                    this.fileHandle = await this.opfsRoot.getFileHandle(filename, { create: true });
+                    this.accessHandle = await this.fileHandle.createSyncAccessHandle();
+                    log(`文件 ${filename} 打开成功`, 'success');
+                    return true;
+                } catch (error) {
+                    log(`文件打开失败: ${error.message}`, 'error');
+                    return false;
+                }
+            }
+
+            async closeFile() {
+                if (this.accessHandle) {
+                    await this.accessHandle.close();
+                    this.accessHandle = null;
+                    this.fileHandle = null;
+                }
+            }
+        }
+
+        const vfs = new SimpleOPFSVfs();
+
+        window.initDatabase = async function() {
+            try {
+                log('开始初始化数据库...');
+                
+                // 初始化 OPFS
+                const opfsSupported = await vfs.init();
+                if (!opfsSupported) {
+                    log('降级到内存数据库模式', 'info');
+                }
+
+                // 初始化 wa-sqlite
+                const module = await SQLiteESMFactory();
+                sqlite3 = SQLiteAPI.Factory(module);
+                log('wa-sqlite 模块加载成功', 'success');
+
+                // 打开数据库（先使用内存模式）
+                db = await sqlite3.open_v2(':memory:', SQLiteAPI.SQLITE_OPEN_CREATE | SQLiteAPI.SQLITE_OPEN_READWRITE);
+                log('数据库连接成功', 'success');
+
+                // 创建测试表
+                await sqlite3.exec(db, `
+                    CREATE TABLE IF NOT EXISTS test_data (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        name TEXT NOT NULL,
+                        value TEXT NOT NULL,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    );
+                `);
+                log('测试表创建成功', 'success');
+                
+            } catch (error) {
+                log(`数据库初始化失败: ${error.message}`, 'error');
+            }
+        };
+
+        window.insertTestData = async function() {
+            if (!sqlite3 || !db) {
+                log('请先初始化数据库', 'error');
+                return;
+            }
+
+            try {
+                const timestamp = new Date().toISOString();
+                const testData = [
+                    ['用户1', `测试数据 - ${timestamp}`],
+                    ['用户2', `另一条测试数据 - ${timestamp}`],
+                    ['持久化测试', `这条数据用于验证持久化 - ${timestamp}`]
+                ];
+
+                for (const [name, value] of testData) {
+                    await sqlite3.exec(db, 
+                        'INSERT INTO test_data (name, value) VALUES (?, ?)', 
+                        [name, value]
+                    );
+                }
+                
+                log(`成功插入 ${testData.length} 条测试数据`, 'success');
+            } catch (error) {
+                log(`插入数据失败: ${error.message}`, 'error');
+            }
+        };
+
+        window.queryData = async function() {
+            if (!sqlite3 || !db) {
+                log('请先初始化数据库', 'error');
+                return;
+            }
+
+            try {
+                const results = [];
+                
+                for await (const stmt of sqlite3.statements(db, 'SELECT * FROM test_data ORDER BY id')) {
+                    while (await sqlite3.step(stmt) === SQLiteAPI.SQLITE_ROW) {
+                        const row = sqlite3.row(stmt);
+                        results.push(row);
+                    }
+                }
+
+                if (results.length === 0) {
+                    log('数据库中没有数据', 'info');
+                } else {
+                    log(`查询到 ${results.length} 条数据:`, 'success');
+                    results.forEach((row, index) => {
+                        log(`  ${index + 1}. ID: ${row[0]}, 名称: ${row[1]}, 值: ${row[2]}, 时间: ${row[3]}`);
+                    });
+                }
+            } catch (error) {
+                log(`查询数据失败: ${error.message}`, 'error');
+            }
+        };
+
+        window.clearData = async function() {
+            if (!sqlite3 || !db) {
+                log('请先初始化数据库', 'error');
+                return;
+            }
+
+            try {
+                await sqlite3.exec(db, 'DELETE FROM test_data');
+                log('所有数据已清空', 'success');
+            } catch (error) {
+                log(`清空数据失败: ${error.message}`, 'error');
+            }
+        };
+
+        window.clearResults = function() {
+            document.getElementById('results').innerHTML = '结果已清空...\n';
+        };
+
+        // 页面加载时的提示
+        window.addEventListener('load', () => {
+            log('页面加载完成，请点击 "初始化数据库" 开始测试');
+            log('注意：当前实现使用内存数据库，真正的 OPFS 持久化需要更复杂的 VFS 实现');
+        });
+    </script>
+</body>
+</html>

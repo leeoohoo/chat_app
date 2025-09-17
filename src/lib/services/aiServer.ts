@@ -1,7 +1,7 @@
 
 
 import { conversationsApi } from '../api';
-import http from '../utils/http';
+// import http from '../utils/http';
 import AiClient from "./aiClient";
 import McpToolsExecute from "./mcpToolExecute";
 import { messageManager } from './messageManager';
@@ -14,11 +14,11 @@ interface Conversation {
     global_prompt?: string;
 }
 
-interface Assistant {
-    id: string;
-    system_prompt?: string;
-    model_config: any;
-}
+// interface Assistant {
+//     id: string;
+//     system_prompt?: string;
+//     model_config: any;
+// }
 
 interface McpServer {
     id: string;
