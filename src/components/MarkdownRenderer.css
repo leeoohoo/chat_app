@@ -275,6 +275,7 @@
 
 .markdown-renderer .expand-btn .icon {
     transition: transform 0.2s ease;
+    will-change: transform;
 }
 
 /* 按钮特定样式 - 浅色主题 */

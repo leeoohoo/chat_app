@@ -853,17 +853,30 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
                     loadSystemContexts: async () => {
                         try {
                             const contexts = await client.getSystemContexts(getUserIdParam());
-                            const activeContext = await client.getActiveSystemContext(getUserIdParam());
+                            const activeContextResponse = await client.getActiveSystemContext(getUserIdParam());
                             set((state) => {
-                                state.systemContexts = contexts;
-                                // 处理activeContext的返回格式
-                                if (activeContext && activeContext.content) {
-                                    // 从contexts中找到对应的完整上下文对象
-                                    const fullActiveContext = contexts.find(ctx => ctx.content === activeContext.content);
-                                    state.activeSystemContext = fullActiveContext || null;
+                                // 先将所有上下文的isActive设为false
+                                const updatedContexts = contexts.map(ctx => ({
+                                    ...ctx,
+                                    isActive: false
+                                }));
+                                
+                                // 处理激活的上下文
+                                if (activeContextResponse && activeContextResponse.context) {
+                                    const activeContext = activeContextResponse.context;
+                                    // 找到对应的上下文并设置为激活状态
+                                    const activeIndex = updatedContexts.findIndex(ctx => ctx.id === activeContext.id);
+                                    if (activeIndex !== -1) {
+                                        updatedContexts[activeIndex].isActive = true;
+                                        state.activeSystemContext = { ...updatedContexts[activeIndex] };
+                                    } else {
+                                        state.activeSystemContext = null;
+                                    }
                                 } else {
                                     state.activeSystemContext = null;
                                 }
+                                
+                                state.systemContexts = updatedContexts;
                             });
                         } catch (error) {
                             console.error('Failed to load system contexts:', error);

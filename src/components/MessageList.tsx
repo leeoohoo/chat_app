@@ -34,7 +34,14 @@ export const MessageList: React.FC<MessageListProps> = ({
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
+      <div 
+        className="flex-1 overflow-y-auto px-4 py-6 space-y-6"
+        style={{
+          // 优化滚动性能
+          willChange: 'scroll-position',
+          transform: 'translateZ(0)', // 启用硬件加速
+        }}
+      >
         {messages.map((message, index) => (
           <MessageItem
             key={message.id}

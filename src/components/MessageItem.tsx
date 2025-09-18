@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import { AttachmentRenderer } from './AttachmentRenderer';
 import { ToolCallRenderer } from './ToolCallRenderer';
@@ -18,7 +18,7 @@ interface MessageItemProps {
   };
 }
 
-export const MessageItem: React.FC<MessageItemProps> = ({
+const MessageItemComponent: React.FC<MessageItemProps> = ({
   message,
   isLast = false,
   isStreaming = false,
@@ -302,5 +302,18 @@ export const MessageItem: React.FC<MessageItemProps> = ({
     </div>
   );
 };
+
+// 使用memo优化性能，只在关键props变化时重新渲染
+export const MessageItem = memo(MessageItemComponent, (prevProps, nextProps) => {
+  // 比较关键属性
+  return (
+    prevProps.message.id === nextProps.message.id &&
+    prevProps.message.content === nextProps.message.content &&
+    prevProps.message.createdAt === nextProps.message.createdAt &&
+    prevProps.isLast === nextProps.isLast &&
+    prevProps.isStreaming === nextProps.isStreaming &&
+    JSON.stringify(prevProps.message.metadata) === JSON.stringify(nextProps.message.metadata)
+  );
+});
 
 export default MessageItem;

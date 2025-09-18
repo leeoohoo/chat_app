@@ -5,6 +5,20 @@
 @import 'highlight.js/styles/github.css';
 
 @layer base {
+  /* 全局滚动性能优化 */
+  * {
+    /* 减少重绘和回流 */
+    box-sizing: border-box;
+  }
+  
+  /* 优化滚动容器 */
+  .overflow-y-auto, .overflow-auto {
+    /* 启用硬件加速 */
+    transform: translateZ(0);
+    /* 优化滚动性能 */
+    -webkit-overflow-scrolling: touch;
+  }
+
   :root {
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
@@ -170,26 +184,24 @@
   @apply animate-bounce;
 }
 
-/* 呼吸边框动画 */
+/* 优化的呼吸边框动画 - 减少阴影层数提升性能 */
 @keyframes breathing-border {
   0%, 100% {
     box-shadow: 
-      0 0 20px rgba(59, 130, 246, 0.3), 
-      0 0 40px rgba(147, 51, 234, 0.2), 
-      0 0 60px rgba(236, 72, 153, 0.1),
+      0 0 15px rgba(59, 130, 246, 0.2), 
       0 0 0 1px rgba(59, 130, 246, 0.2);
   }
   50% {
     box-shadow: 
-      0 0 30px rgba(59, 130, 246, 0.5), 
-      0 0 60px rgba(147, 51, 234, 0.3), 
-      0 0 90px rgba(236, 72, 153, 0.2),
+      0 0 25px rgba(59, 130, 246, 0.4), 
       0 0 0 2px rgba(59, 130, 246, 0.4);
   }
 }
 
 .animate-breathing-border {
   animation: breathing-border 3s ease-in-out infinite;
+  /* 添加will-change提示浏览器优化 */
+  will-change: box-shadow;
 }
 
 /* 弹框通用样式 */
@@ -216,16 +228,12 @@
 @keyframes breathing-border-dark {
   0%, 100% {
     box-shadow: 
-      0 0 20px rgba(96, 165, 250, 0.4), 
-      0 0 40px rgba(168, 85, 247, 0.3), 
-      0 0 60px rgba(244, 114, 182, 0.2),
+      0 0 15px rgba(96, 165, 250, 0.3), 
       0 0 0 1px rgba(96, 165, 250, 0.3);
   }
   50% {
     box-shadow: 
-      0 0 30px rgba(96, 165, 250, 0.6), 
-      0 0 60px rgba(168, 85, 247, 0.4), 
-      0 0 90px rgba(244, 114, 182, 0.3),
+      0 0 25px rgba(96, 165, 250, 0.5), 
       0 0 0 2px rgba(96, 165, 250, 0.5);
   }
 }
@@ -239,17 +247,11 @@
 @keyframes drawer-breathing-border {
   0%, 100% {
     border-right-color: rgba(59, 130, 246, 0.4);
-    box-shadow: 
-      2px 0 20px rgba(59, 130, 246, 0.3),
-      2px 0 40px rgba(147, 51, 234, 0.2),
-      2px 0 60px rgba(236, 72, 153, 0.1);
+    box-shadow: 2px 0 15px rgba(59, 130, 246, 0.2);
   }
   50% {
     border-right-color: rgba(59, 130, 246, 0.7);
-    box-shadow: 
-      2px 0 30px rgba(59, 130, 246, 0.5),
-      2px 0 60px rgba(147, 51, 234, 0.3),
-      2px 0 90px rgba(236, 72, 153, 0.2);
+    box-shadow: 2px 0 25px rgba(59, 130, 246, 0.4);
   }
 }
 
@@ -261,16 +263,10 @@
 @keyframes drawer-breathing-border-dark {
   0%, 100% {
     border-right-color: rgba(96, 165, 250, 0.4);
-    box-shadow: 
-      2px 0 20px rgba(96, 165, 250, 0.3),
-      2px 0 40px rgba(168, 85, 247, 0.2),
-      2px 0 60px rgba(244, 114, 182, 0.1);
+    box-shadow: 2px 0 15px rgba(96, 165, 250, 0.2);
   }
   50% {
     border-right-color: rgba(96, 165, 250, 0.7);
-    box-shadow: 
-      2px 0 30px rgba(96, 165, 250, 0.5),
-      2px 0 60px rgba(168, 85, 247, 0.3),
-      2px 0 90px rgba(244, 114, 182, 0.2);
+    box-shadow: 2px 0 25px rgba(96, 165, 250, 0.4);
   }
 }
