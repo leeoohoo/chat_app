@@ -29,6 +29,16 @@ export const MessageItem: React.FC<MessageItemProps> = ({
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
+
+  // 处理代码应用
+  const handleApplyCode = (code: string, language: string) => {
+    // 复制代码到剪贴板
+    navigator.clipboard.writeText(code).then(() => {
+      console.log('代码已复制到剪贴板:', { code, language });
+    }).catch(err => {
+      console.error('复制失败:', err);
+    });
+  };
   const [showActions, setShowActions] = useState(false);
 
   const isUser = message.role === 'user';
@@ -186,6 +196,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                              <MarkdownRenderer
                                content={segment.content as string}
                                isStreaming={isCurrentlyStreaming && index === contentSegments.length - 1}
+                               onApplyCode={handleApplyCode}
                              />
                            </div>
                          );
@@ -218,6 +229,7 @@ export const MessageItem: React.FC<MessageItemProps> = ({
                       <MarkdownRenderer
                         content={message.content}
                         isStreaming={isCurrentlyStreaming}
+                        onApplyCode={handleApplyCode}
                       />
                     </div>
                   )}
