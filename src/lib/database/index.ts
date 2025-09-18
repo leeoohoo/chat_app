@@ -121,8 +121,8 @@ export class DatabaseService {
       sessionId: messageData.session_id,
       role: messageData.role,
       content: messageData.content,
-      metadata: messageData.metadata ? JSON.parse(messageData.metadata) : undefined,
-      toolCalls: messageData.tool_calls ? JSON.parse(messageData.tool_calls) : undefined
+      metadata: messageData.metadata ? (typeof messageData.metadata === 'string' ? JSON.parse(messageData.metadata) : messageData.metadata) : undefined,
+      toolCalls: messageData.tool_calls ? (typeof messageData.tool_calls === 'string' ? JSON.parse(messageData.tool_calls) : messageData.tool_calls) : undefined
     };
     const result = await apiClient.createMessage(messageRequestData);
     return {
@@ -136,7 +136,7 @@ export class DatabaseService {
       createdAt: new Date(result.created_at),
       updatedAt: data.updatedAt,
       toolCallId: result.tool_call_id,
-      metadata: result.metadata ? JSON.parse(result.metadata) : data.metadata
+      metadata: result.metadata ? (typeof result.metadata === 'string' ? JSON.parse(result.metadata) : result.metadata) : data.metadata
     };
   }
 
@@ -153,7 +153,7 @@ export class DatabaseService {
       createdAt: new Date(message.created_at),
       updatedAt: undefined,
       toolCallId: message.tool_call_id,
-      metadata: message.metadata ? JSON.parse(message.metadata) : undefined
+      metadata: message.metadata ? (typeof message.metadata === 'string' ? JSON.parse(message.metadata) : message.metadata) : undefined
     }));
   }
 

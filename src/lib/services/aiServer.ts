@@ -1,6 +1,6 @@
 
 
-import { conversationsApi } from '../api';
+import { conversationsApi, apiClient } from '../api/client';
 // import http from '../utils/http';
 import AiClient from "./aiClient";
 import McpToolsExecute from "./mcpToolExecute";
@@ -29,6 +29,7 @@ interface McpServer {
 
 class AiServer {
     private conversationId: string;
+    private userId: string;
     private conversation: Conversation | null;
     private mcpServers: McpServer[];
     private messages: Message[];
@@ -39,8 +40,9 @@ class AiServer {
     private isAborted: boolean;
     private messageManager: MessageManager;
 
-    constructor(conversation_id: string, messageManager: MessageManager, customModelConfig: AiModelConfig | null = null){
+    constructor(conversation_id: string, userId: string, messageManager: MessageManager, customModelConfig: AiModelConfig | null = null){
         this.conversationId = conversation_id
+        this.userId = userId;
         this.conversation = null;
         this.mcpServers = []
         this.messages = []
@@ -63,11 +65,20 @@ class AiServer {
             console.log('AiServer - Conversation:', this.conversation);
             console.log('AiServer - API Key:', this.modelConfig?.api_key ? 'Present' : 'Missing');
 
-            // 4. 获取全局MCP配置
-            const mcpResponse = await conversationsApi.getMcpServers();
+            // 4. 获取用户的MCP配置
+            const mcpResponse = await apiClient.getMcpConfigs(this.userId);
             console.log("mcpResponse", mcpResponse)
 
-            this.mcpServers = mcpResponse.data.mcp_servers || [];
+            // 转换数据格式以匹配McpServer接口
+            const rawServers = Array.isArray(mcpResponse) ? mcpResponse : [];
+            // 只使用启用的MCP服务器
+            const enabledServers = rawServers.filter((config: any) => config.enabled);
+            this.mcpServers = enabledServers.map((server: any, index: number) => ({
+                id: server.id || `mcp-server-${index}`,
+                name: server.name,
+                url: server.command, // getMcpConfigs 使用 command 字段存储URL
+                config: server.config || {}
+            }));
             // 5. 根据mcpServices 获取tools 列表
             this.mcpToolsExecute = new McpToolsExecute(this.mcpServers!);
             await this.mcpToolsExecute.init();
@@ -145,9 +156,7 @@ class AiServer {
             // 获取系统提示词 - 从激活的 system_context 获取
             let systemPrompt = '';
             try {
-                // 假设使用默认用户ID，实际应该从上下文获取
-                const userId = 'custom_user_123'; // TODO: 从实际上下文获取
-                const response = await fetch(`/api/system-context/active?userId=${userId}`);
+                const response = await fetch(`/api/system-context/active?userId=${this.userId}`);
                 if (response.ok) {
                     const data = await response.json();
                     systemPrompt = data.content || '';

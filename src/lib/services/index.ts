@@ -65,8 +65,10 @@ export class ChatService {
   private currentAiClient: any = null;
   private dbService: ExtendedDatabaseService;
   private messageManager: MessageManager;
+  private userId: string;
 
   constructor(userId: string, projectId: string, messageManager: MessageManager) {
+    this.userId = userId;
     this.dbService = new ExtendedDatabaseService(userId, projectId);
     this.messageManager = messageManager;
   }
@@ -113,7 +115,7 @@ export class ChatService {
 
 
       // 使用AiServer进行AI调用
-      const aiServer = new AiServer(sessionId, this.messageManager, finalModelConfig as any);
+      const aiServer = new AiServer(sessionId, this.userId, this.messageManager, finalModelConfig as any);
       
       // 添加初始化重试机制
       let initRetries = 3;
@@ -233,3 +235,7 @@ export class ChatService {
 
 
 }
+
+// 导出核心服务类
+export { default as AiServer } from './aiServer';
+export { MessageManager } from './messageManager';

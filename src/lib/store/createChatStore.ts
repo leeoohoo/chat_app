@@ -5,7 +5,7 @@ import {persist} from 'zustand/middleware';
 import type {Message, Session, ChatConfig, Theme, McpConfig, AiModelConfig, SystemContext} from '../../types';
 import {DatabaseService} from '../database';
 import {apiClient} from '../api/client';
-// import {messageManager} from '../services/messageManager';
+import {ChatService, MessageManager} from '../services';
 import type ApiClient from '../api/client';
 
 // 聊天状态接口
@@ -112,6 +112,10 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
     
     // 创建DatabaseService实例
     const databaseService = new DatabaseService(userId, projectId);
+    
+    // 创建MessageManager和ChatService实例
+    const messageManager = new MessageManager(databaseService);
+    const chatService = new ChatService(userId, projectId, messageManager);
     
     return create<ChatState & ChatActions>()
     (subscribeWithSelector(
@@ -323,59 +327,273 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
                     },
 
                     sendMessage: async (content: string, attachments = []) => {
-                        const { currentSession } = get();
-                        if (!currentSession) {
+                        const { currentSessionId, selectedModelId, aiModelConfigs, chatConfig } = get();
+
+                        if (!currentSessionId) {
                             throw new Error('No active session');
                         }
 
-                        try {
-                            set((state) => {
-                                state.isLoading = true;
-                                state.error = null;
-                            });
+                        if (!selectedModelId) {
+                            throw new Error('请先选择一个AI模型');
+                        }
 
-                            // 创建用户消息
-                            const userMessage = await databaseService.createMessage({
-                                sessionId: currentSession.id,
+                        const selectedModel = aiModelConfigs.find(model => model.id === selectedModelId);
+                        if (!selectedModel || !selectedModel.enabled) {
+                            throw new Error('选择的模型不可用');
+                        }
+
+                        try {
+                            // 创建用户消息并保存到数据库
+                            const userMessageTime = new Date();
+                            const userMessage = await messageManager.saveUserMessage({
+                                sessionId: currentSessionId,
                                 role: 'user',
                                 content,
                                 status: 'completed',
-                                createdAt: new Date(),
+                                createdAt: userMessageTime,
                                 metadata: {
-                                    attachments,
+                                    ...(attachments.length > 0 ? { attachments } : {}),
+                                    model: selectedModel.model_name,
+                                    modelConfig: {
+                                        id: selectedModel.id,
+                                        name: selectedModel.name,
+                                        base_url: selectedModel.base_url,
+                                        model_name: selectedModel.model_name,
+                                    }
                                 },
                             });
 
-                            // 添加用户消息到状态
                             set((state) => {
                                 state.messages.push(userMessage);
+                                state.isLoading = true;
                             });
 
-                            // 创建助手消息占位符
-                            const assistantMessage = await databaseService.createMessage({
-                                sessionId: currentSession.id,
-                                role: 'assistant',
+                            // 创建临时的助手消息用于UI显示，但不保存到数据库
+                            const assistantMessageTime = new Date(userMessageTime.getTime() + 1);
+                            const tempAssistantMessage = {
+                                id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                                sessionId: currentSessionId,
+                                role: 'assistant' as const,
                                 content: '',
-                                status: 'streaming',
-                                createdAt: new Date(),
-                            });
+                                status: 'streaming' as const,
+                                createdAt: assistantMessageTime,
+                                metadata: {
+                                    model: selectedModel.model_name,
+                                    modelConfig: {
+                                        id: selectedModel.id,
+                                        name: selectedModel.name,
+                                        base_url: selectedModel.base_url,
+                                        model_name: selectedModel.model_name,
+                                    },
+                                    toolCalls: [], // 初始化工具调用数组
+                                    contentSegments: [{ content: '', type: 'text' as const }], // 初始化内容分段
+                                    currentSegmentIndex: 0 // 当前正在写入的分段索引
+                                },
+                            };
 
-                            // 添加助手消息到状态
                             set((state) => {
-                                state.messages.push(assistantMessage);
-                                state.streamingMessageId = assistantMessage.id;
+                                state.messages.push(tempAssistantMessage);
                                 state.isStreaming = true;
+                                state.streamingMessageId = tempAssistantMessage.id;
                             });
 
-                            // 这里应该调用AI服务来处理消息
-                            // 由于messageManager没有sendMessage方法，我们暂时跳过AI调用
-                            // 实际使用时需要集成AI服务
-                            
-                            set((state) => {
-                                state.isStreaming = false;
-                                state.streamingMessageId = null;
-                                state.isLoading = false;
-                            });
+                            // 构建模型配置
+                            const modelConfig = selectedModel ? {
+                                model_name: selectedModel.model_name,
+                                temperature: chatConfig.temperature,
+                                max_tokens: 16000,
+                                api_key: selectedModel.api_key,
+                                base_url: selectedModel.base_url
+                            } : undefined;
+
+                            // 设置回调函数处理AI响应
+                            await chatService.sendMessage(currentSessionId, content, attachments, {
+                                onChunk: (data: any) => {
+                                    // 更新流式消息内容
+                                    set((state) => {
+                                        const message = state.messages.find(m => m.id === tempAssistantMessage.id);
+                                        if (message && message.metadata) {
+                                            // 确保data.content是字符串，如果是对象则提取content字段
+                                            const content = typeof data.content === 'string' ? data.content :
+                                                (typeof data === 'string' ? data :
+                                                    (data.content || ''));
+                                            
+                                            // 获取当前分段索引
+                                            const currentIndex = message.metadata.currentSegmentIndex || 0;
+                                            const segments = message.metadata.contentSegments || [];
+                                            
+                                            // 确保当前分段存在且为文本类型
+                                            if (segments[currentIndex] && segments[currentIndex].type === 'text') {
+                                                segments[currentIndex].content += content;
+                                            } else {
+                                                // 如果当前分段不存在或不是文本类型，创建新的文本分段
+                                                segments.push({ content, type: 'text' as const });
+                                                message.metadata.currentSegmentIndex = segments.length - 1;
+                                            }
+                                            
+                                            // 更新完整内容用于向后兼容
+                                            message.content = segments.filter((s: any) => s.type === 'text').map((s: any) => s.content).join('');
+                                        }
+                                    });
+                                },
+                                onToolCall: (toolCalls: any) => {
+                                    // 处理工具调用
+                                    console.log('Tool calls:', toolCalls);
+                                    set((state) => {
+                                        const message = state.messages.find(m => m.id === tempAssistantMessage.id);
+                                        if (message && message.metadata) {
+                                            // 将工具调用添加到消息的metadata中
+                                            if (!message.metadata.toolCalls) {
+                                                message.metadata.toolCalls = [];
+                                            }
+                                            
+                                            const segments = message.metadata.contentSegments || [];
+                                            
+                                            // 添加新的工具调用
+                                            if (Array.isArray(toolCalls)) {
+                                                toolCalls.forEach((tc: any) => {
+                                                    const toolCall = {
+                                                        id: tc.id,
+                                                        messageId: message.id,
+                                                        name: tc.function?.name || tc.name,
+                                                        arguments: tc.function?.arguments || tc.arguments,
+                                                        result: '',
+                                                        createdAt: new Date()
+                                                    };
+                                                    message.metadata!.toolCalls!.push(toolCall);
+                                                    
+                                                    // 添加工具调用分段
+                                                    segments.push({
+                                                        content: '',
+                                                        type: 'tool_call' as const,
+                                                        toolCallId: toolCall.id
+                                                    });
+                                                });
+                                            } else {
+                                                const toolCall = {
+                                                    id: toolCalls.id,
+                                                    messageId: message.id,
+                                                    name: toolCalls.function?.name || toolCalls.name,
+                                                    arguments: toolCalls.function?.arguments || toolCalls.arguments,
+                                                    result: '',
+                                                    createdAt: new Date()
+                                                };
+                                                message.metadata!.toolCalls!.push(toolCall);
+                                                
+                                                // 添加工具调用分段
+                                                segments.push({ 
+                                                    content: '',
+                                                    type: 'tool_call' as const,
+                                                    toolCallId: toolCalls.id
+                                                });
+                                            }
+                                            
+                                            // 为工具调用后的内容创建新的文本分段
+                                            segments.push({ content: '', type: 'text' as const });
+                                            message.metadata!.currentSegmentIndex = segments.length - 1;
+                                        }
+                                    });
+                                },
+                                onToolResult: (results: any) => {
+                                    // 处理工具结果
+                                    console.log('Tool results:', results);
+                                    set((state) => {
+                                        const message = state.messages.find(m => m.id === tempAssistantMessage.id);
+                                        if (message && message.metadata && message.metadata.toolCalls) {
+                                            // 更新对应工具调用的结果
+                                            if (Array.isArray(results)) {
+                                                results.forEach((result: any) => {
+                                                    const toolCall = message.metadata!.toolCalls!.find((tc: any) => tc.id === result.toolCallId);
+                                                    if (toolCall) {
+                                                        toolCall.result = result.result;
+                                                    }
+                                                });
+                                            } else if (results.toolCallId) {
+                                                const toolCall = message.metadata!.toolCalls!.find((tc: any) => tc.id === results.toolCallId);
+                                                if (toolCall) {
+                                                    toolCall.result = results.result;
+                                                }
+                                            }
+                                        }
+                                    });
+                                },
+                                onToolStreamChunk: (data: any) => {
+                                    // 更新工具调用的流式返回内容
+                                    set((state) => {
+                                        const message = state.messages.find(m => m.id === tempAssistantMessage.id);
+                                        if (message && message.metadata && message.metadata.toolCalls) {
+                                            const toolCall = message.metadata.toolCalls.find((tc: any) => tc.id === data.toolCallId);
+                                            if (toolCall) {
+                                                toolCall.result = (toolCall.result || '') + data.chunk;
+                                            }
+                                        }
+                                    });
+                                },
+                                onComplete: async () => {
+                                    // 完成流式响应，将临时消息转换为真实消息并保存
+                                    try {
+                                        const tempMessage = get().messages.find(m => m.id === tempAssistantMessage.id);
+                                        if (tempMessage) {
+                                            // 准备保存数据，包含工具调用信息
+                                            const messageData: any = {
+                                                sessionId: currentSessionId,
+                                                role: 'assistant',
+                                                content: tempMessage.content,
+                                                status: 'completed',
+                                                createdAt: tempMessage.createdAt,
+                                                metadata: tempMessage.metadata
+                                            };
+                                            
+                                            // 如果有工具调用，添加toolCalls字段
+                                            if (tempMessage.metadata?.toolCalls && tempMessage.metadata.toolCalls.length > 0) {
+                                                messageData.toolCalls = tempMessage.metadata.toolCalls.map((tc: any) => ({
+                                                    id: tc.id,
+                                                    function: {
+                                                        name: tc.name,
+                                                        arguments: typeof tc.arguments === 'string' ? tc.arguments : JSON.stringify(tc.arguments)
+                                                    }
+                                                }));
+                                            }
+                                            
+                                            // 保存助手消息到数据库
+                                            const savedMessage = await messageManager.saveAssistantMessage(messageData);
+                                            
+                                            // 更新状态，用真实消息替换临时消息
+                                            set((state) => {
+                                                const tempIndex = state.messages.findIndex(m => m.id === tempAssistantMessage.id);
+                                                if (tempIndex !== -1) {
+                                                    state.messages[tempIndex] = savedMessage;
+                                                }
+                                                state.isLoading = false;
+                                                state.isStreaming = false;
+                                                state.streamingMessageId = null;
+                                            });
+                                            
+                                            // 重新选择当前会话以确保工具调用正确显示
+                                            if (currentSessionId) {
+                                                await get().selectSession(currentSessionId);
+                                            }
+                                        }
+                                    } catch (error) {
+                                        console.error('Failed to save assistant message:', error);
+                                        // 如果保存失败，仍然更新状态
+                                        set((state) => {
+                                            state.isLoading = false;
+                                            state.isStreaming = false;
+                                            state.streamingMessageId = null;
+                                        });
+                                    }
+                                },
+                                onError: (error: any) => {
+                                    // 处理错误
+                                    set((state) => {
+                                        state.error = error.message || 'AI response failed';
+                                        state.isLoading = false;
+                                        state.isStreaming = false;
+                                        state.streamingMessageId = null;
+                                    });
+                                }
+                            }, modelConfig);
                         } catch (error) {
                             console.error('Failed to send message:', error);
                             set((state) => {
