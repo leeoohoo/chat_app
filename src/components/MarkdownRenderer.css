@@ -1,0 +1,362 @@
+/* MarkdownRenderer 独立样式文件 */
+/* 参考 chat.css 的设计理念，使用主题变量系统 */
+
+/* 主题变量定义 - 直接使用 chat.css 的变量 */
+.markdown-content {
+    /* 浅色主题 */
+    --md-bg: #ffffff;
+    --md-secondary-bg: #f8fafc;
+    --md-text: #1e293b;
+    --md-secondary-text: #64748b;
+    --md-border: #e2e8f0;
+    --md-hover-bg: #f1f5f9;
+    --md-code-bg: #f1f5f9;
+    --md-code-text: #24292f;
+    --md-link-color: #0969da;
+}
+
+/* 深色主题 */
+[data-theme="dark"] .markdown-content {
+    --md-bg: #1e1e1e;
+    --md-secondary-bg: #2d2d2d;
+    --md-text: #e6edf3;
+    --md-secondary-text: #8b949e;
+    --md-border: #3d3d3d;
+    --md-hover-bg: #383838;
+    --md-code-bg: #161b22;
+    --md-code-text: #f0f6fc;
+    --md-link-color: #58a6ff;
+}
+
+/* 基础容器样式 */
+.markdown-content {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.6;
+    color: var(--md-text);
+    word-wrap: break-word;
+    max-width: none;
+}
+
+/* 标题样式 */
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+    margin-top: 24px;
+    margin-bottom: 16px;
+    font-weight: 600;
+    line-height: 1.25;
+    color: var(--md-text);
+}
+
+.markdown-content h1 {
+    font-size: 2em;
+    border-bottom: 1px solid var(--md-border);
+    padding-bottom: 0.3em;
+}
+
+.markdown-content h2 {
+    font-size: 1.5em;
+    border-bottom: 1px solid var(--md-border);
+    padding-bottom: 0.3em;
+}
+
+.markdown-content h3 {
+    font-size: 1.25em;
+}
+
+.markdown-content h4 {
+    font-size: 1em;
+}
+
+.markdown-content h5 {
+    font-size: 0.875em;
+}
+
+.markdown-content h6 {
+    font-size: 0.85em;
+    color: var(--md-secondary-text);
+}
+
+/* 段落样式 */
+.markdown-content p {
+    margin-top: 0;
+    margin-bottom: 16px;
+    color: var(--md-text);
+}
+
+/* 链接样式 */
+.markdown-content a {
+    color: var(--md-link-color);
+    text-decoration: none;
+}
+
+.markdown-content a:hover {
+    text-decoration: underline;
+}
+
+/* 强调和斜体 */
+.markdown-content strong {
+    font-weight: 600;
+    color: var(--md-text);
+}
+
+.markdown-content em {
+    font-style: italic;
+    color: var(--md-text);
+}
+
+/* 行内代码样式 */
+.markdown-content .inline-code {
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+    padding: 0.2em 0.4em;
+    margin: 0;
+    font-size: 13px;
+    background-color: var(--md-code-bg);
+    border-radius: 3px;
+    color: var(--md-code-text);
+    border: 1px solid var(--md-border);
+    font-weight: 500;
+}
+
+/* 代码块样式 */
+.markdown-content .code-block {
+    margin: 16px 0;
+    border-radius: 6px;
+    border: 1px solid var(--md-border);
+    overflow: hidden;
+    background-color: var(--md-code-bg);
+}
+
+.markdown-content .code-header {
+    background-color: var(--md-secondary-bg);
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--md-secondary-text);
+    border-bottom: 1px solid var(--md-border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.markdown-content .code-block pre {
+    margin: 0;
+    padding: 16px;
+    overflow: auto;
+    font-size: 13px;
+    line-height: 1.5;
+    background-color: var(--md-code-bg);
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace;
+}
+
+.markdown-content .code-block pre code {
+    display: inline;
+    max-width: auto;
+    padding: 0;
+    margin: 0;
+    overflow: visible;
+    line-height: inherit;
+    word-wrap: normal;
+    background-color: transparent;
+    border: 0;
+    font-size: 13px;
+    color: var(--md-code-text);
+    font-weight: 400;
+}
+
+/* 流式代码块样式 */
+.markdown-content .streaming-code .code-header {
+    background-color: var(--md-hover-bg);
+}
+
+.markdown-content .streaming-indicator {
+    color: var(--md-link-color);
+    font-size: 11px;
+    animation: pulse 1s infinite;
+}
+
+/* 引用样式 */
+.markdown-content blockquote {
+    margin: 0 0 16px 0;
+    padding: 0 1em;
+    color: var(--md-secondary-text);
+    border-left: 0.25em solid var(--md-border);
+    background: var(--md-secondary-bg);
+    border-radius: 0 4px 4px 0;
+}
+
+/* 列表样式 */
+.markdown-content ul,
+.markdown-content ol {
+    margin-top: 0;
+    margin-bottom: 16px;
+    padding-left: 2em;
+}
+
+.markdown-content li {
+    margin-top: 0.25em;
+    color: var(--md-text);
+}
+
+.markdown-content li.unordered {
+    margin-left: 16px;
+}
+
+.markdown-content li.ordered {
+    margin-left: 16px;
+    list-style-type: decimal;
+}
+
+/* 🔥 统一表格样式 - 完全参考 chat.css 的设计理念 */
+.markdown-content table,
+.markdown-content .streaming-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    margin: 8px 0;
+    border: 1px dashed var(--md-border);
+    border-radius: 4px;
+    background: rgba(148, 163, 184, 0.05);
+    overflow: hidden;
+}
+
+/* 深色模式表格背景 */
+[data-theme="dark"] .markdown-content table,
+[data-theme="dark"] .markdown-content .streaming-table {
+    background: rgba(148, 163, 184, 0.02);
+}
+
+/* 统一表头样式 */
+.markdown-content table th,
+.markdown-content .streaming-table th {
+    padding: 6px 12px;
+    border: 1px solid var(--md-border);
+    background: var(--md-code-bg);
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--md-text);
+    text-align: left;
+}
+
+/* 统一单元格样式 */
+.markdown-content table td,
+.markdown-content .streaming-table td {
+    padding: 6px 12px;
+    border: 1px solid var(--md-border);
+    background: var(--md-bg);
+    font-size: 13px;
+    color: var(--md-text);
+}
+
+/* 统一斑马纹样式 */
+.markdown-content table tr:nth-child(even) td,
+.markdown-content .streaming-table tr:nth-child(even) td {
+    background: var(--md-secondary-bg);
+}
+
+/* 流式表格包装器 */
+.streaming-table-wrapper {
+    margin: 8px 0;
+    padding: 8px;
+    border: 1px dashed var(--md-border);
+    border-radius: 4px;
+    background: rgba(148, 163, 184, 0.05);
+    transition: all 0.3s ease;
+}
+
+[data-theme="dark"] .streaming-table-wrapper {
+    background: rgba(148, 163, 184, 0.02);
+    border-color: var(--md-border);
+}
+
+.streaming-table-indicator {
+    font-size: 11px;
+    color: var(--md-secondary-text);
+    margin-bottom: 4px;
+    font-weight: 500;
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
+}
+
+/* 流式完成状态 - 保持相同样式 */
+.streaming-complete .markdown-content table {
+    transition: opacity 0.3s ease;
+    opacity: 1;
+}
+
+/* 响应式表格支持 - 完全参考 chat.css */
+@media (max-width: 768px) {
+    .markdown-content table,
+    .markdown-content .streaming-table {
+        font-size: 12px;
+    }
+
+    .markdown-content table th,
+    .markdown-content table td,
+    .markdown-content .streaming-table th,
+    .markdown-content .streaming-table td {
+        padding: 4px 8px;
+        font-size: 12px;
+    }
+
+    .streaming-table-wrapper {
+        padding: 6px;
+        margin: 6px 0;
+    }
+
+    .streaming-table-indicator {
+        font-size: 10px;
+    }
+}
+
+/* 流式光标样式 */
+.streaming-cursor {
+    display: inline-block;
+    width: 8px;
+    height: 16px;
+    background-color: var(--md-text);
+    animation: pulse 1s infinite;
+    margin-left: 4px;
+}
+
+/* 打印样式 */
+@media print {
+    .markdown-content {
+        color: #000;
+        background: #fff;
+    }
+    
+    .markdown-content table {
+        border: 1px solid #000;
+        background: #fff;
+    }
+    
+    .markdown-content table th,
+    .markdown-content table td {
+        border: 1px solid #000;
+        background: #fff;
+    }
+    
+    .streaming-cursor {
+        display: none;
+    }
+}
+
+/* 减少动画模式支持 */
+@media (prefers-reduced-motion: reduce) {
+    .streaming-cursor {
+        animation: none;
+    }
+    
+    .markdown-renderer .streaming-table {
+        transition: none;
+    }
+}
