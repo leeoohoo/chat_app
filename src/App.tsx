@@ -14,6 +14,9 @@ interface AppProps {
 function App({ userId = 'custom_user_123', projectId = 'custom_project_456' }: AppProps = {}) {
   const { actualTheme } = useTheme();
 
+  // 调试日志
+  console.log('🔍 App组件接收到的参数:', { userId, projectId });
+
   // 确保主题正确应用
   useEffect(() => {
     document.documentElement.classList.remove('light', 'dark');

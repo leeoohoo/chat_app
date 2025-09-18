@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useChatStoreFromContext } from '../lib/store/ChatStoreContext';
 import { useChatStore } from '../lib/store';
 import { McpConfig } from '../types';
 
@@ -39,6 +40,7 @@ const EditIcon = () => (
 
 interface McpManagerProps {
   onClose?: () => void;
+  store?: any; // 可选的store参数，用于在没有Context Provider的情况下使用
 }
 
 interface McpFormData {
@@ -47,8 +49,24 @@ interface McpFormData {
   enabled: boolean;
 }
 
-const McpManager: React.FC<McpManagerProps> = ({ onClose }) => {
-  const { mcpConfigs, updateMcpConfig, deleteMcpConfig, loadMcpConfigs } = useChatStore();
+const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }) => {
+  // 尝试使用外部传入的store，如果没有则尝试使用Context，最后回退到默认store
+  let storeData;
+  
+  if (externalStore) {
+    // 使用外部传入的store
+    storeData = externalStore();
+  } else {
+    // 尝试使用Context store，如果失败则使用默认store
+    try {
+      storeData = useChatStoreFromContext();
+    } catch (error) {
+      // 如果Context不可用，使用默认store
+      storeData = useChatStore();
+    }
+  }
+
+  const { mcpConfigs, updateMcpConfig, deleteMcpConfig, loadMcpConfigs } = storeData;
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingConfig, setEditingConfig] = useState<McpConfig | null>(null);
   const [formData, setFormData] = useState<McpFormData>({
@@ -80,8 +98,7 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose }) => {
       return;
     }
 
-    const newConfig: McpConfig = {
-      id: Date.now().toString(),
+    const newConfig: Partial<McpConfig> = {
       name: formData.name.trim(),
       serverUrl: formData.serverUrl.trim(),
       enabled: formData.enabled,
@@ -89,7 +106,7 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose }) => {
       updatedAt: new Date()
     };
 
-    await updateMcpConfig(newConfig);
+    await updateMcpConfig(newConfig as McpConfig);
     resetForm();
   };
 
@@ -249,7 +266,7 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose }) => {
                 <p className="text-sm">点击上方按钮添加第一个服务器</p>
               </div>
             ) : (
-              mcpConfigs.map((config) => (
+              mcpConfigs.map((config: McpConfig) => (
                 <div
                   key={config.id}
                   className="flex items-center justify-between p-4 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg"

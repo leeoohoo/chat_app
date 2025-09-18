@@ -2,7 +2,7 @@ import {create} from 'zustand';
 import {subscribeWithSelector} from 'zustand/middleware';
 import {immer} from 'zustand/middleware/immer';
 import {persist} from 'zustand/middleware';
-import type {Message, Session, ChatConfig, Theme, McpConfig, AiModelConfig} from '../../types';
+import type {Message, Session, ChatConfig, Theme, McpConfig, AiModelConfig, SystemContext} from '../../types';
 import {DatabaseService} from '../database';
 import {apiClient} from '../api/client';
 // import {messageManager} from '../services/messageManager';
@@ -25,12 +25,13 @@ interface ChatState {
     sidebarOpen: boolean;
     theme: Theme;
 
-    // 配置
+    // 配置相关
     chatConfig: ChatConfig;
     mcpConfigs: McpConfig[];
     aiModelConfigs: AiModelConfig[];
     selectedModelId: string | null;
-    systemContext: string | null;
+    systemContexts: SystemContext[];
+    activeSystemContext: SystemContext | null;
 
     // 错误处理
     error: string | null;
@@ -69,8 +70,11 @@ interface ChatActions {
     updateAiModelConfig: (config: AiModelConfig) => Promise<void>;
     deleteAiModelConfig: (id: string) => Promise<void>;
     setSelectedModel: (modelId: string | null) => void;
-    loadSystemContext: () => Promise<void>;
-    updateSystemContext: (content: string) => Promise<void>;
+    loadSystemContexts: () => Promise<void>;
+    createSystemContext: (name: string, content: string) => Promise<void>;
+    updateSystemContext: (id: string, name: string, content: string) => Promise<void>;
+    deleteSystemContext: (id: string) => Promise<void>;
+    activateSystemContext: (id: string) => Promise<void>;
 
     // 错误处理
     setError: (error: string | null) => void;
@@ -133,8 +137,9 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
                     },
                     mcpConfigs: [],
                     aiModelConfigs: [],
-                    systemContext: null,
                     selectedModelId: null,
+                    systemContexts: [],
+                    activeSystemContext: null,
                     error: null,
 
                     // 会话操作
@@ -488,22 +493,33 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
                     updateMcpConfig: async (config: McpConfig) => {
                         try {
                             const userId = getUserIdParam();
+                            console.log('🔍 updateMcpConfig 调用:', { 
+                                userId, 
+                                customUserId, 
+                                configId: config.id,
+                                configName: config.name 
+                            });
+                            
                             if (config.id) {
-                                await client.updateMcpConfig(config.id, {
+                                const updateData = {
                                     id: config.id,
                                     name: config.name,
                                     command: config.serverUrl, // 使用serverUrl作为command
                                     enabled: config.enabled,
                                     userId,
-                                });
+                                };
+                                console.log('🔍 updateMcpConfig 更新数据:', updateData);
+                                await client.updateMcpConfig(config.id, updateData);
                             } else {
-                                await client.createMcpConfig({
+                                const createData = {
                                     id: crypto.randomUUID(),
                                     name: config.name,
                                     command: config.serverUrl,
                                     enabled: config.enabled,
                                     userId,
-                                });
+                                };
+                                console.log('🔍 updateMcpConfig 创建数据:', createData);
+                                await client.createMcpConfig(createData);
                             }
                             
                             // 重新加载配置
@@ -616,28 +632,94 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
                         });
                     },
 
-                    loadSystemContext: async () => {
+                    loadSystemContexts: async () => {
                         try {
-                            const response = await client.getSystemContext();
+                            const contexts = await client.getSystemContexts(getUserIdParam());
+                            const activeContext = await client.getActiveSystemContext(getUserIdParam());
                             set((state) => {
-                                state.systemContext = response.content || null;
+                                state.systemContexts = contexts;
+                                // 处理activeContext的返回格式
+                                if (activeContext && activeContext.content) {
+                                    // 从contexts中找到对应的完整上下文对象
+                                    const fullActiveContext = contexts.find(ctx => ctx.content === activeContext.content);
+                                    state.activeSystemContext = fullActiveContext || null;
+                                } else {
+                                    state.activeSystemContext = null;
+                                }
                             });
                         } catch (error) {
-                            console.error('Failed to load system context:', error);
+                            console.error('Failed to load system contexts:', error);
                             set((state) => {
-                                state.systemContext = null;
+                                state.systemContexts = [];
+                                state.activeSystemContext = null;
                             });
                         }
                     },
 
-                    updateSystemContext: async (content: string) => {
+                    createSystemContext: async (name: string, content: string) => {
                         try {
-                            await client.updateSystemContext(content);
+                            const newContext = await client.createSystemContext({
+                                name,
+                                content,
+                                userId: getUserIdParam()
+                            });
                             set((state) => {
-                                state.systemContext = content;
+                                state.systemContexts.push(newContext);
+                            });
+                        } catch (error) {
+                            console.error('Failed to create system context:', error);
+                            throw error;
+                        }
+                    },
+
+                    updateSystemContext: async (id: string, name: string, content: string) => {
+                        try {
+                            const updatedContext = await client.updateSystemContext(id, { name, content });
+                            set((state) => {
+                                const index = state.systemContexts.findIndex(ctx => ctx.id === id);
+                                if (index !== -1) {
+                                    state.systemContexts[index] = updatedContext;
+                                }
+                                if (state.activeSystemContext?.id === id) {
+                                    state.activeSystemContext = updatedContext;
+                                }
                             });
                         } catch (error) {
                             console.error('Failed to update system context:', error);
+                            throw error;
+                        }
+                    },
+
+                    deleteSystemContext: async (id: string) => {
+                        try {
+                            await client.deleteSystemContext(id);
+                            set((state) => {
+                                state.systemContexts = state.systemContexts.filter(ctx => ctx.id !== id);
+                                if (state.activeSystemContext?.id === id) {
+                                    state.activeSystemContext = null;
+                                }
+                            });
+                        } catch (error) {
+                            console.error('Failed to delete system context:', error);
+                            throw error;
+                        }
+                    },
+
+                    activateSystemContext: async (id: string) => {
+                        try {
+                            await client.activateSystemContext(id, getUserIdParam());
+                            set((state) => {
+                                const context = state.systemContexts.find(ctx => ctx.id === id);
+                                if (context) {
+                                    // 更新所有上下文的激活状态
+                                    state.systemContexts.forEach(ctx => {
+                                        ctx.isActive = ctx.id === id;
+                                    });
+                                    state.activeSystemContext = { ...context, isActive: true };
+                                }
+                            });
+                        } catch (error) {
+                            console.error('Failed to activate system context:', error);
                             throw error;
                         }
                     },

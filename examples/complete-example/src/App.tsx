@@ -15,7 +15,7 @@ function App() {
     try {
       // 创建 AiChat 实例 - 使用自定义参数测试
       const aiChat = new AiChat(
-        'custom_user_123',            // 自定义用户ID
+        'custom_user_124',            // 自定义用户ID
         'custom_project_456',         // 自定义项目ID
         'http://localhost:3001/api',  // 自定义API基础URL
         'h-full w-full'               // CSS类名

@@ -239,17 +239,20 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
 
       {/* MCP管理器模态框 */}
       {showMcpManager && (
-        <McpManager onClose={() => setShowMcpManager(false)} />
-      )}
+          <McpManager onClose={() => setShowMcpManager(false)} store={store} />
+        )}
 
       {/* AI模型管理器模态框 */}
       {showAiModelManager && (
-        <AiModelManager onClose={() => setShowAiModelManager(false)} />
-      )}
+          <AiModelManager onClose={() => setShowAiModelManager(false)} store={store} />
+        )}
 
       {/* 系统上下文编辑器模态框 */}
       {showSystemContextEditor && (
-        <SystemContextEditor onClose={() => setShowSystemContextEditor(false)} />
+        <SystemContextEditor 
+          onClose={() => setShowSystemContextEditor(false)} 
+          store={store}
+        />
       )}
     </div>
   );

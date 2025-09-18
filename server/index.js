@@ -86,9 +86,13 @@ async function initDatabase() {
         UNIQUE(session_id, mcp_config_id)
       );
       
-      CREATE TABLE IF NOT EXISTS system_context (
-        id INTEGER PRIMARY KEY,
+      CREATE TABLE IF NOT EXISTS system_contexts (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
         content TEXT,
+        user_id TEXT,
+        is_active BOOLEAN DEFAULT false,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       );
     `);
@@ -325,11 +329,13 @@ app.get('/api/mcp-configs', async (req, res) => {
 app.post('/api/mcp-configs', async (req, res) => {
   try {
     const { id, name, command, args, env, userId, enabled } = req.body;
+    // 如果没有提供 id 或 id 为 null，则生成一个新的 id
+    const configId = id || Date.now().toString();
     await db.run(
       'INSERT INTO mcp_configs (id, name, command, args, env, user_id, enabled) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [id, name, command, JSON.stringify(args), JSON.stringify(env), userId, enabled]
+      [configId, name, command, JSON.stringify(args || []), JSON.stringify(env || {}), userId, enabled]
     );
-    const config = await db.get('SELECT * FROM mcp_configs WHERE id = ?', [id]);
+    const config = await db.get('SELECT * FROM mcp_configs WHERE id = ?', [configId]);
     res.json(config);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -475,27 +481,101 @@ app.delete('/api/sessions/:sessionId/mcp-servers/:mcpConfigId', async (req, res)
   }
 });
 
-// 获取系统上下文
-app.get('/api/system-context', async (req, res) => {
+// 获取系统上下文列表
+app.get('/api/system-contexts', async (req, res) => {
   try {
-    const result = await db.get(
-      'SELECT content FROM system_context WHERE id = 1'
+    const { userId } = req.query;
+    const contexts = await db.all(
+      'SELECT * FROM system_contexts WHERE user_id = ? ORDER BY created_at DESC',
+      [userId]
     );
-    res.json({ content: result?.content || '' });
+    res.json(contexts);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 获取当前激活的系统上下文
+app.get('/api/system-context/active', async (req, res) => {
+  try {
+    const { userId } = req.query;
+    const result = await db.get(
+      'SELECT * FROM system_contexts WHERE user_id = ? AND is_active = true',
+      [userId]
+    );
+    res.json({ content: result?.content || '', context: result });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 创建系统上下文
+app.post('/api/system-contexts', async (req, res) => {
+  try {
+    const { name, content, userId } = req.body;
+    const id = Date.now().toString();
+    
+    await db.run(
+      'INSERT INTO system_contexts (id, name, content, user_id, created_at, updated_at) VALUES (?, ?, ?, ?, datetime("now"), datetime("now"))',
+      [id, name, content, userId]
+    );
+    
+    const newContext = await db.get('SELECT * FROM system_contexts WHERE id = ?', [id]);
+    res.json(newContext);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
 // 更新系统上下文
-app.post('/api/system-context', async (req, res) => {
+app.put('/api/system-contexts/:id', async (req, res) => {
   try {
-    const { content } = req.body;
+    const { id } = req.params;
+    const { name, content } = req.body;
+    
     await db.run(
-      'INSERT OR REPLACE INTO system_context (id, content, updated_at) VALUES (1, ?, datetime("now"))',
-      [content]
+      'UPDATE system_contexts SET name = ?, content = ?, updated_at = datetime("now") WHERE id = ?',
+      [name, content, id]
     );
+    
+    const updatedContext = await db.get('SELECT * FROM system_contexts WHERE id = ?', [id]);
+    res.json(updatedContext);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 删除系统上下文
+app.delete('/api/system-contexts/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await db.run('DELETE FROM system_contexts WHERE id = ?', [id]);
     res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 激活系统上下文
+app.post('/api/system-contexts/:id/activate', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { userId } = req.body;
+    
+    // 先将该用户的所有上下文设为非激活状态
+    await db.run(
+      'UPDATE system_contexts SET is_active = false WHERE user_id = ?',
+      [userId]
+    );
+    
+    // 激活指定的上下文
+    await db.run(
+      'UPDATE system_contexts SET is_active = true WHERE id = ? AND user_id = ?',
+      [id, userId]
+    );
+    
+    const activeContext = await db.get('SELECT * FROM system_contexts WHERE id = ?', [id]);
+    res.json(activeContext);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

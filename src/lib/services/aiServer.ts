@@ -142,10 +142,12 @@ class AiServer {
             // 构建完整的消息历史，包含系统提示词
             this.messages = [];
             
-            // 获取系统提示词 - 从 system_context 获取
+            // 获取系统提示词 - 从激活的 system_context 获取
             let systemPrompt = '';
             try {
-                const response = await fetch('/api/system-context');
+                // 假设使用默认用户ID，实际应该从上下文获取
+                const userId = 'custom_user_123'; // TODO: 从实际上下文获取
+                const response = await fetch(`/api/system-context/active?userId=${userId}`);
                 if (response.ok) {
                     const data = await response.json();
                     systemPrompt = data.content || '';

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useChatStore, useSessions, useCurrentSession, useSidebarOpen } from '../lib/store';
+import { useChatStoreFromContext, useChatStoreContext } from '../lib/store/ChatStoreContext';
+import { useSessions, useCurrentSession, useSidebarOpen } from '../lib/store';
 import { SessionList } from './SessionList';
 
 // 简化的图标组件
@@ -23,7 +24,8 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ children }) => {
   const sessions = useSessions();
   const currentSession = useCurrentSession();
   const sidebarOpen = useSidebarOpen();
-  const storeResult = useChatStore();
+  const store = useChatStoreContext();
+  const storeResult = useChatStoreFromContext();
   const { loadSessions, toggleSidebar } = storeResult;
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -61,7 +63,7 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ children }) => {
       {/* 桌面端侧边栏 */}
       {!isMobile && sidebarOpen && (
         <div className="w-80 flex-shrink-0">
-          <SessionList store={useChatStore} />
+          <SessionList store={store} />
         </div>
       )}
 
@@ -121,7 +123,7 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ children }) => {
                 </button>
               </div>
               <div className="h-96">
-                <SessionList onClose={handleCloseModal} store={useChatStore} />
+                <SessionList onClose={handleCloseModal} store={store} />
               </div>
             </div>
           </div>

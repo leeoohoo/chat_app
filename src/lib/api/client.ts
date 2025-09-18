@@ -30,7 +30,18 @@ class ApiClient {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
-      return await response.json();
+      // 检查响应是否有内容
+      const text = await response.text();
+      if (!text) {
+        return {} as T; // 返回空对象而不是尝试解析空字符串
+      }
+      
+      try {
+        return JSON.parse(text);
+      } catch (parseError) {
+        console.error(`JSON parse error for ${endpoint}:`, parseError, 'Response text:', text);
+        throw new Error(`Invalid JSON response: ${text}`);
+      }
     } catch (error) {
       console.error(`API request failed: ${endpoint}`, error);
       throw error;
@@ -106,6 +117,7 @@ class ApiClient {
     enabled: boolean;
     userId?: string;
   }) {
+    console.log('🔍 API client createMcpConfig 调用:', data);
     return this.request('/mcp-configs', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -113,6 +125,7 @@ class ApiClient {
   }
 
   async updateMcpConfig(id: string, data: any) {
+    console.log('🔍 API client updateMcpConfig 调用:', { id, data });
     return this.request(`/mcp-configs/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -162,14 +175,45 @@ class ApiClient {
   }
 
   // 系统上下文相关API
-  async getSystemContext(): Promise<{ content: string }> {
-    return this.request<{ content: string }>('/system-context');
+  async getSystemContexts(userId: string): Promise<any[]> {
+    return this.request<any[]>(`/system-contexts?userId=${userId}`);
   }
 
-  async updateSystemContext(content: string): Promise<void> {
-    return this.request<void>('/system-context', {
+  async getActiveSystemContext(userId: string): Promise<{ content: string; context: any }> {
+    return this.request<{ content: string; context: any }>(`/system-context/active?userId=${userId}`);
+  }
+
+  async createSystemContext(data: {
+    name: string;
+    content: string;
+    userId: string;
+  }): Promise<any> {
+    return this.request<any>('/system-contexts', {
       method: 'POST',
-      body: JSON.stringify({ content }),
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateSystemContext(id: string, data: {
+    name: string;
+    content: string;
+  }): Promise<any> {
+    return this.request<any>(`/system-contexts/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteSystemContext(id: string): Promise<void> {
+    return this.request<void>(`/system-contexts/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async activateSystemContext(id: string, userId: string): Promise<any> {
+    return this.request<any>(`/system-contexts/${id}/activate`, {
+      method: 'POST',
+      body: JSON.stringify({ userId }),
     });
   }
 }

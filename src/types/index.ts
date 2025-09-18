@@ -45,6 +45,17 @@ export interface Session {
   metadata?: string | null;
 }
 
+// 系统上下文接口
+export interface SystemContext {
+  id: string;
+  name: string;
+  content: string;
+  userId: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 // 附件接口
 export interface Attachment {
   id: string;

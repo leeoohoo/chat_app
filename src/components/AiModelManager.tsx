@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useChatStoreFromContext } from '../lib/store/ChatStoreContext';
 import { useChatStore } from '../lib/store';
 import type { AiModelConfig } from '../types';
 
@@ -35,6 +36,7 @@ const TrashIcon = () => (
 
 interface AiModelManagerProps {
   onClose: () => void;
+  store?: any; // 可选的store参数，用于在没有Context Provider的情况下使用
 }
 
 interface AiModelFormData {
@@ -45,8 +47,24 @@ interface AiModelFormData {
   enabled: boolean;
 }
 
-const AiModelManager: React.FC<AiModelManagerProps> = ({ onClose }) => {
-  const { aiModelConfigs, loadAiModelConfigs, updateAiModelConfig, deleteAiModelConfig } = useChatStore();
+const AiModelManager: React.FC<AiModelManagerProps> = ({ onClose, store: externalStore }) => {
+  // 尝试使用外部传入的store，如果没有则尝试使用Context，最后回退到默认store
+  let storeData;
+  
+  if (externalStore) {
+    // 使用外部传入的store
+    storeData = externalStore();
+  } else {
+    // 尝试使用Context store，如果失败则使用默认store
+    try {
+      storeData = useChatStoreFromContext();
+    } catch (error) {
+      // 如果Context不可用，使用默认store
+      storeData = useChatStore();
+    }
+  }
+
+  const { aiModelConfigs, loadAiModelConfigs, updateAiModelConfig, deleteAiModelConfig } = storeData;
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingConfig, setEditingConfig] = useState<AiModelConfig | null>(null);
   const [formData, setFormData] = useState<AiModelFormData>({
