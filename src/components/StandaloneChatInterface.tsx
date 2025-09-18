@@ -215,27 +215,12 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
         />
       )}
 
-      {/* 会话列表模态框 */}
-      {isSessionModalOpen && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-card border border-border rounded-lg w-full max-w-md mx-4 max-h-[80vh] overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-border">
-              <h2 className="text-lg font-semibold">会话列表</h2>
-              <button
-                onClick={() => setIsSessionModalOpen(false)}
-                className="p-1 text-muted-foreground hover:text-foreground hover:bg-accent rounded transition-colors"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="overflow-y-auto max-h-[60vh]">
-              <SessionList onClose={() => setIsSessionModalOpen(false)} store={store} />
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 会话管理抽屉 */}
+      <SessionList 
+        isOpen={isSessionModalOpen} 
+        onClose={() => setIsSessionModalOpen(false)} 
+        store={store} 
+      />
 
       {/* MCP管理器模态框 */}
       {showMcpManager && (

@@ -184,3 +184,108 @@
 .slide-down {
   @apply animate-bounce;
 }
+
+/* 呼吸边框动画 */
+@keyframes breathing-border {
+  0%, 100% {
+    box-shadow: 
+      0 0 20px rgba(59, 130, 246, 0.3), 
+      0 0 40px rgba(147, 51, 234, 0.2), 
+      0 0 60px rgba(236, 72, 153, 0.1),
+      0 0 0 1px rgba(59, 130, 246, 0.2);
+  }
+  50% {
+    box-shadow: 
+      0 0 30px rgba(59, 130, 246, 0.5), 
+      0 0 60px rgba(147, 51, 234, 0.3), 
+      0 0 90px rgba(236, 72, 153, 0.2),
+      0 0 0 2px rgba(59, 130, 246, 0.4);
+  }
+}
+
+.animate-breathing-border {
+  animation: breathing-border 3s ease-in-out infinite;
+}
+
+/* 弹框通用样式 */
+.modal-container {
+  @apply fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50;
+}
+
+.modal-content {
+  @apply bg-card rounded-xl shadow-2xl transform transition-all duration-300 ease-out scale-100;
+  animation: breathing-border 3s ease-in-out infinite;
+}
+
+.modal-content::before {
+  content: '';
+  @apply absolute inset-0 rounded-xl bg-gradient-to-r from-blue-500/20 via-purple-500/20 to-pink-500/20 animate-pulse;
+  z-index: -1;
+}
+
+/* 深色模式下的呼吸边框 */
+.dark .animate-breathing-border {
+  animation: breathing-border-dark 3s ease-in-out infinite;
+}
+
+@keyframes breathing-border-dark {
+  0%, 100% {
+    box-shadow: 
+      0 0 20px rgba(96, 165, 250, 0.4), 
+      0 0 40px rgba(168, 85, 247, 0.3), 
+      0 0 60px rgba(244, 114, 182, 0.2),
+      0 0 0 1px rgba(96, 165, 250, 0.3);
+  }
+  50% {
+    box-shadow: 
+      0 0 30px rgba(96, 165, 250, 0.6), 
+      0 0 60px rgba(168, 85, 247, 0.4), 
+      0 0 90px rgba(244, 114, 182, 0.3),
+      0 0 0 2px rgba(96, 165, 250, 0.5);
+  }
+}
+
+/* 抽屉呼吸边框样式 */
+.breathing-border {
+  animation: drawer-breathing-border 3s ease-in-out infinite;
+  border-right: 2px solid transparent;
+}
+
+@keyframes drawer-breathing-border {
+  0%, 100% {
+    border-right-color: rgba(59, 130, 246, 0.4);
+    box-shadow: 
+      2px 0 20px rgba(59, 130, 246, 0.3),
+      2px 0 40px rgba(147, 51, 234, 0.2),
+      2px 0 60px rgba(236, 72, 153, 0.1);
+  }
+  50% {
+    border-right-color: rgba(59, 130, 246, 0.7);
+    box-shadow: 
+      2px 0 30px rgba(59, 130, 246, 0.5),
+      2px 0 60px rgba(147, 51, 234, 0.3),
+      2px 0 90px rgba(236, 72, 153, 0.2);
+  }
+}
+
+/* 深色模式下的抽屉呼吸边框 */
+.dark .breathing-border {
+  animation: drawer-breathing-border-dark 3s ease-in-out infinite;
+}
+
+@keyframes drawer-breathing-border-dark {
+  0%, 100% {
+    border-right-color: rgba(96, 165, 250, 0.4);
+    box-shadow: 
+      2px 0 20px rgba(96, 165, 250, 0.3),
+      2px 0 40px rgba(168, 85, 247, 0.2),
+      2px 0 60px rgba(244, 114, 182, 0.1);
+  }
+  50% {
+    border-right-color: rgba(96, 165, 250, 0.7);
+    box-shadow: 
+      2px 0 30px rgba(96, 165, 250, 0.5),
+      2px 0 60px rgba(168, 85, 247, 0.3),
+      2px 0 90px rgba(244, 114, 182, 0.2);
+  }
+}

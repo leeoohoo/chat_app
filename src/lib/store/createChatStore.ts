@@ -722,7 +722,7 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
                                 const updateData = {
                                     id: config.id,
                                     name: config.name,
-                                    command: config.serverUrl, // 使用serverUrl作为command
+                                    command: config.command,
                                     enabled: config.enabled,
                                     userId,
                                 };
@@ -732,7 +732,7 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
                                 const createData = {
                                     id: crypto.randomUUID(),
                                     name: config.name,
-                                    command: config.serverUrl,
+                                    command: config.command,
                                     enabled: config.enabled,
                                     userId,
                                 };

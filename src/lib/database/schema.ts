@@ -33,7 +33,7 @@ export const messages = sqliteTable('messages', {
 export const mcpConfigs = sqliteTable('mcp_configs', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
-  serverUrl: text('server_url').notNull(),
+  command: text('command').notNull(),
   enabled: integer('enabled', { mode: 'boolean' }).notNull().default(true),
   config: text('config'), // JSON configuration
   createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),

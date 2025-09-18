@@ -99,7 +99,7 @@ export interface ChatConfig {
 export interface McpConfig {
   id: string;
   name: string;
-  serverUrl: string;
+  command: string;
   enabled: boolean;
   config?: any;
   createdAt: Date;
@@ -132,7 +132,7 @@ export interface AiClientConfig {
 // MCP工具配置
 export interface McpToolConfig {
   name: string;
-  serverUrl: string;
+  command: string;
   enabled: boolean;
   timeout: number;
   retryCount: number;
@@ -207,12 +207,9 @@ export interface InputAreaProps {
 }
 
 export interface SessionListProps {
-  sessions: Session[];
-  currentSessionId?: string;
-  onSessionSelect: (sessionId: string) => void;
-  onSessionCreate: () => void;
-  onSessionDelete: (sessionId: string) => void;
-  onSessionRename: (sessionId: string, title: string) => void;
+  isOpen?: boolean;
+  onClose?: () => void;
+  store?: any;
 }
 
 // 事件类型

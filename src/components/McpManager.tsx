@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useChatStoreFromContext } from '../lib/store/ChatStoreContext';
 import { useChatStore } from '../lib/store';
 import { McpConfig } from '../types';
+import ConfirmDialog from './ui/ConfirmDialog';
+import { useConfirmDialog } from '../hooks/useConfirmDialog';
 
 // 服务器图标组件
 const ServerIcon = () => (
@@ -45,7 +47,7 @@ interface McpManagerProps {
 
 interface McpFormData {
   name: string;
-  serverUrl: string;
+  command: string;
   enabled: boolean;
 }
 
@@ -67,11 +69,13 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
   }
 
   const { mcpConfigs, updateMcpConfig, deleteMcpConfig, loadMcpConfigs } = storeData;
+  const { dialogState, showConfirmDialog, handleConfirm, handleCancel } = useConfirmDialog();
+
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingConfig, setEditingConfig] = useState<McpConfig | null>(null);
   const [formData, setFormData] = useState<McpFormData>({
     name: '',
-    serverUrl: '',
+    command: '',
     enabled: true
   });
 
@@ -84,7 +88,7 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
   const resetForm = () => {
     setFormData({
       name: '',
-      serverUrl: '',
+      command: '',
       enabled: true
     });
     setEditingConfig(null);
@@ -94,13 +98,13 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
   // 处理添加服务器
   const handleAddServer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name.trim() || !formData.serverUrl.trim()) {
+    if (!formData.name.trim() || !formData.command.trim()) {
       return;
     }
 
     const newConfig: Partial<McpConfig> = {
       name: formData.name.trim(),
-      serverUrl: formData.serverUrl.trim(),
+      command: formData.command.trim(),
       enabled: formData.enabled,
       createdAt: new Date(),
       updatedAt: new Date()
@@ -113,14 +117,14 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
   // 处理编辑服务器
   const handleEditServer = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingConfig || !formData.name.trim() || !formData.serverUrl.trim()) {
+    if (!editingConfig || !formData.name.trim() || !formData.command.trim()) {
       return;
     }
 
     const updatedConfig: McpConfig = {
       ...editingConfig,
       name: formData.name.trim(),
-      serverUrl: formData.serverUrl.trim(),
+      command: formData.command.trim(),
       enabled: formData.enabled,
       updatedAt: new Date()
     };
@@ -134,7 +138,7 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
     setEditingConfig(config);
     setFormData({
       name: config.name,
-      serverUrl: config.serverUrl,
+      command: config.command,
       enabled: config.enabled
     });
     setShowAddForm(true);
@@ -142,9 +146,15 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
 
   // 删除服务器
   const handleDeleteServer = async (id: string) => {
-    if (confirm('确定要删除这个MCP服务器配置吗？')) {
-      await deleteMcpConfig(id);
-    }
+    const config = mcpConfigs.find((c: McpConfig) => c.id === id);
+    showConfirmDialog({
+      title: '删除 MCP 服务器',
+      message: `确定要删除服务器 "${config?.name || 'Unknown'}" 吗？此操作无法撤销。`,
+      confirmText: '删除',
+      cancelText: '取消',
+      type: 'danger',
+      onConfirm: () => deleteMcpConfig(id)
+    });
   };
 
   // 切换服务器启用状态
@@ -158,19 +168,19 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
+    <div className="modal-container">
+      <div className="modal-content w-full max-w-2xl max-h-[80vh] overflow-hidden">
         {/* 头部 */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between p-6 border-b border-border">
           <div className="flex items-center space-x-3">
             <ServerIcon />
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            <h2 className="text-xl font-semibold text-foreground">
               MCP 服务器管理
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
           >
             <XMarkIcon />
           </button>
@@ -182,7 +192,7 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
           {!showAddForm && (
             <button
               onClick={() => setShowAddForm(true)}
-              className="w-full mb-6 p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-blue-500 dark:hover:border-blue-400 transition-colors flex items-center justify-center space-x-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+              className="w-full mb-6 p-4 border-2 border-dashed border-border rounded-lg hover:border-blue-500 transition-colors flex items-center justify-center space-x-2 text-muted-foreground hover:text-blue-600"
             >
               <PlusIcon />
               <span>添加 MCP 服务器</span>
@@ -191,36 +201,36 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
 
           {/* 添加/编辑表单 */}
           {showAddForm && (
-            <form onSubmit={editingConfig ? handleEditServer : handleAddServer} className="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+            <form onSubmit={editingConfig ? handleEditServer : handleAddServer} className="mb-6 p-4 bg-muted rounded-lg">
+              <h3 className="text-lg font-medium text-foreground mb-4">
                 {editingConfig ? '编辑服务器' : '添加新服务器'}
               </h3>
               
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     服务器名称
                   </label>
                   <input
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
+                    className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
                     placeholder="例如: File System"
                     required
                   />
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    服务器URL
+                  <label className="block text-sm font-medium text-foreground mb-2">
+                    命令/URL
                   </label>
                   <input
-                    type="url"
-                    value={formData.serverUrl}
-                    onChange={(e) => setFormData({ ...formData, serverUrl: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
-                    placeholder="例如: http://localhost:3001"
+                    type="text"
+                    value={formData.command}
+                    onChange={(e) => setFormData({ ...formData, command: e.target.value })}
+                    className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                    placeholder="npx @modelcontextprotocol/server-filesystem /path/to/allowed/files"
                     required
                   />
                 </div>
@@ -233,7 +243,7 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
                     onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
-                  <label htmlFor="enabled" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                  <label htmlFor="enabled" className="ml-2 block text-sm text-foreground">
                     启用此服务器
                   </label>
                 </div>
@@ -249,7 +259,7 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="px-4 py-2 bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-400 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                  className="px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 focus:outline-none focus:ring-2 focus:ring-ring"
                 >
                   取消
                 </button>
@@ -260,7 +270,7 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
           {/* 服务器列表 */}
           <div className="space-y-3">
             {mcpConfigs.length === 0 ? (
-              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              <div className="text-center py-8 text-muted-foreground">
                 <ServerIcon />
                 <p className="mt-2">暂无 MCP 服务器配置</p>
                 <p className="text-sm">点击上方按钮添加第一个服务器</p>
@@ -269,18 +279,18 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
               mcpConfigs.map((config: McpConfig) => (
                 <div
                   key={config.id}
-                  className="flex items-center justify-between p-4 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg"
+                  className="flex items-center justify-between p-4 bg-card border border-border rounded-lg"
                 >
                   <div className="flex items-center space-x-3">
                     <div className={`w-3 h-3 rounded-full ${
                       config.enabled ? 'bg-green-500' : 'bg-gray-400'
                     }`} />
                     <div>
-                      <h4 className="font-medium text-gray-900 dark:text-white">
+                      <h4 className="font-medium text-foreground">
                         {config.name}
                       </h4>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        {config.serverUrl}
+                      <p className="text-sm text-muted-foreground">
+                        {config.command}
                       </p>
                     </div>
                   </div>
@@ -291,7 +301,7 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
                       className={`px-3 py-1 text-xs rounded-full ${
                         config.enabled
                           ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                          : 'bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-200'
+                          : 'bg-secondary text-secondary-foreground'
                       }`}
                     >
                       {config.enabled ? '已启用' : '已禁用'}
@@ -299,7 +309,7 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
                     
                     <button
                       onClick={() => startEdit(config)}
-                      className="p-2 text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400 transition-colors"
+                      className="p-2 text-muted-foreground hover:text-blue-600 transition-colors"
                       title="编辑"
                     >
                       <EditIcon />
@@ -307,7 +317,7 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
                     
                     <button
                       onClick={() => handleDeleteServer(config.id)}
-                      className="p-2 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 transition-colors"
+                      className="p-2 text-muted-foreground hover:text-red-600 transition-colors"
                       title="删除"
                     >
                       <TrashIcon />
@@ -319,6 +329,18 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
           </div>
         </div>
       </div>
+
+      {/* 确认对话框 */}
+      <ConfirmDialog
+        isOpen={dialogState.isOpen}
+        title={dialogState.title}
+        message={dialogState.message}
+        confirmText={dialogState.confirmText}
+        cancelText={dialogState.cancelText}
+        type={dialogState.type}
+        onConfirm={handleConfirm}
+        onCancel={handleCancel}
+      />
     </div>
   );
 };

@@ -101,7 +101,7 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ children }) => {
 
       {/* 移动端模态框 */}
       {isModalOpen && isMobile && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
+        <div className="modal-container">
           {/* 背景遮罩 */}
           <div 
             className="fixed inset-0 bg-black bg-opacity-25 transition-opacity"
@@ -110,7 +110,7 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ children }) => {
           
           {/* 模态框内容 */}
           <div className="flex min-h-full items-center justify-center p-4">
-            <div className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white dark:bg-gray-900 shadow-xl transition-all">
+            <div className="modal-content w-full max-w-md transform overflow-hidden transition-all">
               <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                   会话管理

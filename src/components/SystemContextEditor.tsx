@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useChatStoreFromContext } from '../lib/store/ChatStoreContext';
 import { useChatStore } from '../lib/store';
 import type { SystemContext } from '../types';
+import ConfirmDialog from './ui/ConfirmDialog';
+import { useConfirmDialog } from '../hooks/useConfirmDialog';
 
 // 图标组件
 const DocumentIcon = () => (
@@ -85,6 +87,8 @@ const SystemContextEditor: React.FC<SystemContextEditorProps> = ({ onClose, stor
   const [formData, setFormData] = useState({ name: '', content: '' });
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  
+  const { dialogState, showConfirmDialog, handleConfirm, handleCancel } = useConfirmDialog();
 
   // 组件初始化时加载系统上下文列表
   useEffect(() => {
@@ -140,16 +144,21 @@ const SystemContextEditor: React.FC<SystemContextEditorProps> = ({ onClose, stor
 
   // 删除上下文
   const handleDelete = async (context: SystemContext) => {
-    if (!confirm(`确定要删除上下文 "${context.name}" 吗？`)) {
-      return;
-    }
-
-    try {
-      await deleteSystemContext(context.id);
-    } catch (error) {
-      console.error('Failed to delete system context:', error);
-      alert('删除失败，请重试');
-    }
+    showConfirmDialog({
+      title: '删除确认',
+      message: `确定要删除上下文 "${context.name}" 吗？此操作无法撤销。`,
+      confirmText: '删除',
+      cancelText: '取消',
+      type: 'danger',
+      onConfirm: async () => {
+        try {
+          await deleteSystemContext(context.id);
+        } catch (error) {
+          console.error('Failed to delete system context:', error);
+          alert('删除失败，请重试');
+        }
+      }
+    });
   };
 
   // 激活上下文
@@ -187,10 +196,10 @@ const SystemContextEditor: React.FC<SystemContextEditorProps> = ({ onClose, stor
       <div className="flex-1 overflow-y-auto">
         {isLoading ? (
           <div className="flex items-center justify-center h-32">
-            <div className="text-gray-500 dark:text-gray-400">加载中...</div>
+            <div className="text-muted-foreground">加载中...</div>
           </div>
         ) : systemContexts.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-32 text-gray-500 dark:text-gray-400">
+          <div className="flex flex-col items-center justify-center h-32 text-muted-foreground">
             <DocumentIcon />
             <p className="mt-2">暂无系统上下文配置</p>
             <p className="text-sm">点击"新建"按钮创建第一个配置</p>
@@ -203,13 +212,13 @@ const SystemContextEditor: React.FC<SystemContextEditorProps> = ({ onClose, stor
                 className={`p-4 border rounded-lg transition-colors ${
                   context.isActive
                     ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
-                    : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700'
+                    : 'border-border bg-card'
                 }`}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <div className="flex items-center space-x-2">
-                      <h3 className="font-medium text-gray-900 dark:text-white">
+                      <h3 className="font-medium text-foreground">
                         {context.name}
                       </h3>
                       {context.isActive && (
@@ -219,11 +228,11 @@ const SystemContextEditor: React.FC<SystemContextEditorProps> = ({ onClose, stor
                         </span>
                       )}
                     </div>
-                    <p className="mt-1 text-sm text-gray-600 dark:text-gray-300 line-clamp-2">
+                    <p className="mt-1 text-sm text-muted-foreground line-clamp-2">
                       {context.content.substring(0, 100)}
                       {context.content.length > 100 && '...'}
                     </p>
-                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    <p className="mt-2 text-xs text-muted-foreground">
                       创建时间: {new Date(context.createdAt).toLocaleString()}
                     </p>
                   </div>
@@ -238,13 +247,13 @@ const SystemContextEditor: React.FC<SystemContextEditorProps> = ({ onClose, stor
                     )}
                     <button
                       onClick={() => handleEdit(context)}
-                      className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors dark:text-gray-400 dark:hover:text-blue-400 dark:hover:bg-blue-900/20"
+                      className="p-2 text-muted-foreground hover:text-blue-600 hover:bg-accent rounded transition-colors"
                     >
                       <EditIcon />
                     </button>
                     <button
                       onClick={() => handleDelete(context)}
-                      className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded transition-colors dark:text-gray-400 dark:hover:text-red-400 dark:hover:bg-red-900/20"
+                      className="p-2 text-muted-foreground hover:text-red-600 hover:bg-accent rounded transition-colors"
                     >
                       <TrashIcon />
                     </button>
@@ -275,14 +284,14 @@ const SystemContextEditor: React.FC<SystemContextEditorProps> = ({ onClose, stor
       <div className="flex-1 flex flex-col space-y-4">
         {/* 名称输入 */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label className="block text-sm font-medium text-foreground mb-2">
             配置名称
           </label>
           <input
             type="text"
             value={formData.name}
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+            className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
             placeholder="例如：编程助手、翻译专家、创意写作等"
           />
         </div>
@@ -290,10 +299,10 @@ const SystemContextEditor: React.FC<SystemContextEditorProps> = ({ onClose, stor
         {/* 内容编辑 */}
         <div className="flex-1 flex flex-col">
           <div className="mb-2 flex items-center justify-between">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label className="block text-sm font-medium text-foreground">
               Markdown 内容
             </label>
-            <div className="text-xs text-gray-500 dark:text-gray-400">
+            <div className="text-xs text-muted-foreground">
               {formData.content.length} 字符
             </div>
           </div>
@@ -302,14 +311,14 @@ const SystemContextEditor: React.FC<SystemContextEditorProps> = ({ onClose, stor
             value={formData.content}
             onChange={(e) => setFormData({ ...formData, content: e.target.value })}
             onKeyDown={handleKeyDown}
-            className="flex-1 w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white resize-none font-mono text-sm"
+            className="flex-1 w-full px-4 py-3 border border-input bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-ring resize-none font-mono text-sm"
             placeholder="请输入系统上下文内容，支持 Markdown 格式...\n\n例如：\n# AI 助手角色设定\n\n你是一个专业的编程助手，具有以下特点：\n- 提供准确、简洁的代码解决方案\n- 遵循最佳实践和代码规范\n- 耐心解答技术问题\n\n## 回答风格\n- 使用中文回答\n- 代码示例要完整可运行\n- 提供必要的解释说明"
             spellCheck={false}
           />
         </div>
 
         {/* 底部提示 */}
-        <div className="text-xs text-gray-500 dark:text-gray-400">
+        <div className="text-xs text-muted-foreground">
           <p>• 支持标准 Markdown 语法：标题、列表、代码块、链接等</p>
           <p>• 内容将在每次对话开始时自动发送给 AI</p>
           <p>• 留空则使用默认系统提示词</p>
@@ -319,13 +328,13 @@ const SystemContextEditor: React.FC<SystemContextEditorProps> = ({ onClose, stor
   );
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
+    <div className="modal-container">
+      <div className="modal-content w-full max-w-4xl max-h-[90vh] overflow-hidden">
         {/* 头部 */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between p-6 border-b border-border">
           <div className="flex items-center space-x-3">
             <DocumentIcon />
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            <h2 className="text-xl font-semibold text-foreground">
               系统上下文设置
             </h2>
           </div>
@@ -350,7 +359,7 @@ const SystemContextEditor: React.FC<SystemContextEditorProps> = ({ onClose, stor
                 </button>
                 <button
                   onClick={() => setViewMode('list')}
-                  className="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors dark:text-gray-400 dark:border-gray-600 dark:hover:bg-gray-700"
+                  className="px-4 py-2 text-secondary-foreground border border-border rounded-md hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring transition-colors"
                 >
                   取消
                 </button>
@@ -358,7 +367,7 @@ const SystemContextEditor: React.FC<SystemContextEditorProps> = ({ onClose, stor
             )}
             <button
               onClick={onClose}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
             >
               <XMarkIcon />
             </button>
@@ -368,6 +377,18 @@ const SystemContextEditor: React.FC<SystemContextEditorProps> = ({ onClose, stor
         {/* 内容区域 */}
         {viewMode === 'list' ? renderListView() : renderEditView()}
       </div>
+
+      {/* 确认对话框 */}
+      <ConfirmDialog
+        isOpen={dialogState.isOpen}
+        title={dialogState.title}
+        message={dialogState.message}
+        confirmText={dialogState.confirmText}
+        cancelText={dialogState.cancelText}
+        type={dialogState.type}
+        onConfirm={handleConfirm}
+        onCancel={handleCancel}
+      />
     </div>
   );
 };

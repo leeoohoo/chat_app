@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useChatStoreFromContext } from '../lib/store/ChatStoreContext';
 import { useChatStore } from '../lib/store';
 import type { AiModelConfig } from '../types';
+import ConfirmDialog from './ui/ConfirmDialog';
+import { useConfirmDialog } from '../hooks/useConfirmDialog';
 
 // 图标组件
 const BrainIcon = () => (
@@ -74,6 +76,8 @@ const AiModelManager: React.FC<AiModelManagerProps> = ({ onClose, store: externa
     model_name: '',
     enabled: true
   });
+  
+  const { dialogState, showConfirmDialog, handleConfirm, handleCancel } = useConfirmDialog();
 
   // 加载AI模型配置
   useEffect(() => {
@@ -151,9 +155,17 @@ const AiModelManager: React.FC<AiModelManagerProps> = ({ onClose, store: externa
 
   // 删除服务器
   const handleDeleteServer = async (id: string) => {
-    if (confirm('确定要删除这个AI模型配置吗？')) {
-      await deleteAiModelConfig(id);
-    }
+    const config = aiModelConfigs.find((c: AiModelConfig) => c.id === id);
+    showConfirmDialog({
+      title: '删除确认',
+      message: `确定要删除AI模型配置 "${config?.name || 'Unknown'}" 吗？此操作无法撤销。`,
+      confirmText: '删除',
+      cancelText: '取消',
+      type: 'danger',
+      onConfirm: async () => {
+        await deleteAiModelConfig(id);
+      }
+    });
   };
 
   // 切换服务器启用状态
@@ -167,19 +179,19 @@ const AiModelManager: React.FC<AiModelManagerProps> = ({ onClose, store: externa
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
+    <div className="modal-container">
+      <div className="modal-content w-full max-w-2xl max-h-[80vh] overflow-hidden">
         {/* 头部 */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between p-6 border-b border-border">
           <div className="flex items-center space-x-3">
             <BrainIcon />
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            <h2 className="text-xl font-semibold text-foreground">
               AI 模型管理
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
           >
             <XMarkIcon />
           </button>
@@ -191,7 +203,7 @@ const AiModelManager: React.FC<AiModelManagerProps> = ({ onClose, store: externa
           {!showAddForm && (
             <button
               onClick={() => setShowAddForm(true)}
-              className="w-full mb-6 p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-blue-500 dark:hover:border-blue-400 transition-colors flex items-center justify-center space-x-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+              className="w-full mb-6 p-4 border-2 border-dashed border-border rounded-lg hover:border-blue-500 transition-colors flex items-center justify-center space-x-2 text-muted-foreground hover:text-blue-600"
             >
               <PlusIcon />
               <span>添加 AI 模型</span>
@@ -200,63 +212,63 @@ const AiModelManager: React.FC<AiModelManagerProps> = ({ onClose, store: externa
 
           {/* 添加/编辑表单 */}
           {showAddForm && (
-            <form onSubmit={editingConfig ? handleEditServer : handleAddServer} className="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+            <form onSubmit={editingConfig ? handleEditServer : handleAddServer} className="mb-6 p-4 bg-muted rounded-lg">
+              <h3 className="text-lg font-medium text-foreground mb-4">
                 {editingConfig ? '编辑 AI 模型' : '添加 AI 模型'}
               </h3>
               
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     配置名称
                   </label>
                   <input
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
+                    className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
                     placeholder="例如: OpenAI GPT-4"
                     required
                   />
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     Base URL
                   </label>
                   <input
                     type="url"
                     value={formData.base_url}
                     onChange={(e) => setFormData({ ...formData, base_url: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
+                    className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
                     placeholder="例如: https://api.openai.com/v1"
                     required
                   />
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     API Key
                   </label>
                   <input
                     type="password"
                     value={formData.api_key}
                     onChange={(e) => setFormData({ ...formData, api_key: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
+                    className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
                     placeholder="输入API密钥"
                     required
                   />
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     模型名称
                   </label>
                   <input
                     type="text"
                     value={formData.model_name}
                     onChange={(e) => setFormData({ ...formData, model_name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-800 dark:text-white"
+                    className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
                     placeholder="例如: gpt-4"
                     required
                   />
@@ -270,7 +282,7 @@ const AiModelManager: React.FC<AiModelManagerProps> = ({ onClose, store: externa
                     onChange={(e) => setFormData({ ...formData, enabled: e.target.checked })}
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
-                  <label htmlFor="enabled" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
+                  <label htmlFor="enabled" className="ml-2 block text-sm text-foreground">
                     启用此模型
                   </label>
                 </div>
@@ -286,7 +298,7 @@ const AiModelManager: React.FC<AiModelManagerProps> = ({ onClose, store: externa
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="px-4 py-2 bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-400 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                  className="px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 focus:outline-none focus:ring-2 focus:ring-ring"
                 >
                   取消
                 </button>
@@ -297,7 +309,7 @@ const AiModelManager: React.FC<AiModelManagerProps> = ({ onClose, store: externa
           {/* 服务器列表 */}
           <div className="space-y-3">
             {aiModelConfigs.length === 0 ? (
-              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              <div className="text-center py-8 text-muted-foreground">
                 <BrainIcon />
                 <p className="mt-2">暂无 AI 模型配置</p>
                 <p className="text-sm">点击上方按钮添加第一个模型</p>
@@ -306,17 +318,17 @@ const AiModelManager: React.FC<AiModelManagerProps> = ({ onClose, store: externa
               aiModelConfigs.map((config: AiModelConfig) => (
                 <div
                   key={config.id}
-                  className="flex items-center justify-between p-4 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg hover:shadow-md transition-shadow"
+                  className="flex items-center justify-between p-4 bg-card border border-border rounded-lg hover:shadow-md transition-shadow"
                 >
                   <div className="flex items-center space-x-3">
                     <div className={`w-3 h-3 rounded-full ${
                       config.enabled ? 'bg-green-500' : 'bg-gray-400'
                     }`} />
                     <div>
-                      <h4 className="font-medium text-gray-900 dark:text-white">
+                      <h4 className="font-medium text-foreground">
                         {config.name}
                       </h4>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                      <p className="text-sm text-muted-foreground">
                         {config.base_url} - {config.model_name}
                       </p>
                     </div>
@@ -328,7 +340,7 @@ const AiModelManager: React.FC<AiModelManagerProps> = ({ onClose, store: externa
                       className={`px-3 py-1 text-xs rounded-full transition-colors ${
                         config.enabled
                           ? 'bg-green-100 text-green-800 hover:bg-green-200 dark:bg-green-900 dark:text-green-200'
-                          : 'bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200'
+                          : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
                       }`}
                     >
                       {config.enabled ? '已启用' : '已禁用'}
@@ -336,7 +348,7 @@ const AiModelManager: React.FC<AiModelManagerProps> = ({ onClose, store: externa
                     
                     <button
                       onClick={() => startEdit(config)}
-                      className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900 rounded transition-colors"
+                      className="p-2 text-muted-foreground hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900 rounded transition-colors"
                       title="编辑"
                     >
                       <PencilIcon />
@@ -344,7 +356,7 @@ const AiModelManager: React.FC<AiModelManagerProps> = ({ onClose, store: externa
                     
                     <button
                       onClick={() => handleDeleteServer(config.id)}
-                      className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900 rounded transition-colors"
+                      className="p-2 text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900 rounded transition-colors"
                       title="删除"
                     >
                       <TrashIcon />
@@ -356,6 +368,18 @@ const AiModelManager: React.FC<AiModelManagerProps> = ({ onClose, store: externa
           </div>
         </div>
       </div>
+
+      {/* 确认对话框 */}
+      <ConfirmDialog
+        isOpen={dialogState.isOpen}
+        title={dialogState.title}
+        message={dialogState.message}
+        confirmText={dialogState.confirmText}
+        cancelText={dialogState.cancelText}
+        type={dialogState.type}
+        onConfirm={handleConfirm}
+        onCancel={handleCancel}
+      />
     </div>
   );
 };

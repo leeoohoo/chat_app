@@ -187,38 +187,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           </div>
         )}
 
-        {/* 会话列表弹出框 */}
-        {isSessionModalOpen && (
-          <div className="fixed inset-0 z-50 overflow-y-auto">
-            {/* 背景遮罩 */}
-            <div 
-              className="fixed inset-0 bg-black bg-opacity-25 transition-opacity"
-              onClick={() => setIsSessionModalOpen(false)}
-            />
-            
-            {/* 模态框内容 */}
-            <div className="flex min-h-full items-center justify-center p-4">
-              <div className="w-full max-w-md transform overflow-hidden rounded-2xl bg-card shadow-xl transition-all">
-                <div className="flex items-center justify-between p-4 border-b border-border">
-                  <h3 className="text-lg font-semibold text-foreground">
-                    会话管理
-                  </h3>
-                  <button
-                    onClick={() => setIsSessionModalOpen(false)}
-                    className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
-                  >
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-                <div className="h-96">
-                   <SessionList onClose={() => setIsSessionModalOpen(false)} />
-                 </div>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* 会话管理抽屉 */}
+        <SessionList 
+          isOpen={isSessionModalOpen} 
+          onClose={() => setIsSessionModalOpen(false)} 
+        />
         
         {/* MCP管理器 */}
         {showMcpManager && (
