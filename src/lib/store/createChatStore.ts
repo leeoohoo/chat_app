@@ -85,6 +85,7 @@ interface ChatActions {
 interface ChatStoreConfig {
     userId?: string;
     projectId?: string;
+    baseUrl?: string;
 }
 
 /**
@@ -97,10 +98,12 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
     const client = customApiClient || apiClient;
     const customUserId = config?.userId;
     const customProjectId = config?.projectId;
+    const customBaseUrl = config?.baseUrl;
     
     // 使用传入的参数或默认值
     const userId = customUserId || 'default-user';
     const projectId = customProjectId || 'default-project';
+    const baseUrl = customBaseUrl || 'http://localhost:3001/api';
     
     // 获取userId的统一函数
     const getUserIdParam = () => userId;
@@ -115,7 +118,7 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
     
     // 创建MessageManager和ChatService实例
     const messageManager = new MessageManager(databaseService);
-    const chatService = new ChatService(userId, projectId, messageManager);
+    const chatService = new ChatService(userId, projectId, messageManager, baseUrl);
     
     return create<ChatState & ChatActions>()
     (subscribeWithSelector(

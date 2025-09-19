@@ -66,11 +66,13 @@ export class ChatService {
   private dbService: ExtendedDatabaseService;
   private messageManager: MessageManager;
   private userId: string;
+  private baseUrl: string;
 
-  constructor(userId: string, projectId: string, messageManager: MessageManager) {
+  constructor(userId: string, projectId: string, messageManager: MessageManager, baseUrl?: string) {
     this.userId = userId;
     this.dbService = new ExtendedDatabaseService(userId, projectId);
     this.messageManager = messageManager;
+    this.baseUrl = baseUrl || 'http://localhost:3002/api'; // 默认值作为后备
   }
 
 
@@ -115,7 +117,7 @@ export class ChatService {
 
 
       // 使用AiServer进行AI调用
-      const aiServer = new AiServer(sessionId, this.userId, this.messageManager, finalModelConfig as any);
+      const aiServer = new AiServer(sessionId, this.userId, this.messageManager, finalModelConfig as any, this.baseUrl);
       
       // 添加初始化重试机制
       let initRetries = 3;

@@ -17,17 +17,19 @@ class AiRequestHandler {
     // private _conversationId: string;
     private callback: (type: CallbackType, data?: any) => void;
     private modelConfig: AiModelConfig;
+    private baseUrl: string;
     // private _stream: boolean;
     // private _useOpenAIPackage: boolean;
     private abortController: AbortController;
     private isAborted: boolean;
 
-    constructor(messages: Message[], tools: any[], _conversationId: string, callback: (type: CallbackType, data?: any) => void, modelConfig: AiModelConfig) {
+    constructor(messages: Message[], tools: any[], _conversationId: string, callback: (type: CallbackType, data?: any) => void, modelConfig: AiModelConfig, baseUrl?: string) {
         this.messages = messages;
         this.tools = tools;
         // this._conversationId = conversationId;
         this.callback = callback;
         this.modelConfig = modelConfig;
+        this.baseUrl = baseUrl || 'http://localhost:3001/api'; // 默认值作为后备
         // this._stream = true;
         // 添加一个标志来控制是否使用 OpenAI 包
         // this._useOpenAIPackage = true; // 默认使用 OpenAI 包
@@ -55,7 +57,7 @@ class AiRequestHandler {
             // 创建 OpenAI 客户端，通过代理服务转发请求
             const openai = new OpenAI({
                 apiKey: this.modelConfig.api_key,
-                baseURL: 'http://localhost:3001/api', // 使用本地代理服务
+                baseURL: this.baseUrl, // 使用配置的代理服务地址
                 dangerouslyAllowBrowser: true, // 允许在浏览器中使用
                 defaultHeaders: {
                     'x-target-url': this.modelConfig.base_url // 实际的AI API端点

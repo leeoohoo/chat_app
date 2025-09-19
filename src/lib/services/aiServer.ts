@@ -39,8 +39,9 @@ class AiServer {
     private currentAiClient: AiClient | null;
     private isAborted: boolean;
     private messageManager: MessageManager;
+    private baseUrl: string;
 
-    constructor(conversation_id: string, userId: string, messageManager: MessageManager, customModelConfig: AiModelConfig | null = null){
+    constructor(conversation_id: string, userId: string, messageManager: MessageManager, customModelConfig: AiModelConfig | null = null, baseUrl?: string){
         this.conversationId = conversation_id
         this.userId = userId;
         this.conversation = null;
@@ -50,6 +51,7 @@ class AiServer {
         this.mcpToolsExecute= null
         this.modelConfig = customModelConfig;
         this.messageManager = messageManager;
+        this.baseUrl = baseUrl || 'http://localhost:3001/api'; // 默认值作为后备
         // 添加中止控制
         this.currentAiClient = null;
         this.isAborted = false;
@@ -195,7 +197,7 @@ class AiServer {
                 created_at: (m as any).created_at
             })));
             //3. 调用AI
-            const aiClient = new AiClient(this.messages, this.conversationId, this.tools, this.modelConfig!, (type: any, data?: any) => this.callback(type, data), this.mcpToolsExecute, this.messageManager);
+            const aiClient = new AiClient(this.messages, this.conversationId, this.tools, this.modelConfig!, (type: any, data?: any) => this.callback(type, data), this.mcpToolsExecute, this.messageManager, this.baseUrl);
             this.currentAiClient = aiClient;
 
             try {
@@ -243,7 +245,7 @@ class AiServer {
             console.log('Messages prepared for AI:', this.messages);
             
             // 调用AI（不使用工具）
-            const aiClient = new AiClient(this.messages, this.conversationId, [], this.modelConfig!, (type: any, data?: any) => this.callback(type, data), null, this.messageManager);
+            const aiClient = new AiClient(this.messages, this.conversationId, [], this.modelConfig!, (type: any, data?: any) => this.callback(type, data), null, this.messageManager, this.baseUrl);
             this.currentAiClient = aiClient;
             
             try {

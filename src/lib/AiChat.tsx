@@ -40,10 +40,11 @@ export class AiChat {
     // 创建自定义的 API 客户端
     this.apiClient = new ApiClient(this.baseUrl);
     
-    // 创建自定义的 store，传入 userId 和 projectId
+    // 创建自定义的 store，传入 userId、projectId 和 baseUrl
     this.store = createChatStore(this.apiClient, {
       userId: this.userId,
-      projectId: this.projectId
+      projectId: this.projectId,
+      baseUrl: this.baseUrl
     });
   }
 
@@ -83,7 +84,8 @@ export class AiChat {
       this.apiClient = new ApiClient(this.baseUrl);
       this.store = createChatStore(this.apiClient, {
         userId: this.userId,
-        projectId: this.projectId
+        projectId: this.projectId,
+        baseUrl: this.baseUrl
       });
     }
     if (config.className !== undefined) this.className = config.className;

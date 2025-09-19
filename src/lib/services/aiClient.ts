@@ -26,18 +26,20 @@ class AiClient {
     private modelConfig: AiModelConfig;
     private callBack: (type: CallbackType, data?: any) => void;
     private mcpToolExecute: McpToolExecute | null;
+    private baseUrl: string;
     // private payLoad: any;
     private isAborted: boolean;
     private currentAiRequestHandler: AiRequestHandler | null;
     private toolResultProcessor: ToolResultProcessor;
 
-    constructor(messages: Message[], conversationId: string, tools: any[], modelConfig: AiModelConfig, callBack: (type: CallbackType, data?: any) => void, mcpToolExecute: McpToolExecute | null, messageManager: MessageManager) {
+    constructor(messages: Message[], conversationId: string, tools: any[], modelConfig: AiModelConfig, callBack: (type: CallbackType, data?: any) => void, mcpToolExecute: McpToolExecute | null, messageManager: MessageManager, baseUrl?: string) {
         this.messages = messages;
         this.conversationId = conversationId;
         this.tools = tools;
         this.modelConfig = modelConfig;
         this.callBack = callBack;
         this.mcpToolExecute = mcpToolExecute;
+        this.baseUrl = baseUrl || 'http://localhost:3001/api'; // 默认值作为后备
         // this.payLoad = {}
         // 添加中止控制
         this.isAborted = false;
@@ -220,7 +222,7 @@ class AiClient {
             console.log('AiClient: chatCompletion aborted');
             return;
         }
-        const aiRequestHandler = new AiRequestHandler(this.messages, this.tools, this.conversationId, this.callBack, this.modelConfig);
+        const aiRequestHandler = new AiRequestHandler(this.messages, this.tools, this.conversationId, this.callBack, this.modelConfig, this.baseUrl);
         this.currentAiRequestHandler = aiRequestHandler;
 
         try {
