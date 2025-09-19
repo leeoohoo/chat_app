@@ -52,11 +52,14 @@ class AiRequestHandler {
             console.log('Using OpenAI package with base URL:', this.modelConfig.base_url);
             console.log('API Key:', this.modelConfig.api_key ? 'Present' : 'Missing');
 
-            // 创建 OpenAI 客户端
+            // 创建 OpenAI 客户端，通过代理服务转发请求
             const openai = new OpenAI({
                 apiKey: this.modelConfig.api_key,
-                baseURL: this.modelConfig.base_url,
-                dangerouslyAllowBrowser: true // 允许在浏览器中使用
+                baseURL: 'http://localhost:3001/api', // 使用本地代理服务
+                dangerouslyAllowBrowser: true, // 允许在浏览器中使用
+                defaultHeaders: {
+                    'x-target-url': this.modelConfig.base_url // 实际的AI API端点
+                }
             });
 
             // 构建请求参数

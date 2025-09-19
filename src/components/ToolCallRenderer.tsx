@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { cn } from '../lib/utils';
+import { MarkdownRenderer } from './MarkdownRenderer';
 import type { ToolCall, Message } from '../types';
+import './ToolCallRenderer.css';
 
 interface ToolCallRendererProps {
   toolCall: ToolCall;
@@ -13,9 +15,7 @@ export const ToolCallRenderer: React.FC<ToolCallRendererProps> = ({
   allMessages = [],
   className,
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [showArguments, setShowArguments] = useState(false);
-  const [showResult, setShowResult] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
 
   // 查找对应的tool角色消息作为结果
   const toolResultMessage = allMessages.find(msg => 
@@ -26,178 +26,122 @@ export const ToolCallRenderer: React.FC<ToolCallRendererProps> = ({
   // 优先使用tool消息的内容，其次使用toolCall.result
   const resultContent = toolResultMessage?.content || toolCall.result;
   
-  // 获取AI生成的总结
-  const resultSummary = toolResultMessage?.summary || toolResultMessage?.metadata?.summary;
-  
   const hasError = !!toolCall.error;
   const hasResult = !!resultContent;
-  const hasArguments = toolCall.arguments && Object.keys(toolCall.arguments).length > 0;
-
-  const formatJson = (obj: any) => {
-    try {
-      return JSON.stringify(obj, null, 2);
-    } catch {
-      return String(obj);
+  
+  // 解析参数 - 处理字符串和对象两种格式
+  const parseArguments = () => {
+    if (!toolCall.arguments) return {};
+    
+    // 如果已经是对象，直接返回
+    if (typeof toolCall.arguments === 'object') {
+      return toolCall.arguments;
     }
+    
+    // 如果是字符串，尝试解析为 JSON
+    if (typeof toolCall.arguments === 'string') {
+      try {
+        return JSON.parse(toolCall.arguments);
+      } catch (e) {
+        console.warn('Failed to parse tool arguments:', toolCall.arguments, e);
+        return {};
+      }
+    }
+    
+    return {};
+  };
+  
+  const parsedArguments = parseArguments();
+  const hasArguments = parsedArguments && Object.keys(parsedArguments).length > 0;
+
+  // 格式化参数为对话内容
+  const formatArgumentsAsMessage = () => {
+    if (!hasArguments) return '';
+    
+    const argKeys = Object.keys(parsedArguments);
+    
+    // 如果只有一个参数，直接显示其内容
+    if (argKeys.length === 1) {
+      const value = parsedArguments[argKeys[0]];
+      return typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+    }
+    
+    // 如果有多个参数，用表格形式显示
+    let tableContent = '| 参数 | 值 |\n|------|------|\n';
+    argKeys.forEach(key => {
+      const value = parsedArguments[key];
+      const formattedValue = typeof value === 'string' 
+        ? value.replace(/\n/g, '<br>').replace(/\|/g, '\\|')
+        : JSON.stringify(value).replace(/\|/g, '\\|');
+      tableContent += `| ${key} | ${formattedValue} |\n`;
+    });
+    
+    return tableContent;
   };
 
+  const argumentsMessage = formatArgumentsAsMessage();
+
   return (
-    <div className={cn(
-      'border rounded-lg p-3 bg-muted/50',
-      hasError && 'border-destructive bg-destructive/5',
-      className
-    )}>
-      {/* 工具调用头部 */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5">
-            <svg className="w-4 h-4 text-muted-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            <span className="text-sm font-medium">
-              Tool: {toolCall.name}
-            </span>
-          </div>
-          
-          {hasError && (
-            <span className="inline-flex items-center gap-1 text-xs text-destructive bg-destructive/10 px-2 py-0.5 rounded">
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Error
-            </span>
-          )}
-          
-          {hasResult && !hasError && (
-            <span className="inline-flex items-center gap-1 text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded">
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              Success
-            </span>
-          )}
-        </div>
+    <div className="tool-call-renderer tool-call-container">
+      <div className="tool-header">
+        <span className="tool-name">
+          @{toolCall.name}
+        </span>
+        {hasError && (
+          <span className="status-badge status-error">
+            错误
+          </span>
+        )}
         
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="p-1 hover:bg-muted rounded transition-colors"
-          title={isExpanded ? 'Collapse' : 'Expand'}
-        >
-          <svg 
-            className={cn('w-4 h-4 transition-transform', isExpanded && 'rotate-180')} 
-            fill="none" 
-            stroke="currentColor" 
-            viewBox="0 0 24 24"
+        {hasResult && !hasError && (
+          <span className="status-badge status-success">
+            完成
+          </span>
+        )}
+        
+        {(hasArguments || hasResult || hasError) && (
+          <button
+            onClick={() => setShowDetails(!showDetails)}
+            className="toggle-button"
           >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
+            {showDetails ? '收起详情' : '查看详情'}
+          </button>
+        )}
       </div>
 
-      {/* 展开的详细信息 */}
-      {isExpanded && (
-        <div className="mt-3 space-y-3">
-          {/* 参数 */}
-          {hasArguments && (
-            <div>
-              <button
-                onClick={() => setShowArguments(!showArguments)}
-                className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <svg 
-                  className={cn('w-3 h-3 transition-transform', showArguments && 'rotate-90')} 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-                Arguments
-              </button>
-              
-              {showArguments && (
-                <pre className="mt-2 p-2 bg-background border rounded text-xs overflow-x-auto">
-                  <code>{formatJson(toolCall.arguments)}</code>
-                </pre>
-              )}
-            </div>
-          )}
+      {/* 参数内容 - 只在有参数时显示 */}
+      {hasArguments && argumentsMessage && (
+        <div className="border-l-4 border-blue-400 dark:border-blue-500 rounded-lg overflow-hidden bg-blue-50/50 dark:bg-blue-900/20">
+          <MarkdownRenderer 
+            content={argumentsMessage} 
+            className="p-3"
+          />
+        </div>
+      )}
+
+      {/* 详细信息 - 展开时显示 */}
+      {showDetails && (
+         <div className="details-container">
+         
 
           {/* 结果 */}
           {hasResult && (
-            <div>
-              {/* 如果有AI总结，优先显示总结 */}
-              {resultSummary ? (
-                <div className="space-y-2">
-                  <div className="text-sm font-medium text-muted-foreground">AI Summary</div>
-                  <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-                    {resultSummary}
-                  </div>
-                  
-                  {/* 查看完整结果的按钮 */}
-                  <button
-                    onClick={() => setShowResult(!showResult)}
-                    className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    <svg 
-                      className={cn('w-3 h-3 transition-transform', showResult && 'rotate-90')} 
-                      fill="none" 
-                      stroke="currentColor" 
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                    {showResult ? 'Hide Full Result' : 'Show Full Result'}
-                  </button>
-                  
-                  {showResult && (
-                    <pre className="mt-2 p-2 bg-background border rounded text-xs overflow-x-auto">
-                      <code>{resultContent}</code>
-                    </pre>
-                  )}
-                </div>
-              ) : (
-                /* 没有总结时的原始显示方式 */
-                <div>
-                  <button
-                    onClick={() => setShowResult(!showResult)}
-                    className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    <svg 
-                      className={cn('w-3 h-3 transition-transform', showResult && 'rotate-90')} 
-                      fill="none" 
-                      stroke="currentColor" 
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                    </svg>
-                    Result
-                  </button>
-                  
-                  {showResult && (
-                    <pre className="mt-2 p-2 bg-background border rounded text-xs overflow-x-auto">
-                      <code>{resultContent}</code>
-                    </pre>
-                  )}
-                </div>
-              )}
-            </div>
+            <MarkdownRenderer content={toolCall.result || ''} />
           )}
 
-          {/* 错误信息 */}
+          {/* 错误 */}
           {hasError && (
             <div>
-              <div className="text-sm font-medium text-destructive mb-2">Error</div>
-              <div className="p-2 bg-destructive/5 border border-destructive/20 rounded text-sm text-destructive">
+              <div className="details-title">错误:</div>
+              <div className="status-badge status-error" style={{display: 'block', padding: '0.5rem'}}>
                 {toolCall.error}
               </div>
             </div>
           )}
 
           {/* 时间戳 */}
-          <div className="text-xs text-muted-foreground">
-            Executed at: {(() => {
+          <div className="text-xs text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 pt-2">
+            执行时间: {(() => {
               const date = new Date(toolCall.createdAt);
               return isNaN(date.getTime()) ? '时间未知' : date.toLocaleString();
             })()}

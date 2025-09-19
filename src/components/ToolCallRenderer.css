@@ -1,0 +1,166 @@
+/* ToolCallRenderer 组件样式 */
+.tool-call-renderer {
+  /* 浅色主题变量 */
+  --tool-bg: #ffffff;
+  --tool-border: #e5e7eb;
+  --tool-text: #374151;
+  --tool-text-secondary: #6b7280;
+  --tool-name-color: #2563eb;
+  --tool-success-bg: #dcfce7;
+  --tool-success-border: #16a34a;
+  --tool-success-text: #166534;
+  --tool-error-bg: #fef2f2;
+  --tool-error-border: #dc2626;
+  --tool-error-text: #991b1b;
+  --tool-pending-bg: #fef3c7;
+  --tool-pending-border: #d97706;
+  --tool-pending-text: #92400e;
+  --tool-button-bg: #f3f4f6;
+  --tool-button-hover: #e5e7eb;
+  --tool-button-text: #374151;
+  --tool-params-bg: #f9fafb;
+  --tool-details-bg: #f9fafb;
+}
+
+/* 深色主题变量 */
+.dark .tool-call-renderer {
+  --tool-bg: #1f2937;
+  --tool-border: #374151;
+  --tool-text: #f9fafb;
+  --tool-text-secondary: #d1d5db;
+  --tool-name-color: #60a5fa;
+  --tool-success-bg: #064e3b;
+  --tool-success-border: #059669;
+  --tool-success-text: #34d399;
+  --tool-error-bg: #7f1d1d;
+  --tool-error-border: #dc2626;
+  --tool-error-text: #fca5a5;
+  --tool-pending-bg: #78350f;
+  --tool-pending-border: #d97706;
+  --tool-pending-text: #fbbf24;
+  --tool-button-bg: #374151;
+  --tool-button-hover: #4b5563;
+  --tool-button-text: #f9fafb;
+  --tool-params-bg: #111827;
+  --tool-details-bg: #111827;
+}
+
+/* 主容器样式 */
+.tool-call-container {
+  color: var(--tool-text);
+  margin: 0.5rem 0;
+}
+
+/* 工具名称样式 */
+.tool-name {
+  color: var(--tool-name-color);
+  font-weight: 600;
+  font-size: 0.875rem;
+  margin-bottom: 0.5rem;
+}
+
+/* 状态标签样式 */
+.status-badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  margin-left: 0.5rem;
+}
+
+.status-success {
+  color: var(--tool-success-text);
+}
+
+.status-error {
+  color: var(--tool-error-text);
+}
+
+.status-pending {
+  color: var(--tool-pending-text);
+}
+
+/* 按钮样式 */
+.toggle-button {
+  background: none;
+  color: var(--tool-text-secondary);
+  border: none;
+  padding: 0;
+  font-size: 0.75rem;
+  cursor: pointer;
+  text-decoration: underline;
+  transition: color 0.2s;
+}
+
+.toggle-button:hover {
+  color: var(--tool-text);
+}
+
+/* 参数容器样式 */
+.params-container {
+  background-color: var(--tool-params-bg);
+  border: 1px solid var(--tool-border);
+  border-radius: 0.375rem;
+  padding: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.params-title {
+  color: var(--tool-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.param-item {
+  margin-bottom: 0.5rem;
+}
+
+.param-name {
+  color: var(--tool-name-color);
+  font-weight: 500;
+  font-size: 0.875rem;
+}
+
+.param-value {
+  color: var(--tool-text);
+  margin-top: 0.25rem;
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+  font-size: 0.75rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 详情容器样式 */
+.details-container {
+  background-color: var(--tool-details-bg);
+  border: 1px solid var(--tool-border);
+  border-radius: 0.375rem;
+  padding: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.details-title {
+  color: var(--tool-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+/* 工具头部样式 */
+.tool-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+/* 响应式设计 */
+@media (max-width: 640px) {
+  .tool-call-container {
+    padding: 0.75rem;
+  }
+  
+  .param-value {
+    font-size: 0.7rem;
+  }
+}

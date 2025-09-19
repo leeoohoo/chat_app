@@ -5,6 +5,7 @@ import sqlite3 from 'sqlite3';
 import { open } from 'sqlite';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import { handleChatProxy, handleHealthCheck } from './proxy.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -580,6 +581,13 @@ app.post('/api/system-contexts/:id/activate', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// AI 代理路由
+// 通用 AI API 代理 - 支持所有 HTTP 方法的透明转发
+app.all('/api/chat/completions', handleChatProxy);
+
+// AI 代理健康检查
+app.get('/api/proxy/health', handleHealthCheck);
 
 // 服务前端静态文件 - 处理所有非API路由
 app.get('*', (req, res) => {
