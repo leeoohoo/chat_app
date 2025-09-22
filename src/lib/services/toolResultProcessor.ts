@@ -14,12 +14,14 @@ export class ToolResultProcessor {
     private modelConfig: AiModelConfig;
     private conversationId: string;
     private callback: (type: CallbackType, data?: any) => void;
+    private sessionId: string;
 
-    constructor(messageManager: MessageManager, modelConfig: AiModelConfig, conversationId: string, callback: (type: CallbackType, data?: any) => void) {
+    constructor(messageManager: MessageManager, modelConfig: AiModelConfig, conversationId: string, callback: (type: CallbackType, data?: any) => void, sessionId?: string) {
         this.messageManager = messageManager;
         this.modelConfig = modelConfig;
         this.conversationId = conversationId;
         this.callback = callback;
+        this.sessionId = sessionId || conversationId;
     }
 
     /**
@@ -44,7 +46,12 @@ export class ToolResultProcessor {
                 const summary = await this.generateContentSummary(result.content, result.tool_name);
                 finalContent = summary;
                 console.log(`[Tool Result Summary] 为工具 ${result.tool_name} 生成总结，原长度: ${contentLength}, 总结长度: ${summary.length}`);
-            } catch (error) {
+            } catch (error: any) {
+                // 检查是否是用户中断错误
+                if (error.message === 'Stream aborted by user' || error.name === 'AbortError') {
+                    console.log('[Tool Result Summary] 总结生成被用户中断');
+                    return;
+                }
                 console.error(`[Tool Result Summary] 生成总结失败:`, error);
                 // 使用原内容
             }
@@ -127,14 +134,21 @@ export class ToolResultProcessor {
                          });
                      }
                  },
-                 this.modelConfig
+                 this.modelConfig,
+                 'http://localhost:3001/api', // baseUrl
+                 this.sessionId
              );
 
             // 发送总结请求
             await aiRequestHandler.chatCompletion();
 
             return summaryContent.trim() || `工具 ${toolName} 执行完成，内容长度: ${content.length} 字符`;
-        } catch (error) {
+        } catch (error: any) {
+            // 检查是否是用户中断错误
+            if (error.message === 'Stream aborted by user' || error.name === 'AbortError') {
+                console.log('总结生成被用户中断');
+                return `工具 ${toolName} 执行完成，内容长度: ${content.length} 字符`;
+            }
             console.error('生成总结时出错:', error);
             // 返回简单的默认总结
             return `工具 ${toolName} 执行完成，内容长度: ${content.length} 字符`;

@@ -22,14 +22,16 @@ class AiRequestHandler {
     // private _useOpenAIPackage: boolean;
     private abortController: AbortController;
     private isAborted: boolean;
+    private sessionId: string; // 添加sessionId属性
 
-    constructor(messages: Message[], tools: any[], _conversationId: string, callback: (type: CallbackType, data?: any) => void, modelConfig: AiModelConfig, baseUrl?: string) {
+    constructor(messages: Message[], tools: any[], _conversationId: string, callback: (type: CallbackType, data?: any) => void, modelConfig: AiModelConfig, baseUrl?: string, sessionId?: string) {
         this.messages = messages;
         this.tools = tools;
         // this._conversationId = conversationId;
         this.callback = callback;
         this.modelConfig = modelConfig;
         this.baseUrl = baseUrl || 'http://localhost:3001/api'; // 默认值作为后备
+        this.sessionId = sessionId || _conversationId; // 使用sessionId或conversationId作为后备
         // this._stream = true;
         // 添加一个标志来控制是否使用 OpenAI 包
         // this._useOpenAIPackage = true; // 默认使用 OpenAI 包
@@ -47,7 +49,9 @@ class AiRequestHandler {
         try {
             // 检查是否已被中止
             if (this.isAborted) {
-                throw new Error('Request was aborted');
+                console.log('Chat completion aborted by user');
+                // 对于用户主动中断，不抛出错误，直接返回当前消息列表
+                return this.messages;
             }
 
             // 检查模型配置
@@ -67,10 +71,12 @@ class AiRequestHandler {
             // 构建请求参数
             const payload = this.buildPayLoad();
 
-            // 使用 OpenAI 客户端发送流式请求
+            // 使用 OpenAI 客户端发送流式请求，传递 AbortController 的 signal
             const stream = await openai.chat.completions.create({
                 ...payload,
                 stream: true
+            }, {
+                signal: this.abortController.signal
             });
 
             // 处理流式响应
@@ -78,6 +84,18 @@ class AiRequestHandler {
 
             return this.messages;
         } catch (error: any) {
+            debugger
+            // 检查是否是用户主动中断
+            if (error.name === 'AbortError' || 
+                error.message === 'network error' || 
+                error.message?.includes('aborted') ||
+                error.message?.includes('cancelled') ||
+                this.isAborted) {
+                console.log('Chat completion aborted by user');
+                // 对于用户主动中断，不抛出错误，只是静默处理
+                return this.messages;
+            }
+
             console.error('Chat completion failed:', error);
             console.error('Error type:', error.constructor.name);
             console.error('Error message:', error.message);
@@ -236,7 +254,18 @@ class AiRequestHandler {
 
             // AI响应处理完成，消息将由store的onComplete回调保存
 
-        } catch (error) {
+        } catch (error: any) {
+            // 检查是否是用户主动中断
+            if (error.name === 'AbortError' || 
+                error.message === 'network error' || 
+                error.message?.includes('aborted') ||
+                error.message?.includes('cancelled') ||
+                this.isAborted) {
+                console.log('Stream processing aborted by user');
+                // 对于用户主动中断，不抛出错误，只是静默处理
+                return;
+            }
+
             console.error('Stream processing error:', error);
             if (callback) {
                 callback('error', error);
@@ -260,7 +289,8 @@ class AiRequestHandler {
         const requestData = {
             model: this.modelConfig.model_name || 'gpt-3.5-turbo',
             messages: openaiMessages,
-            max_tokens: (this.modelConfig as any).max_tokens || 4000
+            max_tokens: (this.modelConfig as any).max_tokens || 4000,
+            sessionId: this.sessionId // 添加sessionId到请求体
         };
 
         // 如果有工具，添加工具配置

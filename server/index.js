@@ -6,6 +6,7 @@ import { open } from 'sqlite';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import { handleChatProxy, handleHealthCheck } from './proxy.js';
+import streamManager from './streamManager.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -588,6 +589,59 @@ app.all('/api/chat/completions', handleChatProxy);
 
 // AI 代理健康检查
 app.get('/api/proxy/health', handleHealthCheck);
+
+// 停止流式输出
+app.post('/api/chat/stop', (req, res) => {
+  try {
+    const { sessionId } = req.body;
+    if (!sessionId) {
+      return res.status(400).json({ error: 'sessionId is required' });
+    }
+    
+    console.log(`🛑 收到停止请求，会话ID: ${sessionId}`);
+    const stopped = streamManager.abortStream(sessionId);
+    
+    res.json({ 
+      success: true, 
+      stopped,
+      message: stopped ? `会话 ${sessionId} 已停止` : `会话 ${sessionId} 不存在或已结束`
+    });
+  } catch (error) {
+    console.error('停止流式输出失败:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 获取活跃的流式会话列表
+app.get('/api/chat/active-streams', (req, res) => {
+  try {
+    const activeStreams = streamManager.getActiveStreams();
+    res.json({ 
+      success: true, 
+      count: activeStreams.length,
+      streams: activeStreams 
+    });
+  } catch (error) {
+    console.error('获取活跃流式会话失败:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 检查指定会话是否活跃
+app.get('/api/chat/stream-status/:sessionId', (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const isActive = streamManager.isStreamActive(sessionId);
+    res.json({ 
+      success: true, 
+      sessionId,
+      isActive 
+    });
+  } catch (error) {
+    console.error('检查会话状态失败:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // 服务前端静态文件 - 处理所有非API路由
 app.get('*', (req, res) => {

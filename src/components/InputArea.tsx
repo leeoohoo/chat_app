@@ -1,10 +1,12 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { cn } from '../lib/utils';
 import type { InputAreaProps } from '../types';
 
 export const InputArea: React.FC<InputAreaProps> = ({
   onSend,
+  onStop,
   disabled = false,
+  isStreaming = false,
   placeholder = 'Type your message...',
   maxLength = 4000,
   allowAttachments = false,
@@ -19,6 +21,16 @@ export const InputArea: React.FC<InputAreaProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // 调试 isStreaming 状态
+  useEffect(() => {
+    console.log('InputArea - isStreaming 状态变化:', { 
+      isStreaming, 
+      disabled, 
+      onStop: !!onStop,
+      timestamp: new Date().toISOString()
+    });
+  }, [isStreaming, disabled, onStop]);
 
   // 自动调整文本框高度
   const adjustTextareaHeight = useCallback(() => {
@@ -226,23 +238,46 @@ export const InputArea: React.FC<InputAreaProps> = ({
           {message.length}/{maxLength}
         </div>
 
-        {/* 发送按钮 */}
-        <button
-          onClick={handleSend}
-          disabled={disabled || (!message.trim() && attachments.length === 0)}
-          className={cn(
-            'flex-shrink-0 p-2 rounded-md transition-colors',
-            'disabled:opacity-50 disabled:cursor-not-allowed',
-            (message.trim() || attachments.length > 0) && !disabled
-              ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-              : 'text-muted-foreground'
-          )}
-          title={showModelSelector && !selectedModelId ? "请先选择AI模型" : "Send message"}
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-          </svg>
-        </button>
+        {/* 发送/停止按钮 */}
+        {isStreaming ? (
+          <button
+            onClick={() => {
+              console.log('停止按钮被点击', { onStop, disabled });
+              if (onStop) {
+                onStop();
+              }
+            }}
+            disabled={false}
+            className={cn(
+              'flex-shrink-0 p-2 rounded-md transition-colors',
+              'bg-red-500 text-white hover:bg-red-600',
+              'disabled:opacity-50 disabled:cursor-not-allowed'
+            )}
+            title="停止生成"
+            style={{ backgroundColor: '#ef4444', color: 'white' }}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 6h12v12H6z" />
+            </svg>
+          </button>
+        ) : (
+          <button
+            onClick={handleSend}
+            disabled={disabled || isStreaming || (!message.trim() && attachments.length === 0)}
+            className={cn(
+              'flex-shrink-0 p-2 rounded-md transition-colors',
+              'disabled:opacity-50 disabled:cursor-not-allowed',
+              (message.trim() || attachments.length > 0) && !disabled && !isStreaming
+                ? 'bg-primary text-primary-foreground hover:bg-primary/90'
+                : 'text-muted-foreground'
+            )}
+            title={showModelSelector && !selectedModelId ? "请先选择AI模型" : "Send message"}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+            </svg>
+          </button>
+        )}
 
         {/* 隐藏的文件输入 */}
         {allowAttachments && (

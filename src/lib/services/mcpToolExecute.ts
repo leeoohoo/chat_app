@@ -121,6 +121,12 @@ class McpToolExecute {
                 }
 
             } catch (error: any) {
+                // 检查是否是用户中断错误
+                if (error.message === 'Stream aborted by user' || error.name === 'AbortError') {
+                    console.log(`Tool ${toolCall.function?.name || toolCall.name} stream aborted by user`);
+                    resolve();
+                    return;
+                }
                 console.error(`Failed to execute stream tool ${toolCall.function?.name || toolCall.name}:`, error);
                 onError(new Error(error.message || 'Tool execution failed'));
                 reject(error);
@@ -180,7 +186,21 @@ class McpToolExecute {
                     createdAt: new Date() // 确保工具调用结果有正确的时间戳
                 });
 
-            } catch (error) {
+            } catch (error: any) {
+                // 检查是否是用户中断错误
+                if (error.message === 'Stream aborted by user' || error.name === 'AbortError') {
+                    console.log(`Tool ${toolCall.function?.name || toolCall.name} execution aborted by user`);
+                    results.push({
+                        tool_call_id: toolCall.id || `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                        role: 'tool',
+                        name: toolCall.function?.name || toolCall.name,
+                        content: JSON.stringify({
+                            result: 'Tool execution aborted by user'
+                        })
+                    });
+                    continue;
+                }
+                
                 console.error(`Failed to execute tool ${toolCall.function?.name || toolCall.name}:`, error);
 
                 results.push({
@@ -188,7 +208,7 @@ class McpToolExecute {
                     role: 'tool',
                     name: toolCall.function?.name || toolCall.name,
                     content: JSON.stringify({
-                        error: (error as any).message || 'Tool execution failed'
+                        error: error.message || 'Tool execution failed'
                     })
                 });
             }
@@ -318,12 +338,15 @@ class McpToolExecute {
             }
 
         } catch (error: any) {
+            // 检查是否是用户中断错误
+            if (error.name === 'AbortError' || error.message === 'Stream aborted by user') {
+                console.log('MCP stream request aborted by user');
+                return;
+            }
+            
             console.error(`Failed to call MCP stream tool ${toolName}:`, error);
-
-            // 处理不同类型的错误
-            if (error.name === 'AbortError') {
-                onError(new Error('Stream request was aborted'));
-            } else if (error.message && error.message.includes('Stream read timeout')) {
+            
+            if (error.message && error.message.includes('Stream read timeout')) {
                 onError(error);
             } else if (error.message && error.message.includes('fetch')) {
                 onError(new Error(`Network error during stream request: ${error.message}`));

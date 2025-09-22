@@ -29,6 +29,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     selectedModelId,
     setSelectedModel,
     loadAiModelConfigs,
+    abortCurrentConversation,
   } = useChatStoreFromContext();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -177,7 +178,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           <div className="border-t border-border">
             <InputArea
               onSend={handleMessageSend}
-              disabled={isLoading || isStreaming}
+              onStop={abortCurrentConversation}
+              disabled={isLoading}
+              isStreaming={isStreaming}
               placeholder="输入消息..."
               showModelSelector={true}
               selectedModelId={selectedModelId}

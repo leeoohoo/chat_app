@@ -63,6 +63,7 @@ export interface ChatServiceCallbacks {
  */
 export class ChatService {
   private currentAiClient: any = null;
+  private currentSessionId: string | null = null; // 跟踪当前会话ID
   private dbService: ExtendedDatabaseService;
   private messageManager: MessageManager;
   private userId: string;
@@ -72,7 +73,7 @@ export class ChatService {
     this.userId = userId;
     this.dbService = new ExtendedDatabaseService(userId, projectId);
     this.messageManager = messageManager;
-    this.baseUrl = baseUrl || 'http://localhost:3002/api'; // 默认值作为后备
+    this.baseUrl = baseUrl || 'http://localhost:3001/api'; // 默认值作为后备
   }
 
 
@@ -94,6 +95,9 @@ export class ChatService {
     }
   ): Promise<void> {
     try {
+      // 设置当前会话ID
+      this.currentSessionId = sessionId;
+      
       // 获取会话信息
       const session = await this.dbService.getSession(sessionId);
       if (!session) {
@@ -117,7 +121,7 @@ export class ChatService {
 
 
       // 使用AiServer进行AI调用
-      const aiServer = new AiServer(sessionId, this.userId, this.messageManager, finalModelConfig as any, this.baseUrl);
+      const aiServer = new AiServer(sessionId, this.userId, this.messageManager, finalModelConfig as any, this.baseUrl, sessionId);
       
       // 添加初始化重试机制
       let initRetries = 3;
@@ -190,14 +194,29 @@ export class ChatService {
           callbacks.onError?.(new Error(`处理AI响应时出错: ${callbackError instanceof Error ? callbackError.message : '未知错误'}`));
         }
       };
-      
+       this.currentAiClient = aiServer;
       // 发送消息给AI
       await aiServer.sendMessage(content);
       
       // 设置当前AI客户端引用
-      this.currentAiClient = aiServer;
+     
 
-    } catch (error) {
+    } catch (error: any) {
+      // 检查是否是用户中断错误
+      if (error.message === 'Stream aborted by user' || error.name === 'AbortError') {
+        console.log('Message sending aborted by user');
+        return;
+      }
+      
+      // 检查是否是网络连接错误
+      if (error.message?.includes('ERR_INCOMPLETE_CHUNKED_ENCODING') || 
+          error.message?.includes('net::ERR_') ||
+          error.message?.includes('Failed to fetch')) {
+        console.log('Network connection error during streaming:', error.message);
+        callbacks.onError?.(new Error('网络连接中断，请检查网络状态后重试'));
+        return;
+      }
+      
       console.error('Failed to send message:', error);
       callbacks.onError?.(error instanceof Error ? error : new Error(String(error)));
       throw error;
@@ -207,10 +226,63 @@ export class ChatService {
   /**
    * 中止当前对话
    */
-  abortCurrentConversation(): void {
-    if (this.currentAiClient) {
-      this.currentAiClient.abort();
-      this.currentAiClient = null;
+  async abortCurrentConversation(): Promise<void> {
+    console.log('🛑 ChatService: 中止当前对话');
+    
+    if (this.currentSessionId) {
+      try {
+        console.log(`🛑 ChatService: 调用服务端停止接口，会话ID: ${this.currentSessionId}`);
+        
+        // 调用服务端停止接口
+        const response = await fetch(`${this.baseUrl}/chat/stop`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            sessionId: this.currentSessionId
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          console.log(`✅ ChatService: 服务端停止成功 - ${result.message}`);
+        } else {
+          console.warn(`⚠️ ChatService: 服务端停止失败 - ${result.message || '未知错误'}`);
+        }
+        debugger
+        // 清理本地状态
+            // 如果服务端停止失败，尝试客户端停止作为备用方案
+        if (this.currentAiClient) {
+          console.log('🔄 ChatService: 尝试客户端停止作为备用方案');
+          this.currentAiClient.abort();
+        }
+        this.currentAiClient = null;
+        this.currentSessionId = null;
+        
+      } catch (error) {
+        console.error('❌ ChatService: 调用服务端停止接口失败:', error);
+        
+        // 如果服务端停止失败，尝试客户端停止作为备用方案
+        if (this.currentAiClient) {
+          console.log('🔄 ChatService: 尝试客户端停止作为备用方案');
+          this.currentAiClient.abort();
+        }
+        
+        // 清理本地状态
+        this.currentAiClient = null;
+        this.currentSessionId = null;
+      }
+    } else {
+      console.log('⚠️ ChatService: 没有活动的会话可以中止');
+      
+      // 如果没有会话ID但有AI客户端，仍然尝试停止
+      if (this.currentAiClient) {
+        console.log('🔄 ChatService: 尝试停止当前AI客户端');
+        this.currentAiClient.abort();
+        this.currentAiClient = null;
+      }
     }
   }
 

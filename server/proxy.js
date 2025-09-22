@@ -2,6 +2,7 @@
 // 使用 OpenAI SDK 处理请求
 
 import OpenAI from 'openai';
+import streamManager from './streamManager.js';
 
 /**
  * 通用 AI API 代理处理器
@@ -12,6 +13,11 @@ import OpenAI from 'openai';
  */
 export async function handleChatProxy(req, res) {
   try {
+    const { messages, model = 'gpt-3.5-turbo', stream = true, sessionId } = req.body;
+    
+    // 生成会话ID（如果没有提供）
+    const currentSessionId = sessionId || uuidv4();
+    
     console.log('🤖 通用AI代理请求:', {
       method: req.method,
       headers: {
@@ -66,7 +72,7 @@ export async function handleChatProxy(req, res) {
     const isStreamRequest = req.body.stream === true;
     
     if (isStreamRequest) {
-      console.log('📡 处理流式请求');
+      console.log(`📡 处理流式请求，会话ID: ${currentSessionId}`);
       
       // 设置流式响应头
       res.setHeader('Content-Type', 'text/plain; charset=utf-8');
@@ -74,28 +80,84 @@ export async function handleChatProxy(req, res) {
       res.setHeader('Connection', 'keep-alive');
       res.setHeader('Access-Control-Allow-Origin', '*');
       res.setHeader('Access-Control-Allow-Headers', '*');
+      res.setHeader('X-Session-Id', currentSessionId); // 返回会话ID给前端
+      
+      // 创建AbortController用于中断控制
+      const abortController = new AbortController();
+      
+      // 只在响应被销毁时检测客户端断开
+      res.on('close', () => {
+        console.log(`🔌 StreamManager: 响应连接关闭 ${currentSessionId}`);
+        if (!abortController.signal.aborted) {
+          abortController.abort();
+        }
+      });
+
+      // 注册到流式会话管理器
+      streamManager.registerStream(currentSessionId, res, abortController, {
+        model: req.body.model,
+        messageCount: req.body.messages?.length || 0,
+        userAgent: req.headers['user-agent']
+      });
       
       try {
         // 使用 OpenAI SDK 发送流式请求
         const stream = await openai.chat.completions.create({
           ...req.body,
           stream: true
+        }, {
+          signal: abortController.signal // 传入中断信号
         });
 
         // 转发流式响应
         for await (const chunk of stream) {
+          // 检查是否被中断或客户端断开
+          if (abortController.signal.aborted || res.destroyed) {
+            console.log(`🛑 流式请求被中断，会话ID: ${currentSessionId}`);
+            break;
+          }
+          
           const data = `data: ${JSON.stringify(chunk)}\n\n`;
-          res.write(data);
+          try {
+            res.write(data);
+          } catch (writeError) {
+            console.log(`🔌 写入响应失败，客户端可能已断开，会话ID: ${currentSessionId}`);
+            if (!abortController.signal.aborted) {
+              abortController.abort();
+            }
+            break;
+          }
         }
         
-        res.write('data: [DONE]\n\n');
-        res.end();
-        console.log('✅ 流式请求处理完成');
+        // 只有在没有被中断且连接正常的情况下才发送完成信号
+        if (!abortController.signal.aborted && !res.destroyed && res.writable) {
+          try {
+            res.write('data: [DONE]\n\n');
+            res.end();
+            console.log(`✅ 流式请求处理完成，会话ID: ${currentSessionId}`);
+          } catch (endError) {
+            console.log(`🔌 发送完成信号失败，客户端可能已断开，会话ID: ${currentSessionId}`);
+          }
+        } else {
+          console.log(`🔌 跳过发送完成信号，连接状态异常，会话ID: ${currentSessionId}`);
+        }
         
       } catch (error) {
-        console.error('❌ 流式请求处理失败:', error);
-        res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
-        res.end();
+        console.error(`❌ 流式请求处理失败，会话ID: ${currentSessionId}`, error);
+        
+        // 检查是否是中断导致的错误
+        if (abortController.signal.aborted) {
+          console.log(`🛑 流式请求被用户中断，会话ID: ${currentSessionId}`);
+          // 用户中断时不发送任何数据，直接结束
+        } else {
+          if (!res.destroyed) {
+            res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+            res.end();
+          }
+        }
+      } finally {
+        // 确保会话被清理
+        streamManager.unregisterStream(currentSessionId);
       }
     } else {
       console.log('📡 处理非流式请求');

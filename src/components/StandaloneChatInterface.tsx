@@ -75,6 +75,7 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
     selectedModelId,
     setSelectedModel,
     loadAiModelConfigs,
+    abortCurrentConversation,
   } = store();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -207,7 +208,9 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
       {currentSession && (
         <InputArea
           onSend={handleMessageSend}
+          onStop={abortCurrentConversation}
           disabled={isLoading || isStreaming}
+          isStreaming={isStreaming}
           selectedModelId={selectedModelId}
           availableModels={aiModelConfigs}
           onModelChange={setSelectedModel}

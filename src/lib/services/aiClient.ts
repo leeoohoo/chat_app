@@ -27,25 +27,36 @@ class AiClient {
     private callBack: (type: CallbackType, data?: any) => void;
     private mcpToolExecute: McpToolExecute | null;
     private baseUrl: string;
-    // private payLoad: any;
+    private messageManager: MessageManager;
     private isAborted: boolean;
     private currentAiRequestHandler: AiRequestHandler | null;
     private toolResultProcessor: ToolResultProcessor;
+    private sessionId: string; // 添加sessionId属性
 
-    constructor(messages: Message[], conversationId: string, tools: any[], modelConfig: AiModelConfig, callBack: (type: CallbackType, data?: any) => void, mcpToolExecute: McpToolExecute | null, messageManager: MessageManager, baseUrl?: string) {
+    constructor(messages: Message[], conversationId: string, tools: any[], modelConfig: AiModelConfig, callBack: (type: CallbackType, data?: any) => void, mcpToolExecute: McpToolExecute | null, messageManager: MessageManager, baseUrl?: string, externalAbortController?: AbortController, sessionId?: string) {
         this.messages = messages;
         this.conversationId = conversationId;
         this.tools = tools;
         this.modelConfig = modelConfig;
         this.callBack = callBack;
         this.mcpToolExecute = mcpToolExecute;
+        this.messageManager = messageManager;
         this.baseUrl = baseUrl || 'http://localhost:3001/api'; // 默认值作为后备
+        this.sessionId = sessionId || this.conversationId; // 使用sessionId或conversationId作为默认值
         // this.payLoad = {}
         // 添加中止控制
         this.isAborted = false;
         this.currentAiRequestHandler = null;
         // 初始化工具结果处理器
-        this.toolResultProcessor = new ToolResultProcessor(messageManager, this.modelConfig, this.conversationId, this.callBack);
+        this.toolResultProcessor = new ToolResultProcessor(messageManager, this.modelConfig, this.conversationId, this.callBack, this.sessionId);
+        
+        // 如果提供了外部AbortController，监听其abort事件
+        if (externalAbortController) {
+            externalAbortController.signal.addEventListener('abort', () => {
+                console.log('AiClient: External abort signal received');
+                this.abort();
+            });
+        }
     }
 
 
@@ -130,7 +141,10 @@ class AiClient {
                                 },
                                 // onError: 错误处理
                                 (error) => {
-                                    if (this.isAborted) return;
+                                    if (this.isAborted || error.message === 'Stream aborted by user' || error.name === 'AbortError') {
+                                        console.log(`Tool ${toolName} stream aborted by user`);
+                                        return;
+                                    }
                                     console.error(`Stream error for tool ${toolName}:`, error);
                                     toolResult.content = JSON.stringify({
                                         error: error.message || 'Tool execution failed'
@@ -144,6 +158,10 @@ class AiClient {
                             }
                             
                         } catch (error: any) {
+                            if (this.isAborted || error.message === 'Stream aborted by user' || error.name === 'AbortError') {
+                                console.log(`Tool ${toolName} execution aborted by user`);
+                                return;
+                            }
                             console.error(`Failed to execute stream tool ${toolName}:`, error);
                             toolResult.content = JSON.stringify({
                                 error: error.message || 'Tool execution failed'
@@ -222,13 +240,13 @@ class AiClient {
             console.log('AiClient: chatCompletion aborted');
             return;
         }
-        const aiRequestHandler = new AiRequestHandler(this.messages, this.tools, this.conversationId, this.callBack, this.modelConfig, this.baseUrl);
+        const aiRequestHandler = new AiRequestHandler(this.messages, this.tools, this.conversationId, this.callBack, this.modelConfig, this.baseUrl, this.sessionId);
         this.currentAiRequestHandler = aiRequestHandler;
 
         try {
             this.messages = await aiRequestHandler.chatCompletion();
-        } catch (error) {
-            if (this.isAborted) {
+        } catch (error: any) {
+            if (this.isAborted || error.message === 'Stream aborted by user' || error.name === 'AbortError') {
                 console.log('AiClient: chatCompletion was aborted');
                 return;
             }

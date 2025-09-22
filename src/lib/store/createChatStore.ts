@@ -56,6 +56,7 @@ interface ChatActions {
     startStreaming: (messageId: string) => void;
     updateStreamingMessage: (content: string) => void;
     stopStreaming: () => void;
+    abortCurrentConversation: () => void;
 
     // UI操作
     toggleSidebar: () => void;
@@ -330,10 +331,16 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
                     },
 
                     sendMessage: async (content: string, attachments = []) => {
-                        const { currentSessionId, selectedModelId, aiModelConfigs, chatConfig } = get();
+                        const { currentSessionId, selectedModelId, aiModelConfigs, chatConfig, isLoading, isStreaming } = get();
 
                         if (!currentSessionId) {
                             throw new Error('No active session');
+                        }
+
+                        // 检查是否已经在发送消息，防止重复发送
+                        if (isLoading || isStreaming) {
+                            console.log('Message sending already in progress, ignoring duplicate request');
+                            return;
                         }
 
                         if (!selectedModelId) {
@@ -588,13 +595,33 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
                                     }
                                 },
                                 onError: (error: any) => {
-                                    // 处理错误
-                                    set((state) => {
-                                        state.error = error.message || 'AI response failed';
-                                        state.isLoading = false;
-                                        state.isStreaming = false;
-                                        state.streamingMessageId = null;
-                                    });
+                                    // 检查是否是用户主动中断的错误
+                                    const isUserAborted = error.message === 'Stream aborted by user' || 
+                                                         error.message === 'Request was aborted' ||
+                                                         error.message === 'Stream request was aborted' ||
+                                                         error.message?.includes('aborted by user') ||
+                                                         error.message?.includes('was aborted') ||
+                                                         error.name === 'AbortError';
+                                    
+                                    if (isUserAborted) {
+                                        // 用户主动中断，不显示错误信息，只更新状态
+                                        console.log('Stream aborted by user - not showing error message');
+                                        set((state) => {
+                                            state.isLoading = false;
+                                            state.isStreaming = false;
+                                            state.streamingMessageId = null;
+                                            // 不设置 error，避免显示红色警告
+                                        });
+                                    } else {
+                                        // 真正的错误，显示错误信息
+                                        console.error('AI request error:', error);
+                                        set((state) => {
+                                            state.error = error.message || 'AI response failed';
+                                            state.isLoading = false;
+                                            state.isStreaming = false;
+                                            state.streamingMessageId = null;
+                                        });
+                                    }
                                 }
                             }, modelConfig);
                         } catch (error) {
@@ -667,6 +694,24 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
                             state.isStreaming = false;
                             state.streamingMessageId = null;
                         });
+                    },
+
+                    abortCurrentConversation: () => {
+                        console.log('abortCurrentConversation 被调用');
+                        try {
+                            // 调用ChatService的停止方法
+                            chatService.abortCurrentConversation();
+                            console.log('ChatService.abortCurrentConversation 调用成功');
+                        } catch (error) {
+                            console.error('调用 ChatService.abortCurrentConversation 时出错:', error);
+                        }
+                        // 更新状态
+                        set((state) => {
+                            state.isStreaming = false;
+                            state.streamingMessageId = null;
+                            state.isLoading = false;
+                        });
+                        console.log('状态已更新: isStreaming=false, isLoading=false');
                     },
 
                     // UI操作

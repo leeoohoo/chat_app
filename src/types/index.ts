@@ -195,7 +195,9 @@ export interface MessageListProps {
 
 export interface InputAreaProps {
   onSend: (content: string, attachments?: File[]) => void;
+  onStop?: () => void;
   disabled?: boolean;
+  isStreaming?: boolean;
   placeholder?: string;
   maxLength?: number;
   allowAttachments?: boolean;

@@ -27,6 +27,15 @@ interface McpServer {
     config: any;
 }
 
+// 请求线程接口
+interface RequestThread {
+    id: string;
+    aiClient: AiClient;
+    abortController: AbortController;
+    isRunning: boolean;
+    startTime: number;
+}
+
 class AiServer {
     private conversationId: string;
     private userId: string;
@@ -36,12 +45,13 @@ class AiServer {
     private tools: any[];
     private mcpToolsExecute: McpToolsExecute | null;
     private modelConfig: AiModelConfig | null;
-    private currentAiClient: AiClient | null;
+    private currentThread: RequestThread | null;  // 当前活动线程
     private isAborted: boolean;
     private messageManager: MessageManager;
     private baseUrl: string;
+    private sessionId: string; // 添加sessionId属性
 
-    constructor(conversation_id: string, userId: string, messageManager: MessageManager, customModelConfig: AiModelConfig | null = null, baseUrl?: string){
+    constructor(conversation_id: string, userId: string, messageManager: MessageManager, customModelConfig: AiModelConfig | null = null, baseUrl?: string, sessionId?: string){
         this.conversationId = conversation_id
         this.userId = userId;
         this.conversation = null;
@@ -52,8 +62,9 @@ class AiServer {
         this.modelConfig = customModelConfig;
         this.messageManager = messageManager;
         this.baseUrl = baseUrl || 'http://localhost:3001/api'; // 默认值作为后备
+        this.sessionId = sessionId || conversation_id; // 使用sessionId或conversationId作为默认值
         // 添加中止控制
-        this.currentAiClient = null;
+        this.currentThread = null;
         this.isAborted = false;
     }
 
@@ -196,22 +207,58 @@ class AiServer {
                 content: (m.content || (m as any).message || '').substring(0, 50) + '...',
                 created_at: (m as any).created_at
             })));
-            //3. 调用AI
-            const aiClient = new AiClient(this.messages, this.conversationId, this.tools, this.modelConfig!, (type: any, data?: any) => this.callback(type, data), this.mcpToolsExecute, this.messageManager, this.baseUrl);
-            this.currentAiClient = aiClient;
+            // 创建请求线程
+            const threadId = `thread_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            const threadAbortController = new AbortController();
+            const aiClient = new AiClient(this.messages, this.conversationId, this.tools, this.modelConfig!, (type: any, data?: any) => this.callback(type, data), this.mcpToolsExecute, this.messageManager, this.baseUrl, threadAbortController, this.sessionId);
+            
+            // 创建线程对象
+            const requestThread: RequestThread = {
+                id: threadId,
+                aiClient: aiClient,
+                abortController: threadAbortController,
+                isRunning: true,
+                startTime: Date.now()
+            };
+            
+            this.currentThread = requestThread;
+            console.log(`AiServer: Created request thread ${threadId}`);
 
             try {
-                await aiClient.start();
-            } catch (error) {
-                if (this.isAborted) {
-                    console.log('AiServer: Request was aborted');
+                // 检查线程是否被中止
+                if (this.isAborted || !requestThread.isRunning) {
+                    console.log(`AiServer: Thread ${threadId} was aborted before start`);
                     return;
                 }
+                
+                await aiClient.start();
+                console.log(`AiServer: Thread ${threadId} completed successfully`);
+            } catch (error: any) {
+                if (this.isAborted || !requestThread.isRunning) {
+                    console.log(`AiServer: Thread ${threadId} was aborted during execution`);
+                    return;
+                }
+                // 检查是否是用户中断错误
+                if (error.message === 'Stream aborted by user' || error.name === 'AbortError') {
+                    console.log(`AiServer: Thread ${threadId} aborted by user`);
+                    return;
+                }
+                console.error(`AiServer: Thread ${threadId} failed:`, error);
                 throw error;
             } finally {
-                this.currentAiClient = null;
+                // 清理线程
+                if (this.currentThread?.id === threadId) {
+                    this.currentThread.isRunning = false;
+                    this.currentThread = null;
+                    console.log(`AiServer: Thread ${threadId} cleaned up`);
+                }
             }
         } catch (error: any) {
+            // 检查是否是用户中断错误
+            if (error.message === 'Stream aborted by user' || error.name === 'AbortError' || this.isAborted) {
+                console.log('sendMessage aborted by user');
+                return;
+            }
             console.error('sendMessage failed:', error);
             console.error('Error details:', error.response?.data);
             this.callback('error', error);
@@ -244,20 +291,43 @@ class AiServer {
             
             console.log('Messages prepared for AI:', this.messages);
             
-            // 调用AI（不使用工具）
-            const aiClient = new AiClient(this.messages, this.conversationId, [], this.modelConfig!, (type: any, data?: any) => this.callback(type, data), null, this.messageManager, this.baseUrl);
-            this.currentAiClient = aiClient;
+            // 创建简单线程（不使用工具）
+            const threadId = `direct_thread_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            const threadAbortController = new AbortController();
+            const aiClient = new AiClient(this.messages, this.conversationId, [], this.modelConfig!, (type: any, data?: any) => this.callback(type, data), null, this.messageManager, this.baseUrl, threadAbortController, this.sessionId);
+            
+            const requestThread: RequestThread = {
+                id: threadId,
+                aiClient: aiClient,
+                abortController: threadAbortController,
+                isRunning: true,
+                startTime: Date.now()
+            };
+            
+            this.currentThread = requestThread;
+            console.log(`AiServer: Created direct thread ${threadId}`);
             
             try {
-                await aiClient.start();
-            } catch (error) {
-                if (this.isAborted) {
-                    console.log('AiServer: Request was aborted');
+                if (this.isAborted || !requestThread.isRunning) {
+                    console.log(`AiServer: Direct thread ${threadId} was aborted before start`);
                     return;
                 }
+                
+                await aiClient.start();
+                console.log(`AiServer: Direct thread ${threadId} completed successfully`);
+            } catch (error) {
+                if (this.isAborted || !requestThread.isRunning) {
+                    console.log(`AiServer: Direct thread ${threadId} was aborted during execution`);
+                    return;
+                }
+                console.error(`AiServer: Direct thread ${threadId} failed:`, error);
                 throw error;
             } finally {
-                this.currentAiClient = null;
+                if (this.currentThread?.id === threadId) {
+                    this.currentThread.isRunning = false;
+                    this.currentThread = null;
+                    console.log(`AiServer: Direct thread ${threadId} cleaned up`);
+                }
             }
         } catch (error: any) {
             console.error('sendMessageDirect failed:', error);
@@ -304,13 +374,35 @@ class AiServer {
 
 
     /**
-     * 中止当前请求
+     * 中止当前请求线程
      */
     abort(): void {
-        console.log('AiServer: Aborting request');
+        console.log('AiServer: Abort called');
         this.isAborted = true;
-        if (this.currentAiClient) {
-            this.currentAiClient.abort();
+        debugger
+        if (this.currentThread) {
+            console.log(`AiServer: Aborting thread ${this.currentThread.id}`);
+            
+            // 标记线程为非运行状态
+            this.currentThread.isRunning = false;
+            
+            // 中止AbortController - 这会触发aiClient中的监听器
+            if (!this.currentThread.abortController.signal.aborted) {
+                this.currentThread.abortController.abort();
+                console.log(`AiServer: Thread ${this.currentThread.id} AbortController aborted`);
+            }
+            
+            // 直接中止AI客户端（双重保险）
+            if (this.currentThread.aiClient) {
+                this.currentThread.aiClient.abort();
+                console.log(`AiServer: Thread ${this.currentThread.id} AI client aborted`);
+            }
+            
+            // 清理线程引用
+            this.currentThread = null;
+            console.log('AiServer: Thread reference cleared');
+        } else {
+            console.log('AiServer: No active thread to abort');
         }
     }
 
@@ -327,7 +419,10 @@ class AiServer {
      */
     resetAbortState(): void {
         this.isAborted = false;
-        this.currentAiClient = null;
+        if (this.currentThread) {
+            this.currentThread.isRunning = false;
+            this.currentThread = null;
+        }
     }
 }
 
