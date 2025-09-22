@@ -6,7 +6,7 @@ import ApiClient from './api/client';
 export interface AiChatConfig {
   userId: string;
   projectId: string;
-  baseUrl?: string;
+  configUrl?: string;
   className?: string;
 }
 
@@ -15,8 +15,7 @@ export interface AiChatConfig {
  * 
  * 使用方式:
  * ```typescript
- * const aiChat = new AiChat('user123', 'project456', 'http://localhost:3001/api');
- * 
+ *
  * // 在React组件中使用
  * function App() {
  *   return <div>{aiChat.render()}</div>;
@@ -26,25 +25,27 @@ export interface AiChatConfig {
 export class AiChat {
   private userId: string;
   private projectId: string;
-  private baseUrl: string;
+  private configUrl: string;
   private apiClient: ApiClient;
   private store: ReturnType<typeof createChatStore>;
   private className?: string;
 
-  constructor(userId: string, projectId: string, baseUrl?: string, className?: string) {
+  constructor(userId: string, projectId: string, configUrl?: string, className?: string) {
     this.userId = userId;
     this.projectId = projectId;
-    this.baseUrl = baseUrl || 'http://localhost:3001/api';
+    this.configUrl = configUrl || '/api';
     this.className = className;
 
+    console.log('🔧 AiChat Constructor - configUrl:', this.configUrl);
+
     // 创建自定义的 API 客户端
-    this.apiClient = new ApiClient(this.baseUrl);
+    this.apiClient = new ApiClient(this.configUrl);
     
-    // 创建自定义的 store，传入 userId、projectId 和 baseUrl
+    // 创建自定义的 store，传入 userId、projectId 和 configUrl
     this.store = createChatStore(this.apiClient, {
       userId: this.userId,
       projectId: this.projectId,
-      baseUrl: this.baseUrl
+      configUrl: this.configUrl
     });
   }
 
@@ -57,7 +58,7 @@ export class AiChat {
       className: this.className,
       userId: this.userId,
       projectId: this.projectId,
-      baseUrl: this.baseUrl
+      configUrl: this.configUrl
     });
   }
 
@@ -68,7 +69,7 @@ export class AiChat {
     return {
       userId: this.userId,
       projectId: this.projectId,
-      baseUrl: this.baseUrl,
+      configUrl: this.configUrl,
       className: this.className
     };
   }
@@ -79,13 +80,13 @@ export class AiChat {
   updateConfig(config: Partial<AiChatConfig>): void {
     if (config.userId) this.userId = config.userId;
     if (config.projectId) this.projectId = config.projectId;
-    if (config.baseUrl) {
-      this.baseUrl = config.baseUrl;
-      this.apiClient = new ApiClient(this.baseUrl);
+    if (config.configUrl) {
+      this.configUrl = config.configUrl;
+      this.apiClient = new ApiClient(this.configUrl);
       this.store = createChatStore(this.apiClient, {
         userId: this.userId,
         projectId: this.projectId,
-        baseUrl: this.baseUrl
+        configUrl: this.configUrl
       });
     }
     if (config.className !== undefined) this.className = config.className;
@@ -113,19 +114,19 @@ interface AiChatComponentProps {
   className?: string;
   userId: string;
   projectId: string;
-  baseUrl: string;
+  configUrl: string;
 }
 
 const AiChatComponent: React.FC<AiChatComponentProps> = ({
   className,
   userId,
   projectId,
-  baseUrl
+  configUrl
 }) => {
   return (
     <StandaloneChatInterface 
       className={className}
-      apiBaseUrl={baseUrl}
+      apiBaseUrl={configUrl}
       userId={userId}
       projectId={projectId}
     />

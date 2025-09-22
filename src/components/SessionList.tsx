@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useChatStoreFromContext, useChatStoreContext } from '../lib/store/ChatStoreContext';
+import { useChatStoreFromContext } from '../lib/store/ChatStoreContext';
 import { useChatStore } from '../lib/store';
 import type { Session } from '../types';
 import { PlusIcon, DotsVerticalIcon, PencilIcon, TrashIcon, ChatIcon } from './ui/icons';

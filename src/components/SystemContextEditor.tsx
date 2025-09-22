@@ -74,7 +74,7 @@ const SystemContextEditor: React.FC<SystemContextEditorProps> = ({ onClose, stor
 
   const { 
     systemContexts, 
-    activeSystemContext,
+    activeSystemContext: _activeSystemContext,
     loadSystemContexts, 
     createSystemContext,
     updateSystemContext, 

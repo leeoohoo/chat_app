@@ -15,13 +15,15 @@ export class ToolResultProcessor {
     private conversationId: string;
     private callback: (type: CallbackType, data?: any) => void;
     private sessionId: string;
+    private configUrl: string;
 
-    constructor(messageManager: MessageManager, modelConfig: AiModelConfig, conversationId: string, callback: (type: CallbackType, data?: any) => void, sessionId?: string) {
+    constructor(messageManager: MessageManager, modelConfig: AiModelConfig, conversationId: string, callback: (type: CallbackType, data?: any) => void, sessionId?: string, configUrl: string = '/api') {
         this.messageManager = messageManager;
         this.modelConfig = modelConfig;
         this.conversationId = conversationId;
         this.callback = callback;
         this.sessionId = sessionId || conversationId;
+        this.configUrl = configUrl;
     }
 
     /**
@@ -135,7 +137,7 @@ export class ToolResultProcessor {
                      }
                  },
                  this.modelConfig,
-                 'http://localhost:3001/api', // baseUrl
+                 this.configUrl, // configUrl
                  this.sessionId
              );
 

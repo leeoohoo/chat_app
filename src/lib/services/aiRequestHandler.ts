@@ -17,28 +17,30 @@ class AiRequestHandler {
     // private _conversationId: string;
     private callback: (type: CallbackType, data?: any) => void;
     private modelConfig: AiModelConfig;
-    private baseUrl: string;
     // private _stream: boolean;
     // private _useOpenAIPackage: boolean;
+    private configUrl: string;
     private abortController: AbortController;
     private isAborted: boolean;
     private sessionId: string; // 添加sessionId属性
 
-    constructor(messages: Message[], tools: any[], _conversationId: string, callback: (type: CallbackType, data?: any) => void, modelConfig: AiModelConfig, baseUrl?: string, sessionId?: string) {
+    constructor(messages: Message[], tools: any[], _conversationId: string, callback: (type: CallbackType, data?: any) => void, modelConfig: AiModelConfig, configUrl?: string, sessionId?: string) {
         this.messages = messages;
         this.tools = tools;
         // this._conversationId = conversationId;
         this.callback = callback;
         this.modelConfig = modelConfig;
-        this.baseUrl = baseUrl || 'http://localhost:3001/api'; // 默认值作为后备
+        this.configUrl = configUrl || '/api'; // 使用相对路径作为默认值
         this.sessionId = sessionId || _conversationId; // 使用sessionId或conversationId作为后备
+        console.log('🔧 AiRequestHandler Constructor - configUrl:', this.configUrl,"haha");
+        console.log('🔧 AiRequestHandler Constructor - modelConfig.base_url:', this.modelConfig.base_url);
         // this._stream = true;
         // 添加一个标志来控制是否使用 OpenAI 包
         // this._useOpenAIPackage = true; // 默认使用 OpenAI 包
         // 添加中止控制器
         this.abortController = new AbortController();
         this.isAborted = false;
-
+        debugger
     }
 
     /**
@@ -55,13 +57,14 @@ class AiRequestHandler {
             }
 
             // 检查模型配置
-            console.log('Using OpenAI package with base URL:', this.modelConfig.base_url);
+            console.log('Using OpenAI package with base URL:', this.configUrl);
             console.log('API Key:', this.modelConfig.api_key ? 'Present' : 'Missing');
-
+            console.log('Config Url: ', this.configUrl)
+            
             // 创建 OpenAI 客户端，通过代理服务转发请求
             const openai = new OpenAI({
                 apiKey: this.modelConfig.api_key,
-                baseURL: this.baseUrl, // 使用配置的代理服务地址
+                baseURL: this.configUrl, // 使用配置的代理服务地址
                 dangerouslyAllowBrowser: true, // 允许在浏览器中使用
                 defaultHeaders: {
                     'x-target-url': this.modelConfig.base_url // 实际的AI API端点

@@ -54,11 +54,12 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
     if (customApiClient || userId || projectId) {
       return createChatStore(customApiClient, {
         userId,
-        projectId
+        projectId,
+        configUrl: customApiBaseUrl
       });
     }
     return null;
-  }, [customApiClient, userId, projectId]);
+  }, [customApiClient, userId, projectId, customApiBaseUrl]);
   // Use custom store if available, otherwise use default store
   const store = customStore || useChatStore;
   

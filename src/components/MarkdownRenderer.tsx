@@ -276,7 +276,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     }, [isStreaming, expandedCodeBlocks, onApplyCode]);
 
     // 简单的代码高亮函数
-    const highlightCode = (code: string, language: string): string => {
+    const highlightCode = (code: string, _language: string): string => {
         // 保持代码的原始格式，使用统一的颜色
         // 可以在这里添加更复杂的语法高亮逻辑
         return code.replace(/</g, '&lt;').replace(/>/g, '&gt;');

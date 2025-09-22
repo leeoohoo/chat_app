@@ -26,29 +26,30 @@ class AiClient {
     private modelConfig: AiModelConfig;
     private callBack: (type: CallbackType, data?: any) => void;
     private mcpToolExecute: McpToolExecute | null;
-    private baseUrl: string;
-    private messageManager: MessageManager;
+    private configUrl: string;
+
     private isAborted: boolean;
     private currentAiRequestHandler: AiRequestHandler | null;
     private toolResultProcessor: ToolResultProcessor;
     private sessionId: string; // 添加sessionId属性
 
-    constructor(messages: Message[], conversationId: string, tools: any[], modelConfig: AiModelConfig, callBack: (type: CallbackType, data?: any) => void, mcpToolExecute: McpToolExecute | null, messageManager: MessageManager, baseUrl?: string, externalAbortController?: AbortController, sessionId?: string) {
+    constructor(messages: Message[], conversationId: string, tools: any[], modelConfig: AiModelConfig, callBack: (type: CallbackType, data?: any) => void, mcpToolExecute: McpToolExecute | null, messageManager: MessageManager, configUrl?: string, externalAbortController?: AbortController, sessionId?: string) {
         this.messages = messages;
         this.conversationId = conversationId;
         this.tools = tools;
         this.modelConfig = modelConfig;
         this.callBack = callBack;
         this.mcpToolExecute = mcpToolExecute;
-        this.messageManager = messageManager;
-        this.baseUrl = baseUrl || 'http://localhost:3001/api'; // 默认值作为后备
+
+        this.configUrl = configUrl || '/api'; // 使用相对路径作为默认值
         this.sessionId = sessionId || this.conversationId; // 使用sessionId或conversationId作为默认值
+        console.log('🔧 AiClient Constructor - configUrl:', this.configUrl);
         // this.payLoad = {}
         // 添加中止控制
         this.isAborted = false;
         this.currentAiRequestHandler = null;
         // 初始化工具结果处理器
-        this.toolResultProcessor = new ToolResultProcessor(messageManager, this.modelConfig, this.conversationId, this.callBack, this.sessionId);
+        this.toolResultProcessor = new ToolResultProcessor(messageManager, this.modelConfig, this.conversationId, this.callBack, this.sessionId, this.configUrl);
         
         // 如果提供了外部AbortController，监听其abort事件
         if (externalAbortController) {
@@ -240,7 +241,7 @@ class AiClient {
             console.log('AiClient: chatCompletion aborted');
             return;
         }
-        const aiRequestHandler = new AiRequestHandler(this.messages, this.tools, this.conversationId, this.callBack, this.modelConfig, this.baseUrl, this.sessionId);
+        const aiRequestHandler = new AiRequestHandler(this.messages, this.tools, this.conversationId, this.callBack, this.modelConfig, this.configUrl, this.sessionId);
         this.currentAiRequestHandler = aiRequestHandler;
 
         try {

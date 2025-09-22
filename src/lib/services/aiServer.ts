@@ -48,10 +48,10 @@ class AiServer {
     private currentThread: RequestThread | null;  // 当前活动线程
     private isAborted: boolean;
     private messageManager: MessageManager;
-    private baseUrl: string;
+    private configUrl: string;
     private sessionId: string; // 添加sessionId属性
 
-    constructor(conversation_id: string, userId: string, messageManager: MessageManager, customModelConfig: AiModelConfig | null = null, baseUrl?: string, sessionId?: string){
+    constructor(conversation_id: string, userId: string, messageManager: MessageManager, customModelConfig: AiModelConfig | null = null, configUrl?: string, sessionId?: string){
         this.conversationId = conversation_id
         this.userId = userId;
         this.conversation = null;
@@ -61,8 +61,9 @@ class AiServer {
         this.mcpToolsExecute= null
         this.modelConfig = customModelConfig;
         this.messageManager = messageManager;
-        this.baseUrl = baseUrl || 'http://localhost:3001/api'; // 默认值作为后备
+        this.configUrl = configUrl || '/api'; // 使用相对路径作为默认值
         this.sessionId = sessionId || conversation_id; // 使用sessionId或conversationId作为默认值
+        console.log('🔧 AiServer Constructor - configUrl:', this.configUrl);
         // 添加中止控制
         this.currentThread = null;
         this.isAborted = false;
@@ -210,7 +211,7 @@ class AiServer {
             // 创建请求线程
             const threadId = `thread_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             const threadAbortController = new AbortController();
-            const aiClient = new AiClient(this.messages, this.conversationId, this.tools, this.modelConfig!, (type: any, data?: any) => this.callback(type, data), this.mcpToolsExecute, this.messageManager, this.baseUrl, threadAbortController, this.sessionId);
+            const aiClient = new AiClient(this.messages, this.conversationId, this.tools, this.modelConfig!, (type: any, data?: any) => this.callback(type, data), this.mcpToolsExecute, this.messageManager, this.configUrl, threadAbortController, this.sessionId);
             
             // 创建线程对象
             const requestThread: RequestThread = {
@@ -294,7 +295,7 @@ class AiServer {
             // 创建简单线程（不使用工具）
             const threadId = `direct_thread_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
             const threadAbortController = new AbortController();
-            const aiClient = new AiClient(this.messages, this.conversationId, [], this.modelConfig!, (type: any, data?: any) => this.callback(type, data), null, this.messageManager, this.baseUrl, threadAbortController, this.sessionId);
+            const aiClient = new AiClient(this.messages, this.conversationId, [], this.modelConfig!, (type: any, data?: any) => this.callback(type, data), null, this.messageManager, this.configUrl, threadAbortController, this.sessionId);
             
             const requestThread: RequestThread = {
                 id: threadId,

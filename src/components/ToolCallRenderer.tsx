@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { cn } from '../lib/utils';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import type { ToolCall, Message } from '../types';
 import './ToolCallRenderer.css';
@@ -13,7 +12,7 @@ interface ToolCallRendererProps {
 export const ToolCallRenderer: React.FC<ToolCallRendererProps> = ({
   toolCall,
   allMessages = [],
-  className,
+  className: _className,
 }) => {
   const [showDetails, setShowDetails] = useState(false);
 

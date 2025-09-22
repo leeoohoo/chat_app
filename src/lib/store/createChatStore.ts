@@ -86,7 +86,7 @@ interface ChatActions {
 interface ChatStoreConfig {
     userId?: string;
     projectId?: string;
-    baseUrl?: string;
+    configUrl?: string;
 }
 
 /**
@@ -99,12 +99,12 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
     const client = customApiClient || apiClient;
     const customUserId = config?.userId;
     const customProjectId = config?.projectId;
-    const customBaseUrl = config?.baseUrl;
+    const customConfigUrl = config?.configUrl;
     
     // 使用传入的参数或默认值
     const userId = customUserId || 'default-user';
     const projectId = customProjectId || 'default-project';
-    const baseUrl = customBaseUrl || 'http://localhost:3001/api';
+    const configUrl = customConfigUrl || '/api';
     
     // 获取userId的统一函数
     const getUserIdParam = () => userId;
@@ -119,7 +119,8 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
     
     // 创建MessageManager和ChatService实例
     const messageManager = new MessageManager(databaseService);
-    const chatService = new ChatService(userId, projectId, messageManager, baseUrl);
+    const chatService = new ChatService(userId, projectId, messageManager, configUrl);
+    console.log("chatService:", chatService)
     
     return create<ChatState & ChatActions>()
     (subscribeWithSelector(
@@ -171,6 +172,35 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
                                 state.sessions = sessions;
                                 state.isLoading = false;
                             });
+
+                            // 会话持久化逻辑：自动选择上次使用的会话或最新的会话
+                            const currentState = get();
+                            if (sessions.length > 0 && !currentState.currentSessionId) {
+                                // 尝试从 localStorage 获取上次使用的会话ID
+                                const lastSessionId = localStorage.getItem(`lastSessionId_${userId}_${projectId}`);
+                                let sessionToSelect = null;
+
+                                if (lastSessionId) {
+                                    // 检查上次使用的会话是否仍然存在
+                                    sessionToSelect = sessions.find(s => s.id === lastSessionId);
+                                }
+
+                                // 如果上次的会话不存在，选择最新的会话（按创建时间排序）
+                                if (!sessionToSelect) {
+                                    sessionToSelect = [...sessions].sort((a, b) => 
+                                        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                                    )[0];
+                                }
+
+                                if (sessionToSelect) {
+                                    console.log('🔍 自动选择会话:', sessionToSelect.id);
+                                    // 异步选择会话，不阻塞 loadSessions 的完成
+                                    setTimeout(() => {
+                                        get().selectSession(sessionToSelect.id);
+                                    }, 0);
+                                }
+                            }
+
                             console.log('🔍 loadSessions 完成');
                         } catch (error) {
                             console.error('🔍 loadSessions 错误:', error);
@@ -228,6 +258,10 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
                                 state.error = null;
                             });
 
+                            // 保存新创建的会话ID到 localStorage 以实现持久化
+                            localStorage.setItem(`lastSessionId_${userId}_${projectId}`, formattedSession.id);
+                            console.log('🔍 保存新创建的会话ID到 localStorage:', formattedSession.id);
+
                             return formattedSession.id;
                         } catch (error) {
                             console.error('❌ createSession 失败:', error);
@@ -257,6 +291,13 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
                                 state.error = 'Session not found';
                             }
                         });
+
+                            // 保存当前会话ID到 localStorage 以实现持久化
+                            if (session) {
+                                const { userId, projectId } = getSessionParams();
+                                localStorage.setItem(`lastSessionId_${userId}_${projectId}`, sessionId);
+                                console.log('🔍 保存会话ID到 localStorage:', sessionId);
+                            }
                         } catch (error) {
                             console.error('Failed to select session:', error);
                             set((state) => {
