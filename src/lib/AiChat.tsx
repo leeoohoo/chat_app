@@ -1,6 +1,6 @@
 import React from 'react';
 import { StandaloneChatInterface } from '../components/StandaloneChatInterface';
-import { createChatStore } from './store/createChatStore';
+import { createChatStoreWithBackend } from './store/createChatStoreWithBackend';
 import ApiClient from './api/client';
 
 export interface AiChatConfig {
@@ -27,7 +27,7 @@ export class AiChat {
   private projectId: string;
   private configUrl: string;
   private apiClient: ApiClient;
-  private store: ReturnType<typeof createChatStore>;
+  private store: ReturnType<typeof createChatStoreWithBackend>;
   private className?: string;
 
   constructor(userId: string, projectId: string, configUrl?: string, className?: string) {
@@ -42,7 +42,7 @@ export class AiChat {
     this.apiClient = new ApiClient(this.configUrl);
     
     // 创建自定义的 store，传入 userId、projectId 和 configUrl
-    this.store = createChatStore(this.apiClient, {
+    this.store = createChatStoreWithBackend(this.apiClient, {
       userId: this.userId,
       projectId: this.projectId,
       configUrl: this.configUrl
@@ -83,7 +83,7 @@ export class AiChat {
     if (config.configUrl) {
       this.configUrl = config.configUrl;
       this.apiClient = new ApiClient(this.configUrl);
-      this.store = createChatStore(this.apiClient, {
+      this.store = createChatStoreWithBackend(this.apiClient, {
         userId: this.userId,
         projectId: this.projectId,
         configUrl: this.configUrl

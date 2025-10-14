@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useChatStore } from '../lib/store';
-import { createChatStore } from '../lib/store/createChatStore';
+import { createChatStoreWithBackend } from '../lib/store/createChatStoreWithBackend';
 import { MessageList } from './MessageList';
 import { InputArea } from './InputArea';
 import { SessionList } from './SessionList';
@@ -52,7 +52,7 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
   // Create custom store if we have custom parameters or custom API client
   const customStore = React.useMemo(() => {
     if (customApiClient || userId || projectId) {
-      return createChatStore(customApiClient, {
+      return createChatStoreWithBackend(customApiClient, {
         userId,
         projectId,
         configUrl: customApiBaseUrl

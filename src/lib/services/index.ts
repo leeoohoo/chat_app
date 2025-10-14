@@ -241,7 +241,7 @@ export class ChatService {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            sessionId: this.currentSessionId
+            session_id: this.currentSessionId
           })
         });
         

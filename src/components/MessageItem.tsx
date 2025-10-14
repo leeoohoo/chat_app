@@ -5,6 +5,19 @@ import { ToolCallRenderer } from './ToolCallRenderer';
 import { cn, formatTime } from '../lib/utils';
 import type { Message, Attachment } from '../types';
 
+// 工具调用数据转换函数
+const convertToolCallData = (tc: any) => {
+  return {
+    id: tc.id || tc.tool_call_id || `tool_${Date.now()}_${Math.random()}`,
+    messageId: tc.messageId || '',
+    name: tc.function?.name || tc.name || 'unknown_tool',
+    arguments: tc.function?.arguments || tc.arguments || '{}',
+    result: tc.result || '',
+    error: tc.error || undefined,
+    createdAt: tc.createdAt || tc.created_at || new Date()
+  };
+};
+
 interface MessageItemProps {
   message: Message;
   isLast?: boolean;
@@ -27,6 +40,8 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
   allMessages = [],
   customRenderer,
 }) => {
+  console.log('🚀🚀🚀 MessageItem 组件被调用！消息ID:', message.id, '角色:', message.role);
+  console.log('🚀🚀🚀 完整消息对象:', message);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
 
@@ -77,24 +92,16 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
   };
 
   const attachments = message.metadata?.attachments || [];
-  // 处理工具调用：优先使用metadata中的toolCalls，如果没有则从message.tool_calls转换
-  let toolCalls = message.metadata?.toolCalls || [];
+  // 获取工具调用数据 - 优先使用metadata.toolCalls，这是通过WebSocket流式传输存储的数据
+  const toolCalls = message.metadata?.toolCalls || [];
   
-  // 如果metadata中没有toolCalls但message中有toolCalls或tool_calls，则转换格式
-  if (toolCalls.length === 0 && ((message as any).toolCalls || (message as any).tool_calls)) {
-    const rawToolCalls = (message as any).toolCalls || (message as any).tool_calls;
-    // 确保rawToolCalls是数组类型
-    if (Array.isArray(rawToolCalls)) {
-      toolCalls = rawToolCalls.map((tc: any) => ({
-        id: tc.id,
-        messageId: message.id,
-        name: tc.function?.name || tc.name,
-        arguments: tc.function?.arguments || tc.arguments,
-        result: '', // 历史消息的结果会从tool角色消息中获取
-        createdAt: message.createdAt
-      }));
-    }
-  }
+  console.log('🔧 工具调用数据:', {
+        'metadata.toolCalls': message.metadata?.toolCalls,
+        'toolCalls长度': toolCalls.length,
+        '消息ID': message.id,
+        'contentSegments': message.metadata?.contentSegments,
+        'contentSegments长度': message.metadata?.contentSegments?.length || 0
+    });
 
   return (
     <div
@@ -187,10 +194,14 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
               
               // 如果有内容分段，使用分段渲染
               if (contentSegments.length > 0) {
+                console.log('🎨 使用分段渲染，分段数量:', contentSegments.length);
+                console.log('🎨 分段详情:', contentSegments);
                 return (
                   <div className="space-y-3">
                     {contentSegments.map((segment, index) => {
+                       console.log(`🎨 渲染分段 ${index}:`, segment);
                        if (segment.type === 'text') {
+                         console.log(`🎨 渲染文本分段 ${index}:`, segment.content);
                          return (
                            <div key={`segment-${index}`} className="prose prose-sm max-w-none">
                              <MarkdownRenderer
@@ -201,9 +212,12 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                            </div>
                          );
                        } else if (segment.type === 'tool_call') {
+                         console.log(`🎨 渲染工具调用分段 ${index}:`, segment);
                          // 根据toolCallId查找对应的工具调用
                          const toolCall = toolCalls.find(tc => tc.id === segment.toolCallId);
+                         console.log(`🎨 查找工具调用 ${segment.toolCallId}:`, toolCall);
                          if (toolCall) {
+                           console.log(`🎨 找到工具调用，开始渲染:`, toolCall);
                            return (
                              <div key={`tool-${toolCall.id}`}>
                                <ToolCallRenderer
@@ -212,6 +226,8 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                                />
                              </div>
                            );
+                         } else {
+                           console.log(`🎨 ❌ 未找到工具调用 ${segment.toolCallId}`);
                          }
                        }
                        return null;
@@ -221,6 +237,9 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
               }
               
               // 回退到传统渲染方式（向后兼容）
+              console.log('🎨 使用传统渲染方式');
+              console.log('🎨 hasContent:', hasContent);
+              console.log('🎨 toolCalls.length:', toolCalls.length);
               return (
                 <div className="space-y-3">
                   {/* 渲染文本内容 */}
@@ -234,18 +253,22 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                     </div>
                   )}
                   
-                  {/* 渲染工具调用（历史消息兼容） */}
+                  {/* 渲染工具调用（历史消息兼容） - 修复：确保工具调用总是被渲染 */}
                   {toolCalls.length > 0 && (
                     <div className="space-y-2">
-                      {toolCalls.map((toolCall) => (
-                        <div key={`tool-${toolCall.id}`}>
-                          <ToolCallRenderer
-                            toolCall={toolCall}
-                            allMessages={allMessages}
-                          />
-                        </div>
-                      ))}
-                    </div>
+                      <div className="text-sm text-muted-foreground font-medium">工具调用:</div>
+                      {toolCalls.map((toolCall) => {
+                         console.log('🎨 传统方式渲染工具调用:', toolCall);
+                         return (
+                           <div key={`tool-${toolCall.id}`}>
+                             <ToolCallRenderer
+                               toolCall={toolCall}
+                               allMessages={allMessages}
+                             />
+                           </div>
+                         );
+                       })}
+                     </div>
                   )}
                 </div>
               );

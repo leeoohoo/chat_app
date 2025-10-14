@@ -1,12 +1,12 @@
-import { createChatStore } from './createChatStore';
+import { createChatStoreWithBackend } from './createChatStoreWithBackend';
 import type ApiClient from '../api/client';
 
-// 默认的store实例（使用默认参数）
-export const useChatStore = createChatStore();
+// 默认的聊天store实例
+export const useChatStore = createChatStoreWithBackend();
 
-// 创建带有自定义参数的store实例的函数
+// 创建带配置的聊天store
 export function createChatStoreWithConfig(userId: string, projectId: string, customApiClient?: ApiClient) {
-    return createChatStore(customApiClient, { userId, projectId });
+  return createChatStoreWithBackend(customApiClient, { userId, projectId });
 }
 
 // 导出选择器hooks

@@ -17,16 +17,29 @@ export const ToolCallRenderer: React.FC<ToolCallRendererProps> = ({
   const [showDetails, setShowDetails] = useState(false);
 
   // 查找对应的tool角色消息作为结果
+  console.log('🔍 ToolCallRenderer - 开始查找工具结果消息');
+  console.log('🔍 当前工具调用ID:', toolCall.id);
+  console.log('🔍 所有消息数量:', allMessages.length);
+  console.log('🔍 所有消息:', allMessages.map(msg => ({
+    id: msg.id,
+    role: msg.role,
+    metadata: msg.metadata,
+    content: msg.content?.substring(0, 100) + '...'
+  })));
+  
   const toolResultMessage = allMessages.find(msg => 
     msg.role === 'tool' && 
-    ((msg as any).toolCallId === toolCall.id || (msg as any).tool_call_id === toolCall.id)
+    msg.metadata?.tool_call_id === toolCall.id
   );
-  
-  // 优先使用tool消息的内容，其次使用toolCall.result
-  const resultContent = toolResultMessage?.content || toolCall.result;
+
+  console.log('🔍 找到的工具结果消息:', toolResultMessage);
+  console.log('🎨 ToolCallRenderer - 工具调用:', toolCall.id, '结果:', toolCall.result, '工具消息:', toolResultMessage?.content);
+
+  // 优先使用toolCall.result，如果没有则使用tool消息的内容
+  const result = toolCall.result || toolResultMessage?.content;
   
   const hasError = !!toolCall.error;
-  const hasResult = !!resultContent;
+  const hasResult = !!result;
   
   // 解析参数 - 处理字符串和对象两种格式
   const parseArguments = () => {
@@ -98,6 +111,12 @@ export const ToolCallRenderer: React.FC<ToolCallRendererProps> = ({
           </span>
         )}
         
+        {!hasResult && !hasError && (
+          <span className="status-badge status-pending">
+            等待中
+          </span>
+        )}
+        
         {(hasArguments || hasResult || hasError) && (
           <button
             onClick={() => setShowDetails(!showDetails)}
@@ -122,10 +141,22 @@ export const ToolCallRenderer: React.FC<ToolCallRendererProps> = ({
       {showDetails && (
          <div className="details-container">
          
+          {/* 参数详情 */}
+          {hasArguments && (
+            <div>
+              <div className="details-title">参数:</div>
+              <pre className="bg-gray-100 dark:bg-gray-800 p-2 rounded text-sm overflow-x-auto">
+                {JSON.stringify(parsedArguments, null, 2)}
+              </pre>
+            </div>
+          )}
 
           {/* 结果 */}
           {hasResult && (
-            <MarkdownRenderer content={toolCall.result || ''} />
+            <div>
+              <div className="details-title">结果:</div>
+              <MarkdownRenderer content={result || ''} />
+            </div>
           )}
 
           {/* 错误 */}

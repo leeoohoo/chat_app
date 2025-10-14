@@ -27,7 +27,7 @@ export class DatabaseService {
 
   // 会话相关操作
   async createSession(data: Omit<Session, 'id'>): Promise<Session> {
-    const sessionData = { id: crypto.randomUUID(), title: data.title, userId: this.userId, projectId: this.projectId };
+    const sessionData = { id: crypto.randomUUID(), title: data.title, user_id: this.userId, project_id: this.projectId };
     const session = await apiClient.createSession(sessionData);
     return {
       id: session.id,

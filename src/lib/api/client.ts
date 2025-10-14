@@ -58,7 +58,7 @@ class ApiClient {
     return this.request<any[]>(`/sessions${queryString ? `?${queryString}` : ''}`);
   }
 
-  async createSession(data: { id: string; title: string; userId: string; projectId: string }): Promise<any> {
+  async createSession(data: { id: string; title: string; user_id: string; project_id: string }): Promise<any> {
     console.log('🔍 createSession API调用:', data);
     return this.request<any>('/sessions', {
       method: 'POST',
@@ -95,7 +95,7 @@ class ApiClient {
       ...data,
       createdAt: data.createdAt ? data.createdAt.toISOString() : undefined
     };
-    return this.request<any>('/messages', {
+    return this.request<any>(`/sessions/${data.sessionId}/messages`, {
       method: 'POST',
       body: JSON.stringify(requestData),
     });
@@ -103,7 +103,7 @@ class ApiClient {
 
   // MCP配置相关API
   async getMcpConfigs(userId?: string) {
-    const params = userId ? `?userId=${encodeURIComponent(userId)}` : '';
+    const params = userId ? `?user_id=${encodeURIComponent(userId)}` : '';
     console.log('🔍 getMcpConfigs API调用:', { userId, params });
     return this.request(`/mcp-configs${params}`);
   }
@@ -112,10 +112,11 @@ class ApiClient {
     id: string;
     name: string;
     command: string;
-    args?: any;
-    env?: any;
+    type: 'http' | 'stdio';
+    args?: string[] | null;
+    env?: Record<string, string> | null;
     enabled: boolean;
-    userId?: string;
+    user_id?: string;
   }) {
     console.log('🔍 API client createMcpConfig 调用:', data);
     return this.request('/mcp-configs', {
@@ -140,7 +141,7 @@ class ApiClient {
 
   // AI模型配置相关API
   async getAiModelConfigs(userId?: string) {
-    const params = userId ? `?userId=${encodeURIComponent(userId)}` : '';
+    const params = userId ? `?user_id=${encodeURIComponent(userId)}` : '';
     console.log('🔍 getAiModelConfigs API调用:', { userId, params });
     return this.request(`/ai-model-configs${params}`);
   }
@@ -150,9 +151,9 @@ class ApiClient {
     name: string;
     provider: string;
     model: string;
-    apiKey: string;
-    baseUrl: string;
-    userId?: string;
+    api_key: string;
+    base_url: string;
+    user_id?: string;
     enabled: boolean;
   }) {
     return this.request('/ai-model-configs', {
@@ -378,6 +379,49 @@ class ApiClient {
 
   async addMessage(conversationId: string, message: any) {
     return this.saveMessage(conversationId, message);
+  }
+
+  // 流式聊天接口
+  async streamChat(sessionId: string, content: string, modelConfig: any): Promise<ReadableStream> {
+    const url = `${this.baseUrl}/chat/stream`;
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        session_id: sessionId,
+        content: content,
+        ai_model_config: {
+          model_name: modelConfig.model_name,
+          temperature: modelConfig.temperature || 0.7,
+          max_tokens: modelConfig.max_tokens || 1000,
+          api_key: modelConfig.api_key,
+          base_url: modelConfig.base_url
+        }
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    if (!response.body) {
+      throw new Error('Response body is null');
+    }
+
+    return response.body;
+  }
+
+  // 停止聊天流
+  async stopChat(sessionId: string): Promise<any> {
+    return this.request<any>('/chat/stop', {
+      method: 'POST',
+      body: JSON.stringify({
+        session_id: sessionId
+      }),
+    });
   }
 }
 

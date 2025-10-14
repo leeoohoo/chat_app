@@ -48,6 +48,7 @@ interface McpManagerProps {
 interface McpFormData {
   name: string;
   command: string;
+  type: 'http' | 'stdio';
   enabled: boolean;
 }
 
@@ -76,6 +77,7 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
   const [formData, setFormData] = useState<McpFormData>({
     name: '',
     command: '',
+    type: 'stdio',
     enabled: true
   });
 
@@ -89,6 +91,7 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
     setFormData({
       name: '',
       command: '',
+      type: 'stdio',
       enabled: true
     });
     setEditingConfig(null);
@@ -105,6 +108,7 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
     const newConfig: Partial<McpConfig> = {
       name: formData.name.trim(),
       command: formData.command.trim(),
+      type: formData.type,
       enabled: formData.enabled,
       createdAt: new Date(),
       updatedAt: new Date()
@@ -125,6 +129,7 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
       ...editingConfig,
       name: formData.name.trim(),
       command: formData.command.trim(),
+      type: formData.type,
       enabled: formData.enabled,
       updatedAt: new Date()
     };
@@ -139,6 +144,7 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
     setFormData({
       name: config.name,
       command: config.command,
+      type: config.type || 'stdio',
       enabled: config.enabled
     });
     setShowAddForm(true);
@@ -223,14 +229,28 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
                 
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-2">
-                    命令/URL
+                    协议类型
+                  </label>
+                  <select
+                    value={formData.type}
+                    onChange={(e) => setFormData({ ...formData, type: e.target.value as 'http' | 'stdio' })}
+                    className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                  >
+                    <option value="stdio">Stdio (标准输入输出)</option>
+                    <option value="http">HTTP (网络协议)</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">
+                    {formData.type === 'http' ? 'URL地址' : '命令'}
                   </label>
                   <input
                     type="text"
                     value={formData.command}
                     onChange={(e) => setFormData({ ...formData, command: e.target.value })}
                     className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
-                    placeholder="npx @modelcontextprotocol/server-filesystem /path/to/allowed/files"
+                    placeholder={formData.type === 'http' ? 'https://api.example.com/mcp' : 'npx @modelcontextprotocol/server-filesystem /path/to/allowed/files'}
                     required
                   />
                 </div>
@@ -286,9 +306,18 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
                       config.enabled ? 'bg-green-500' : 'bg-gray-400'
                     }`} />
                     <div>
-                      <h4 className="font-medium text-foreground">
-                        {config.name}
-                      </h4>
+                      <div className="flex items-center space-x-2">
+                        <h4 className="font-medium text-foreground">
+                          {config.name}
+                        </h4>
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          config.type === 'http' 
+                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                            : 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+                        }`}>
+                          {config.type === 'http' ? 'HTTP' : 'Stdio'}
+                        </span>
+                      </div>
                       <p className="text-sm text-muted-foreground">
                         {config.command}
                       </p>

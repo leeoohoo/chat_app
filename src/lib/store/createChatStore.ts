@@ -229,8 +229,8 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
                             const sessionData = {
                                 id: crypto.randomUUID(),
                                 title,
-                                userId,
-                                projectId
+                                user_id: userId,
+                                project_id: projectId
                             };
                             
                             const session = await client.createSession(sessionData);
@@ -554,13 +554,13 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
                                             // 更新对应工具调用的结果
                                             if (Array.isArray(results)) {
                                                 results.forEach((result: any) => {
-                                                    const toolCall = message.metadata!.toolCalls!.find((tc: any) => tc.id === result.toolCallId);
+                                                    const toolCall = message.metadata!.toolCalls!.find((tc: any) => tc.id === result.tool_call_id);
                                                     if (toolCall) {
                                                         toolCall.result = result.result;
                                                     }
                                                 });
-                                            } else if (results.toolCallId) {
-                                                const toolCall = message.metadata!.toolCalls!.find((tc: any) => tc.id === results.toolCallId);
+                                            } else if (results.tool_call_id) {
+                                                const toolCall = message.metadata!.toolCalls!.find((tc: any) => tc.id === results.tool_call_id);
                                                 if (toolCall) {
                                                     toolCall.result = results.result;
                                                 }
@@ -573,7 +573,7 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
                                     set((state) => {
                                         const message = state.messages.find(m => m.id === tempAssistantMessage.id);
                                         if (message && message.metadata && message.metadata.toolCalls) {
-                                            const toolCall = message.metadata.toolCalls.find((tc: any) => tc.id === data.toolCallId);
+                                            const toolCall = message.metadata.toolCalls.find((tc: any) => tc.id === data.tool_call_id);
                                             if (toolCall) {
                                                 toolCall.result = (toolCall.result || '') + data.chunk;
                                             }
@@ -822,8 +822,9 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
                                     id: crypto.randomUUID(),
                                     name: config.name,
                                     command: config.command,
+                                    type: 'stdio' as const, // 添加必需的type字段，默认为stdio
                                     enabled: config.enabled,
-                                    userId,
+                                    user_id: userId,
                                 };
                                 console.log('🔍 updateMcpConfig 创建数据:', createData);
                                 await client.createMcpConfig(createData);
@@ -893,10 +894,10 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
                                 name: config.name,
                                 provider: 'openai', // 默认provider
                                 model: config.model_name,
-                                apiKey: config.api_key,
-                                baseUrl: config.base_url,
+                                api_key: config.api_key,
+                                base_url: config.base_url,
                                 enabled: config.enabled,
-                                userId
+                                user_id: userId
                             };
                             
                             if (method === 'update') {

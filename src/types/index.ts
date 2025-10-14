@@ -100,6 +100,9 @@ export interface McpConfig {
   id: string;
   name: string;
   command: string;
+  type: 'http' | 'stdio';
+  args?: string[] | null;
+  env?: Record<string, string> | null;
   enabled: boolean;
   config?: any;
   createdAt: Date;
