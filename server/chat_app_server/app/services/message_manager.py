@@ -8,6 +8,7 @@ from typing import Dict, Any, Optional, Set
 from datetime import datetime
 
 from .ai_request_handler import Message
+from ..models.message import MessageCreate
 
 logger = logging.getLogger(__name__)
 
@@ -18,8 +19,7 @@ class MessageManager:
     负责管理所有消息的保存逻辑，避免重复保存
     """
     
-    def __init__(self, database_service):
-        self.database_service = database_service
+    def __init__(self):
         self.pending_saves: Set[str] = set()  # 跟踪正在保存的消息ID
         self.saved_messages: Dict[str, Message] = {}  # 缓存已保存的消息
         
@@ -46,7 +46,25 @@ class MessageManager:
             logger.info(f"🔧 [DEBUG] - tool_calls field: {len(tool_calls_in_data)} items")
             logger.info(f"🔧 [DEBUG] - metadata.tool_calls: {len(metadata_tool_calls)} items")
             
-            saved_message = await self.database_service.create_message(data)
+            # 创建 MessageCreate 对象
+            created_at = data.get('created_at')
+            if isinstance(created_at, datetime):
+                created_at = created_at.isoformat()
+            
+            message_create = MessageCreate(
+                id=data.get('id'),
+                sessionId=data.get('session_id'),
+                role=data.get('role'),
+                content=data.get('content'),
+                summary=data.get('summary'),
+                toolCalls=data.get('tool_calls'),
+                tool_call_id=data.get('tool_call_id'),
+                reasoning=data.get('reasoning'),
+                metadata=data.get('metadata'),
+                createdAt=created_at,
+                status=data.get('status')
+            )
+            saved_message = await MessageCreate.create(message_create)
             
             # 检查 saved_message 是否为 None
             if saved_message is None:
@@ -101,8 +119,25 @@ class MessageManager:
             logger.info(f"🔧 [DEBUG] - tool_calls field: {len(tool_calls_in_data)} items")
             logger.info(f"🔧 [DEBUG] - metadata.tool_calls: {len(metadata_tool_calls)} items")
             
-            # 同步调用数据库服务
-            saved_message = self.database_service.create_message_sync(data)
+            # 创建 MessageCreate 对象
+            created_at = data.get('created_at')
+            if isinstance(created_at, datetime):
+                created_at = created_at.isoformat()
+            
+            message_create = MessageCreate(
+                id=data.get('id'),
+                sessionId=data.get('session_id'),
+                role=data.get('role'),
+                content=data.get('content'),
+                summary=data.get('summary'),
+                toolCalls=data.get('tool_calls'),
+                tool_call_id=data.get('tool_call_id'),
+                reasoning=data.get('reasoning'),
+                metadata=data.get('metadata'),
+                createdAt=created_at,
+                status=data.get('status')
+            )
+            saved_message = MessageCreate.create_sync(message_create)
             
             # 检查 saved_message 是否为 None
             if saved_message is None:
@@ -156,7 +191,25 @@ class MessageManager:
         self.pending_saves.add(message_key)
         
         try:
-            saved_message = await self.database_service.create_message(data)
+            # 创建 MessageCreate 对象
+            created_at = data.get('created_at')
+            if isinstance(created_at, datetime):
+                created_at = created_at.isoformat()
+            
+            message_create = MessageCreate(
+                id=data.get('id'),
+                sessionId=data.get('session_id'),
+                role=data.get('role'),
+                content=data.get('content'),
+                summary=data.get('summary'),
+                toolCalls=data.get('tool_calls'),
+                tool_call_id=data.get('tool_call_id'),
+                reasoning=data.get('reasoning'),
+                metadata=data.get('metadata'),
+                createdAt=created_at,
+                status=data.get('status')
+            )
+            saved_message = await MessageCreate.create(message_create)
             
             # 检查 saved_message 是否为 None
             if saved_message is None:
@@ -195,7 +248,25 @@ class MessageManager:
         
         try:
             # 同步调用数据库服务
-            saved_message = self.database_service.create_message_sync(data)
+            # 创建 MessageCreate 对象
+            created_at = data.get('created_at')
+            if isinstance(created_at, datetime):
+                created_at = created_at.isoformat()
+            
+            message_create = MessageCreate(
+                id=data.get('id'),
+                sessionId=data.get('session_id'),
+                role=data.get('role'),
+                content=data.get('content'),
+                summary=data.get('summary'),
+                toolCalls=data.get('tool_calls'),
+                tool_call_id=data.get('tool_call_id'),
+                reasoning=data.get('reasoning'),
+                metadata=data.get('metadata'),
+                createdAt=created_at,
+                status=data.get('status')
+            )
+            saved_message = MessageCreate.create_sync(message_create)
             
             # 检查 saved_message 是否为 None
             if saved_message is None:
@@ -238,7 +309,21 @@ class MessageManager:
         self.pending_saves.add(message_key)
         
         try:
-            saved_message = await self.database_service.create_message(data)
+            # 创建 MessageCreate 对象
+            message_create = MessageCreate(
+                id=data.get('id'),
+                sessionId=data.get('session_id'),
+                role=data.get('role'),
+                content=data.get('content'),
+                summary=data.get('summary'),
+                toolCalls=data.get('tool_calls'),
+                tool_call_id=data.get('tool_call_id'),
+                reasoning=data.get('reasoning'),
+                metadata=data.get('metadata'),
+                createdAt=data.get('created_at'),
+                status=data.get('status')
+            )
+            saved_message = await MessageCreate.create(message_create)
             
             # 检查 saved_message 是否为 None
             if saved_message is None:

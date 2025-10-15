@@ -5,11 +5,15 @@ AI请求处理器 - Python实现
 import asyncio
 import json
 import logging
-from typing import Dict, Any, List, Optional, Callable, AsyncGenerator
+import time
+from typing import Dict, Any, List, Optional, Callable, AsyncGenerator, Union
 from datetime import datetime
 from dataclasses import dataclass
 from enum import Enum
 from openai import OpenAI
+from openai.types.chat import ChatCompletion, ChatCompletionChunk
+from openai.types.chat.chat_completion_chunk import ChoiceDelta
+from openai.types.chat.chat_completion_message_tool_call import ChatCompletionMessageToolCall
 
 logger = logging.getLogger(__name__)
 
@@ -97,14 +101,17 @@ class AiRequestHandler:
         callback: Callable[[CallbackType, Any], None],
         model_config: AiModelConfig,
         config_url: str = "/api",
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
+        message_manager = None
     ):
         self.messages = messages
         self.tools = tools
+        self.conversation_id = conversation_id
         self.callback = callback
         self.model_config = model_config
         self.config_url = config_url
         self.session_id = session_id or conversation_id
+        self.message_manager = message_manager
         self.is_aborted = False
         self.current_task = None  # 存储当前运行的任务
         
@@ -235,6 +242,8 @@ class AiRequestHandler:
                     # 处理工具调用增量
                     if hasattr(delta, 'tool_calls') and delta.tool_calls:
                         logger.info(f"🔧 [DEBUG] Received tool_calls delta with {len(delta.tool_calls)} calls")
+                        tool_call_event_sent = False
+                        
                         for tool_call_delta in delta.tool_calls:
                             logger.info(f"🔧 [DEBUG] Processing tool call delta: index={tool_call_delta.index}, id={getattr(tool_call_delta, 'id', None)}")
                             
@@ -255,6 +264,24 @@ class AiRequestHandler:
                                 if tool_call_delta.function.name:
                                     accumulated_tool_calls[tool_call_delta.index]["function"]["name"] = tool_call_delta.function.name
                                     logger.info(f"🔧 [DEBUG] Set tool function name: {tool_call_delta.function.name}")
+                                    
+                                    # 当我们第一次收到工具名称时，发送ON_TOOL_CALL事件
+                                    if not tool_call_event_sent and self.callback:
+                                        # 准备当前的工具调用数据（不需要结果）
+                                        current_tool_calls = []
+                                        for tc in accumulated_tool_calls:
+                                            if tc.get("id") and tc.get("function", {}).get("name"):
+                                                tool_call_data = {
+                                                    "id": tc.get("id", ""),
+                                                    "type": tc.get("type", "function"),
+                                                    "function": tc.get("function", {})
+                                                }
+                                                current_tool_calls.append(tool_call_data)
+                                        
+                                        if current_tool_calls:
+                                            logger.info(f"🔧 [DEBUG] Sending ON_TOOL_CALL event with {len(current_tool_calls)} tool calls")
+                                            self.callback(CallbackType.ON_TOOL_CALL, current_tool_calls)
+                                            tool_call_event_sent = True
                                 
                                 if tool_call_delta.function.arguments:
                                     accumulated_tool_calls[tool_call_delta.index]["function"]["arguments"] += tool_call_delta.function.arguments
@@ -301,20 +328,70 @@ class AiRequestHandler:
             updated_messages = self.messages.copy()
             updated_messages.append(assistant_message)
             
-            # 只有在没有工具调用时才触发完成回调
-            # 如果有工具调用，让 ai_client.py 中的逻辑来处理
-            if not accumulated_tool_calls:
-                if self.callback:
-                    logger.info(f"🎯 Triggering ON_COMPLETE callback with message (no tool calls): {assistant_message.content[:100]}...")
+            # 直接保存AI消息到数据库
+            if self.message_manager and self.session_id:
+                try:
+                    # 准备工具调用数据
+                    tool_calls_data = []
+                    if accumulated_tool_calls:
+                        for tc in accumulated_tool_calls:
+                            tool_call_data = {
+                                "id": tc.get("id", ""),
+                                "type": tc.get("type", "function"),
+                                "function": tc.get("function", {})
+                            }
+                            # 只有在有结果时才添加result字段
+                            if isinstance(tc, dict) and tc.get("result"):
+                                tool_call_data["result"] = tc.get("result")
+                            elif hasattr(tc, 'result') and tc.result:
+                                tool_call_data["result"] = tc.result
+                            
+                            tool_calls_data.append(tool_call_data)
+                    
+                    # 保存助手消息
+                    assistant_message_data = {
+                        "sessionId": self.session_id,
+                        "role": "assistant",
+                        "content": assistant_message.content,
+                        "status": "completed",
+                        "createdAt": datetime.now(),
+                        "metadata": {
+                            "toolCalls": tool_calls_data
+                        },
+                        "toolCalls": tool_calls_data
+                    }
+                    
+                    logger.info(f"🔧 [DEBUG] Directly saving assistant message with {len(tool_calls_data)} tool calls")
+                    saved_message = self.message_manager.save_assistant_message_sync(assistant_message_data)
+                    logger.info(f"🎯 Assistant message saved successfully: {saved_message.id}")
+                    
+                    # ON_TOOL_CALL事件已经在检测到工具调用时发送了，这里不需要重复发送
+                    
+                    # 当有工具调用时，不触发完成回调，因为对话还没有真正完成
+                    # 只有在没有工具调用的情况下才触发完成回调
+                    if not accumulated_tool_calls and self.callback:
+                        self.callback(CallbackType.ON_COMPLETE, {
+                            "message": assistant_message,
+                            "accumulated_content": accumulated_content,
+                            "tool_calls": accumulated_tool_calls,
+                            "saved_message": saved_message,
+                            "final": True  # 标记这是最终的完成事件
+                        })
+                        
+                except Exception as e:
+                    logger.error(f"Error saving assistant message: {e}")
+                    import traceback
+                    logger.error(f"Traceback: {traceback.format_exc()}")
+            else:
+                logger.warning("⚠️ No message_manager or session_id available for saving assistant message")
+                # 只有在没有工具调用的情况下才触发完成回调
+                if not accumulated_tool_calls and self.callback:
                     self.callback(CallbackType.ON_COMPLETE, {
                         "message": assistant_message,
                         "accumulated_content": accumulated_content,
-                        "tool_calls": accumulated_tool_calls
+                        "tool_calls": accumulated_tool_calls,
+                        "final": True  # 标记这是最终的完成事件
                     })
-                else:
-                    logger.warning("⚠️ No callback available for ON_COMPLETE")
-            else:
-                logger.info(f"🔧 [DEBUG] Skipping ON_COMPLETE callback because {len(accumulated_tool_calls)} tool calls need to be executed")
             
             return updated_messages
             

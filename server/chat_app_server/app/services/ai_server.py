@@ -11,6 +11,7 @@ from .ai_request_handler import AiModelConfig, Message, CallbackType
 from .message_manager import MessageManager
 from .tool_result_processor import ToolResultProcessor
 from .mcp_tool_execute import McpToolExecute
+from ..models.message import MessageCreate
 
 logger = logging.getLogger(__name__)
 
@@ -23,11 +24,11 @@ class AiServer:
     
     def __init__(
         self,
-        database_service,
+        database_service=None,  # 保持兼容性，但不再使用
         mcp_tool_execute: Optional[McpToolExecute] = None
     ):
-        self.database_service = database_service
-        self.message_manager = MessageManager(database_service)
+        self.database_service = database_service  # 保持兼容性
+        self.message_manager = MessageManager()  # 不再传递 database_service
         self.mcp_tool_execute = mcp_tool_execute or McpToolExecute()
         
         # AI客户端将在需要时创建
@@ -56,7 +57,8 @@ class AiServer:
             tools=tools,
             model_config=model_config,
             callback=callback,
-            mcp_tool_execute=self.mcp_tool_execute
+            mcp_tool_execute=self.mcp_tool_execute,
+            message_manager=self.message_manager
         )
         
         # 创建工具结果处理器
@@ -116,58 +118,6 @@ class AiServer:
                 callback("error", {"error": str(e)})
             raise
 
-    async def send_message(
-        self,
-        session_id: str,
-        content: str,
-        model_config: Optional[Dict[str, Any]] = None,
-        callback: Optional[Callable] = None
-    ) -> Message:
-        """
-        发送消息
-        
-        Args:
-            session_id: 会话ID
-            content: 消息内容
-            model_config: 模型配置
-            callback: 回调函数
-            
-        Returns:
-            保存的用户消息
-        """
-        try:
-            # 保存用户消息
-            user_message_data = {
-                "session_id": session_id,
-                "role": "user",
-                "content": content,
-                "status": "completed",
-                "created_at": datetime.now()
-            }
-            
-            user_message = await self.message_manager.save_user_message(user_message_data)
-            
-            # 调用sendMessageDirect处理AI响应
-            await self.send_message_direct(
-                session_id=session_id,
-                messages=[{
-                    "role": "user",
-                    "content": content
-                }],
-                model_config=model_config,
-                callback=callback
-            )
-            
-            return user_message
-            
-        except Exception as e:
-            import traceback
-            error_details = f"Error in send_message: {str(e)}\nTraceback: {traceback.format_exc()}"
-            logger.error(error_details)
-            if callback:
-                callback("error", {"error": str(e)})
-            raise
-    
     async def send_message_direct(
         self,
         session_id: str,
@@ -218,18 +168,39 @@ class AiServer:
                         # 处理工具结果
                         tool_call_id = data.get("tool_call_id")
                         result = data.get("result")
+                        tool_name = data.get("tool_name", "unknown")
                         
                         # 使用工具结果处理器处理结果
                         if self.tool_result_processor and result:
                             processed_result = await self.tool_result_processor.process_tool_result(
                                 tool_call_id=tool_call_id,
-                                tool_name=data.get("tool_name", "unknown"),
+                                tool_name=tool_name,
                                 result=result,
                                 callback=effective_callback
                             )
                             
                             # 更新结果
                             data["result"] = processed_result
+                            result = processed_result
+                        
+                        # 保存工具消息到数据库
+                        try:
+                            tool_message_data = {
+                                "session_id": session_id,
+                                "role": "tool",
+                                "content": result,
+                                "status": "completed",
+                                "metadata": {
+                                    "tool_call_id": tool_call_id,
+                                    "tool_name": tool_name
+                                }
+                            }
+                            
+                            saved_tool_message = await self.message_manager.save_tool_message(tool_message_data)
+                            logger.info(f"🔧 [TOOL_SAVE] Saved tool message: {tool_name} (ID: {saved_tool_message.id})")
+                            
+                        except Exception as e:
+                            logger.error(f"🔧 [TOOL_SAVE_ERROR] Failed to save tool message: {e}")
                         
                         if effective_callback:
                             effective_callback("tool_result", data)
@@ -240,48 +211,8 @@ class AiServer:
                             effective_callback("tool_stream_chunk", data)
                     
                     elif callback_type == "complete":
-                        # 处理完成事件
-                        assistant_message = data.get("message")
-                        
-                        if assistant_message:
-                            # 构建工具调用数据
-                            tool_calls_data = []
-                            if assistant_message.tool_calls:
-                                for tc in assistant_message.tool_calls:
-                                    tool_call_data = {
-                                        "id": tc.get("id") if isinstance(tc, dict) else tc.id,
-                                        "type": tc.get("type", "function") if isinstance(tc, dict) else tc.type,
-                                        "function": {
-                                            "name": tc.get("function", {}).get("name") if isinstance(tc, dict) else tc.function.name,
-                                            "arguments": tc.get("function", {}).get("arguments") if isinstance(tc, dict) else tc.function.arguments
-                                        }
-                                    }
-                                    # 只有在有结果时才添加result字段
-                                    if isinstance(tc, dict) and tc.get("result"):
-                                        tool_call_data["result"] = tc.get("result")
-                                    elif hasattr(tc, 'result') and tc.result:
-                                        tool_call_data["result"] = tc.result
-                                    
-                                    tool_calls_data.append(tool_call_data)
-                            
-                            # 保存助手消息
-                            assistant_message_data = {
-                                "session_id": session_id,
-                                "role": "assistant",
-                                "content": assistant_message.content,
-                                "status": "completed",
-                                "created_at": datetime.now(),
-                                "metadata": {
-                                    "tool_calls": tool_calls_data
-                                },
-                                "tool_calls": tool_calls_data  # 同时保存在tool_calls字段中
-                            }
-                            
-                            logger.info(f"🔧 [DEBUG] Saving assistant message with {len(tool_calls_data)} tool calls")
-                            saved_message = await self.message_manager.save_assistant_message(assistant_message_data)
-                            
-                            # 更新数据中的消息
-                            data["message"] = saved_message
+                        # 处理完成事件 - 消息已经在AiRequestHandler中保存了
+                        logger.info("🎯 AI response completed - message already saved by AiRequestHandler")
                         
                         if effective_callback:
                             effective_callback("complete", data)
@@ -404,18 +335,39 @@ class AiServer:
                         # 处理工具结果
                         tool_call_id = data.get("tool_call_id")
                         result = data.get("result")
+                        tool_name = data.get("tool_name", "unknown")
                         
                         # 使用工具结果处理器处理结果（同步版本）
                         if self.tool_result_processor and result:
                             processed_result = self.tool_result_processor.process_tool_result_sync(
                                 tool_call_id=tool_call_id,
-                                tool_name=data.get("tool_name", "unknown"),
+                                tool_name=tool_name,
                                 result=result,
                                 callback=effective_callback
                             )
                             
                             # 更新结果
                             data["result"] = processed_result
+                            result = processed_result
+                        
+                        # 保存工具消息到数据库（同步版本）
+                        try:
+                            tool_message_data = {
+                                "session_id": session_id,
+                                "role": "tool",
+                                "content": result,
+                                "status": "completed",
+                                "metadata": {
+                                    "tool_call_id": tool_call_id,
+                                    "tool_name": tool_name
+                                }
+                            }
+                            
+                            saved_tool_message = self.message_manager.save_tool_message_sync(tool_message_data)
+                            logger.info(f"🔧 [TOOL_SAVE_SYNC] Saved tool message: {tool_name} (ID: {saved_tool_message.id})")
+                            
+                        except Exception as e:
+                            logger.error(f"🔧 [TOOL_SAVE_ERROR_SYNC] Failed to save tool message: {e}")
                         
                         if effective_callback:
                             effective_callback("tool_result", data)
@@ -426,48 +378,8 @@ class AiServer:
                             effective_callback("tool_stream_chunk", data)
                     
                     elif callback_type == "complete":
-                        # 处理完成事件
-                        assistant_message = data.get("message")
-                        
-                        if assistant_message:
-                            # 构建工具调用数据
-                            tool_calls_data = []
-                            if assistant_message.tool_calls:
-                                for tc in assistant_message.tool_calls:
-                                    tool_call_data = {
-                                        "id": tc.get("id") if isinstance(tc, dict) else tc.id,
-                                        "type": tc.get("type", "function") if isinstance(tc, dict) else tc.type,
-                                        "function": {
-                                            "name": tc.get("function", {}).get("name") if isinstance(tc, dict) else tc.function.name,
-                                            "arguments": tc.get("function", {}).get("arguments") if isinstance(tc, dict) else tc.function.arguments
-                                        }
-                                    }
-                                    # 只有在有结果时才添加result字段
-                                    if isinstance(tc, dict) and tc.get("result"):
-                                        tool_call_data["result"] = tc.get("result")
-                                    elif hasattr(tc, 'result') and tc.result:
-                                        tool_call_data["result"] = tc.result
-                                    
-                                    tool_calls_data.append(tool_call_data)
-                            
-                            # 保存助手消息（同步版本）
-                            assistant_message_data = {
-                                "session_id": session_id,
-                                "role": "assistant",
-                                "content": assistant_message.content,
-                                "status": "completed",
-                                "created_at": datetime.now(),
-                                "metadata": {
-                                    "tool_calls": tool_calls_data
-                                },
-                                "tool_calls": tool_calls_data  # 同时保存在tool_calls字段中
-                            }
-                            
-                            logger.info(f"🔧 [DEBUG] Saving assistant message with {len(tool_calls_data)} tool calls")
-                            saved_message = self.message_manager.save_assistant_message_sync(assistant_message_data)
-                            
-                            # 更新数据中的消息
-                            data["message"] = saved_message
+                        # 处理完成事件 - 消息已经在AiRequestHandler中保存了
+                        logger.info("🎯 AI response completed - message already saved by AiRequestHandler")
                         
                         if effective_callback:
                             effective_callback("complete", data)
@@ -557,7 +469,7 @@ class AiServer:
     async def get_session_messages(self, session_id: str) -> List[Message]:
         """获取会话消息"""
         try:
-            messages_data = await self.database_service.get_messages_by_session(session_id)
+            messages_data = await MessageCreate.get_by_session(session_id)
             
             messages = []
             for msg_data in messages_data:

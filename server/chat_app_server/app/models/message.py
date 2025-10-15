@@ -75,6 +75,38 @@ class MessageCreate(BaseModel):
         return await cls.get_by_id(message_id)
 
     @classmethod
+    def create_sync(cls, message_data: "MessageCreate") -> Dict[str, Any]:
+        """创建新消息（同步版本）"""
+        # 使用前端提供的ID，如果没有则生成新的
+        message_id = message_data.id or str(uuid.uuid4())
+        
+        query = """
+        INSERT INTO messages (id, session_id, role, content, summary, tool_calls, tool_call_id, reasoning, metadata, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        """
+        
+        db.execute_sync(query, (
+            message_id,
+            message_data.session_id,  # 使用属性访问器
+            message_data.role,
+            message_data.content,
+            message_data.summary,
+            message_data.tool_calls_str,  # 使用JSON字符串转换
+            message_data.tool_call_id,
+            message_data.reasoning,
+            message_data.metadata_str  # 使用JSON字符串转换
+        ))
+        
+        return cls.get_by_id_sync(message_id)
+
+    @classmethod
+    def get_by_id_sync(cls, message_id: str) -> Optional[Dict[str, Any]]:
+        """根据ID获取消息（同步版本）"""
+        query = "SELECT * FROM messages WHERE id = ?"
+        row = db.fetchone_sync(query, (message_id,))
+        return row_to_dict(row)
+
+    @classmethod
     async def get_by_session(cls, session_id: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
         """获取会话的所有消息"""
         query = "SELECT * FROM messages WHERE session_id = ? ORDER BY created_at ASC"

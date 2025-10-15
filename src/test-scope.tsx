@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useChatStoreFromContext } from './lib/store/ChatStoreContext';
 
 const TestScope: React.FC = () => {
-    const { loadSessions, createSession } = useChatStoreFromContext();
+    const { loadSessions, createSession, sessions } = useChatStoreFromContext();
     
     useEffect(() => {
         console.log('🧪 开始作用域测试 - 使用Context中的store');
@@ -11,13 +11,15 @@ const TestScope: React.FC = () => {
         console.log('🔄 调用 loadSessions...');
         loadSessions();
         
-        // 测试createSession
-        setTimeout(() => {
-            console.log('🔄 调用 createSession...');
-            createSession('测试会话');
-        }, 1000);
-        
-    }, [loadSessions, createSession]);
+    }, [loadSessions]);
+
+    // 只在没有会话时才创建新会话
+    useEffect(() => {
+        if (sessions.length === 0) {
+            console.log('🔄 没有会话，创建默认会话...');
+            createSession('默认会话');
+        }
+    }, [sessions.length, createSession]);
 
     return (
         <div style={{ padding: '20px' }}>

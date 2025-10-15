@@ -11,3 +11,4 @@ aiofiles==23.2.1
 
 # 跨平台打包依赖
 pyinstaller==6.2.0
+mcp-framework>=0.1.23

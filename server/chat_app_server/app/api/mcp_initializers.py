@@ -23,9 +23,20 @@ router = APIRouter()
 # 导入系统检测器
 from app.mcp_manager.system_detector import SystemDetector
 
-# 服务端配置目录路径
-CONFIG_DIR = os.path.abspath(os.path.join(os.getcwd(), "mcp_config"))
-MCP_SERVICES_DIR = os.path.abspath(os.path.join(os.getcwd(), "mcp_services"))
+# 获取项目根目录（app 目录的父目录）
+PROJECT_ROOT = Path(__file__).parent.parent.parent.absolute()
+
+# 服务端配置目录路径 - 使用项目根目录
+CONFIG_DIR = str(PROJECT_ROOT / "mcp_config")
+MCP_SERVICES_DIR = str(PROJECT_ROOT / "mcp_services")
+
+# 确保目录存在
+Path(CONFIG_DIR).mkdir(parents=True, exist_ok=True)
+Path(MCP_SERVICES_DIR).mkdir(parents=True, exist_ok=True)
+
+logger.info(f"📁 项目根目录: {PROJECT_ROOT}")
+logger.info(f"📁 配置目录: {CONFIG_DIR}")
+logger.info(f"📁 MCP服务目录: {MCP_SERVICES_DIR}")
 
 # 初始化系统检测器
 system_detector = SystemDetector(MCP_SERVICES_DIR)
@@ -52,24 +63,24 @@ async def initialize_expert_stream_config(request: ExpertStreamConfigRequest):
     """初始化 Expert Stream 配置"""
     try:
         initializer = ExpertStreamConfigInitializer(CONFIG_DIR, EXPERT_STREAM_SERVER_SCRIPT)
-        
+
         # 调用初始化方法
         await initializer.initialize_config(
             alias=request.alias,
             config_template=request.config_template,
             custom_config=request.custom_config
         )
-        
+
         # 获取配置数据
         config_data = await initializer.get_config(request.alias)
-        
+
         return ConfigInitializerResponse(
             success=True,
             message=f"Expert Stream 配置 '{request.alias}' 初始化成功",
             config_path=str(Path(CONFIG_DIR) / f"expert_stream_server_alias_{request.alias}_server_config.json"),
             config_data=config_data
         )
-        
+
     except Exception as e:
         logger.error(f"初始化 Expert Stream 配置失败: {e}")
         raise HTTPException(status_code=500, detail=f"初始化配置失败: {str(e)}")
@@ -80,7 +91,7 @@ async def initialize_file_reader_config(request: FileReaderConfigRequest):
     """初始化 File Reader 配置"""
     try:
         initializer = FileReaderConfigInitializer(CONFIG_DIR, FILE_READER_SERVER_SCRIPT)
-        
+
         # 调用初始化方法
         await initializer.initialize_config(
             alias=request.alias,
@@ -88,17 +99,17 @@ async def initialize_file_reader_config(request: FileReaderConfigRequest):
             project_root=None,  # 使用默认值
             custom_config=request.custom_config
         )
-        
+
         # 获取配置数据
         config_data = await initializer.get_config(request.alias)
-        
+
         return ConfigInitializerResponse(
             success=True,
             message=f"File Reader 配置 '{request.alias}' 初始化成功",
             config_path=str(Path(CONFIG_DIR) / f"File Reader MCP Server_alias_{request.alias}_server_config.json"),
             config_data=config_data
         )
-        
+
     except Exception as e:
         logger.error(f"初始化 File Reader 配置失败: {e}")
         raise HTTPException(status_code=500, detail=f"初始化配置失败: {str(e)}")
@@ -110,17 +121,17 @@ async def get_expert_stream_config(alias: str):
     try:
         initializer = ExpertStreamConfigInitializer(CONFIG_DIR, EXPERT_STREAM_SERVER_SCRIPT)
         config_data = await initializer.get_config(alias)
-        
+
         if not config_data:
             raise HTTPException(status_code=404, detail=f"配置 '{alias}' 不存在")
-        
+
         return ConfigInitializerResponse(
             success=True,
             message=f"获取 Expert Stream 配置 '{alias}' 成功",
             config_path=str(Path(CONFIG_DIR) / f"expert_stream_server_alias_{alias}_server_config.json"),
             config_data=config_data
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -134,17 +145,17 @@ async def get_file_reader_config(alias: str):
     try:
         initializer = FileReaderConfigInitializer(CONFIG_DIR, FILE_READER_SERVER_SCRIPT)
         config_data = await initializer.get_config(alias)
-        
+
         if not config_data:
             raise HTTPException(status_code=404, detail=f"配置 '{alias}' 不存在")
-        
+
         return ConfigInitializerResponse(
             success=True,
             message=f"获取 File Reader 配置 '{alias}' 成功",
             config_path=str(Path(CONFIG_DIR) / f"File Reader MCP Server_alias_{alias}_server_config.json"),
             config_data=config_data
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -157,20 +168,20 @@ async def update_expert_stream_config(alias: str, request: ConfigUpdateRequest):
     """更新 Expert Stream 配置"""
     try:
         initializer = ExpertStreamConfigInitializer(CONFIG_DIR, EXPERT_STREAM_SERVER_SCRIPT)
-        
+
         # 更新配置
         await initializer.update_config(alias, request.config_data)
-        
+
         # 获取更新后的配置数据
         config_data = await initializer.get_config(alias)
-        
+
         return ConfigInitializerResponse(
             success=True,
             message=f"Expert Stream 配置 '{alias}' 更新成功",
             config_path=str(Path(CONFIG_DIR) / f"expert_stream_server_alias_{alias}_server_config.json"),
             config_data=config_data
         )
-        
+
     except Exception as e:
         logger.error(f"更新 Expert Stream 配置失败: {e}")
         raise HTTPException(status_code=500, detail=f"更新配置失败: {str(e)}")
@@ -181,20 +192,20 @@ async def update_file_reader_config(alias: str, request: ConfigUpdateRequest):
     """更新 File Reader 配置"""
     try:
         initializer = FileReaderConfigInitializer(CONFIG_DIR, FILE_READER_SERVER_SCRIPT)
-        
+
         # 更新配置
         await initializer.update_config(alias, request.config_data)
-        
+
         # 获取更新后的配置数据
         config_data = await initializer.get_config(alias)
-        
+
         return ConfigInitializerResponse(
             success=True,
             message=f"File Reader 配置 '{alias}' 更新成功",
             config_path=str(Path(CONFIG_DIR) / f"File Reader MCP Server_alias_{alias}_server_config.json"),
             config_data=config_data
         )
-        
+
     except Exception as e:
         logger.error(f"更新 File Reader 配置失败: {e}")
         raise HTTPException(status_code=500, detail=f"更新配置失败: {str(e)}")
@@ -206,7 +217,7 @@ async def get_system_info():
     try:
         system_info = system_detector.get_system_info()
         available_servers = system_detector.get_available_servers()
-        
+
         return {
             "system_info": system_info,
             "available_servers": available_servers,
@@ -215,7 +226,7 @@ async def get_system_info():
                 "file_reader_server": FILE_READER_SERVER_SCRIPT
             }
         }
-        
+
     except Exception as e:
         logger.error(f"获取系统信息失败: {e}")
         raise HTTPException(status_code=500, detail=f"获取系统信息失败: {str(e)}")
@@ -227,7 +238,7 @@ async def list_all_configs():
     try:
         config_dir = Path(CONFIG_DIR)
         configs = []
-        
+
         if config_dir.exists():
             # 查找所有配置文件
             for config_file in config_dir.glob("*.json"):
@@ -235,7 +246,7 @@ async def list_all_configs():
                     import json
                     with open(config_file, 'r', encoding='utf-8') as f:
                         config_data = json.load(f)
-                    
+
                     configs.append({
                         "file_name": config_file.name,
                         "file_path": str(config_file),
@@ -246,12 +257,12 @@ async def list_all_configs():
                 except Exception as e:
                     logger.warning(f"读取配置文件 {config_file} 失败: {e}")
                     continue
-        
+
         return ConfigListResponse(
             configs=configs,
             total=len(configs)
         )
-        
+
     except Exception as e:
         logger.error(f"列出配置失败: {e}")
         raise HTTPException(status_code=500, detail=f"列出配置失败: {str(e)}")
@@ -262,18 +273,18 @@ async def delete_expert_stream_config(alias: str):
     """删除 Expert Stream 配置"""
     try:
         config_file = Path(CONFIG_DIR) / f"expert_stream_server_alias_{alias}_server_config.json"
-        
+
         if not config_file.exists():
             raise HTTPException(status_code=404, detail=f"配置 '{alias}' 不存在")
-        
+
         config_file.unlink()
-        
+
         return ConfigInitializerResponse(
             success=True,
             message=f"Expert Stream 配置 '{alias}' 删除成功",
             config_path=str(config_file)
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -286,18 +297,18 @@ async def delete_file_reader_config(alias: str):
     """删除 File Reader 配置"""
     try:
         config_file = Path(CONFIG_DIR) / f"File Reader MCP Server_alias_{alias}_server_config.json"
-        
+
         if not config_file.exists():
             raise HTTPException(status_code=404, detail=f"配置 '{alias}' 不存在")
-        
+
         config_file.unlink()
-        
+
         return ConfigInitializerResponse(
             success=True,
             message=f"File Reader 配置 '{alias}' 删除成功",
             config_path=str(config_file)
         )
-        
+
     except HTTPException:
         raise
     except Exception as e:

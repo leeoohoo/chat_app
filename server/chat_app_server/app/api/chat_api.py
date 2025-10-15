@@ -15,6 +15,7 @@ from ..services.ai_request_handler import AiModelConfig, Message, CallbackType
 from ..services.mcp_tool_execute import create_example_mcp_executor, McpToolExecute
 from ..services.stream_manager import stream_manager
 from ..models import db
+from ..models.message import MessageCreate
 
 logger = logging.getLogger(__name__)
 
@@ -150,46 +151,12 @@ def get_ai_server() -> AiServer:
     """获取AI服务器实例"""
     global ai_server
     if ai_server is None:
-        # 创建示例数据库服务（在实际应用中应该使用真实的数据库服务）
-        class MockDatabaseService:
-            async def create_message(self, data: Dict[str, Any]) -> Dict[str, Any]:
-                # 模拟保存消息到数据库
-                message_id = f"msg_{datetime.now().timestamp()}"
-                return {
-                    "id": message_id,
-                    "session_id": data.get("session_id"),
-                    "role": data.get("role"),
-                    "content": data.get("content"),
-                    "status": data.get("status", "completed"),
-                    "created_at": data.get("created_at", datetime.now()),
-                    "metadata": data.get("metadata"),
-                    "tool_calls": data.get("tool_calls")
-                }
-            
-            def create_message_sync(self, data: Dict[str, Any]) -> Dict[str, Any]:
-                # 模拟保存消息到数据库（同步版本）
-                message_id = f"msg_{datetime.now().timestamp()}"
-                return {
-                    "id": message_id,
-                    "session_id": data.get("session_id"),
-                    "role": data.get("role"),
-                    "content": data.get("content"),
-                    "status": data.get("status", "completed"),
-                    "created_at": data.get("created_at", datetime.now()),
-                    "metadata": data.get("metadata"),
-                    "tool_calls": data.get("tool_calls")
-                }
-            
-            async def get_messages_by_session(self, session_id: str) -> list[Dict[str, Any]]:
-                # 模拟从数据库获取消息
-                return []
-        
         # 创建MCP工具执行器（暂时使用示例配置，实际使用时会动态加载）
         mcp_executor = create_example_mcp_executor()
         
-        # 创建AI服务器
+        # 创建AI服务器（直接使用 models 模块，不需要额外的 database_service）
         ai_server = AiServer(
-            database_service=MockDatabaseService(),
+            database_service=None,  # 不再使用独立的 database_service
             mcp_tool_execute=mcp_executor
         )
     
@@ -202,64 +169,7 @@ async def get_ai_server_with_mcp_configs() -> AiServer:
         # 加载MCP配置
         http_servers, stdio_servers = await load_mcp_configs()
         
-        # 创建数据库服务
-        class MockDatabaseService:
-            async def create_message(self, data: Dict[str, Any]) -> Dict[str, Any]:
-                message_id = f"msg_{datetime.now().timestamp()}"
-                
-                # 添加调试日志
-                tool_calls = data.get("tool_calls", [])
-                metadata = data.get("metadata", {})
-                metadata_tool_calls = metadata.get("tool_calls", [])
-                logger.info(f"🗄️ [DEBUG] MockDatabaseService.create_message:")
-                logger.info(f"🗄️ [DEBUG] - Input tool_calls: {len(tool_calls) if tool_calls else 0} items")
-                logger.info(f"🗄️ [DEBUG] - Input metadata.tool_calls: {len(metadata_tool_calls) if metadata_tool_calls else 0} items")
-                if tool_calls:
-                    logger.info(f"🗄️ [DEBUG] - Tool calls content: {tool_calls}")
-                
-                result = {
-                    "id": message_id,
-                    "session_id": data.get("session_id"),
-                    "role": data.get("role"),
-                    "content": data.get("content"),
-                    "status": data.get("status", "completed"),
-                    "created_at": data.get("created_at", datetime.now()),
-                    "metadata": data.get("metadata") or {},
-                    "tool_calls": data.get("tool_calls") or []
-                }
-                
-                logger.info(f"🗄️ [DEBUG] - Output tool_calls: {len(result.get('tool_calls', [])) if result.get('tool_calls') else 0} items")
-                return result
-            
-            def create_message_sync(self, data: Dict[str, Any]) -> Dict[str, Any]:
-                message_id = f"msg_{datetime.now().timestamp()}"
-                
-                # 添加调试日志
-                tool_calls = data.get("tool_calls", [])
-                metadata = data.get("metadata", {})
-                metadata_tool_calls = metadata.get("tool_calls", [])
-                logger.info(f"🗄️ [DEBUG] MockDatabaseService.create_message_sync:")
-                logger.info(f"🗄️ [DEBUG] - Input tool_calls: {len(tool_calls) if tool_calls else 0} items")
-                logger.info(f"🗄️ [DEBUG] - Input metadata.tool_calls: {len(metadata_tool_calls) if metadata_tool_calls else 0} items")
-                if tool_calls:
-                    logger.info(f"🗄️ [DEBUG] - Tool calls content: {tool_calls}")
-                
-                result = {
-                    "id": message_id,
-                    "session_id": data.get("session_id"),
-                    "role": data.get("role"),
-                    "content": data.get("content"),
-                    "status": data.get("status", "completed"),
-                    "created_at": data.get("created_at", datetime.now()),
-                    "metadata": data.get("metadata") or {},
-                    "tool_calls": data.get("tool_calls") or []
-                }
-                
-                logger.info(f"🗄️ [DEBUG] - Output tool_calls: {len(result.get('tool_calls', [])) if result.get('tool_calls') else 0} items")
-                return result
-            
-            async def get_messages_by_session(self, session_id: str) -> list[Dict[str, Any]]:
-                return []
+        # 不再需要 MockDatabaseService，直接使用 models 模块
         
         # 创建支持stdio协议的MCP工具执行器
         mcp_executor = McpToolExecute(
@@ -274,9 +184,9 @@ async def get_ai_server_with_mcp_configs() -> AiServer:
         tools_count = len(mcp_executor.get_tools())
         logger.info(f"🔧 MCP工具执行器初始化完成，共加载 {tools_count} 个工具")
         
-        # 创建AI服务器
+        # 创建AI服务器（不再需要 database_service）
         server = AiServer(
-            database_service=MockDatabaseService(),
+            database_service=None,
             mcp_tool_execute=mcp_executor
         )
         
@@ -447,10 +357,10 @@ async def create_stream_response(
                         except asyncio.QueueEmpty:
                             break
                     
-                    # AI任务完成后直接发送done信号
-                    logger.info("🎯 AI task completed, sending done signal")
-                    yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
-                    completed = True
+                    # AI任务完成，但不直接发送done信号
+                    # 只有在收到ON_COMPLETE事件且有final标志时才发送done信号
+                    logger.info("🎯 AI task completed, waiting for final complete event")
+                    # 不设置completed=True，让系统继续处理事件
                     break
                 
                 for task in done:

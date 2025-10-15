@@ -40,6 +40,7 @@ class AiClient:
         self.model_config = model_config
         self.callback = callback
         self.mcp_tool_execute = mcp_tool_execute
+        self.message_manager = message_manager
         self.config_url = config_url
         self.session_id = session_id or conversation_id
         
@@ -49,10 +50,7 @@ class AiClient:
         
         # 初始化组件
         if message_manager:
-            self.tool_result_processor = ToolResultProcessor(
-                message_manager, model_config, conversation_id, 
-                self.callback, self.session_id, self.config_url
-            )
+            self.tool_result_processor = ToolResultProcessor(self)
         else:
             self.tool_result_processor = None
         
@@ -96,6 +94,8 @@ class AiClient:
                         continue
                 else:
                     # 没有工具调用，对话结束
+                    # ai_request_handler已经在没有工具调用时发送了ON_COMPLETE事件，这里不需要重复发送
+                    logger.info("🎯 Conversation completed, ON_COMPLETE event already sent by ai_request_handler")
                     break
                     
             if current_round >= max_rounds:
@@ -137,7 +137,7 @@ class AiClient:
                 logger.info(f"🔧 [TOOL_CALL_{i+1}] Tool: {tool_name}, ID: {tool_id}")
                 logger.info(f"🔧 [TOOL_ARGS_{i+1}] Arguments: {json.dumps(tool_args, ensure_ascii=False, indent=2)}")
             
-            self.callback(CallbackType.ON_TOOL_CALL, serializable_tool_calls)
+            # 注意：ON_TOOL_CALL事件已经在ai_request_handler.py中发送，这里不需要重复发送
             
             # 存储工具响应消息，用于添加到对话历史
             tool_response_messages = []
@@ -333,7 +333,8 @@ class AiClient:
                 self.callback,
                 self.model_config,
                 self.config_url,
-                self.session_id
+                self.session_id,
+                self.message_manager
             )
             
             # 发送聊天完成请求
@@ -355,7 +356,7 @@ class AiClient:
                         return True  # 有工具调用
                     else:
                         logger.info("🔧 [DEBUG] No tool calls found, conversation completed")
-                        # 不在这里调用ON_COMPLETE，因为ai_request_handler已经调用了
+                        # ai_request_handler在没有工具调用时会调用ON_COMPLETE，这里不需要重复调用
                         return False  # 没有工具调用
             
             return False  # 没有更新的消息

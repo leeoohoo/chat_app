@@ -5,7 +5,6 @@
 
 import os
 import sys
-import asyncio
 import uvicorn
 from pathlib import Path
 
@@ -38,7 +37,7 @@ def main():
     setup_environment()
     
     # 检查必要文件
-    if not Path('app/main.py').exists():
+    if not Path('/Users/lilei/project/learn/chat_app/server/chat_app_server/app/main.py').exists():
         print("✗ 未找到 app/main.py 文件")
         return False
     

@@ -2,6 +2,7 @@
 # 包含数据库连接管理和所有数据模型
 
 import aiosqlite
+import sqlite3
 import logging
 from pathlib import Path
 
@@ -162,6 +163,34 @@ class DatabaseManager:
             params = ()
         cursor = await self.connection.execute(query, params)
         return await cursor.fetchall()
+
+    def execute_sync(self, query: str, params: tuple = None):
+        """同步执行SQL语句"""
+        if params is None:
+            params = ()
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute(query, params)
+            conn.commit()
+            return cursor
+
+    def fetchone_sync(self, query: str, params: tuple = None):
+        """同步获取单行数据"""
+        if params is None:
+            params = ()
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute(query, params)
+            return cursor.fetchone()
+
+    def fetchall_sync(self, query: str, params: tuple = None):
+        """同步获取所有数据"""
+        if params is None:
+            params = ()
+        with sqlite3.connect(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute(query, params)
+            return cursor.fetchall()
 
 # 全局数据库管理器实例
 db = DatabaseManager()
