@@ -223,6 +223,26 @@ class AiClient:
                     
                     logger.info(f"🔧 [STREAM_FINAL_RESULT_{i+1}] Tool: {tool_name}, Final result: {processed_result[:500]}{'...' if len(processed_result) > 500 else ''}")
                     
+                    # 保存工具消息到数据库
+                    if self.message_manager:
+                        try:
+                            tool_message_data = {
+                                "session_id": self.session_id,
+                                "role": "tool",
+                                "content": processed_result,
+                                "status": "completed",
+                                "metadata": {
+                                    "tool_call_id": tool_call_id,
+                                    "tool_name": tool_name
+                                }
+                            }
+                            
+                            saved_tool_message = self.message_manager.save_tool_message_sync(tool_message_data)
+                            logger.info(f"🔧 [STREAM_SAVE_{i+1}] Saved tool message: {tool_name} (ID: {saved_tool_message.id})")
+                            
+                        except Exception as e:
+                            logger.error(f"🔧 [STREAM_SAVE_ERROR_{i+1}] Failed to save tool message: {e}")
+                    
                     # 构造工具响应消息
                     tool_response_message = Message(
                         id=f"tool_msg_{tool_call_id}",
@@ -282,6 +302,26 @@ class AiClient:
                         logger.info(f"🔧 [NON_STREAM_NO_PROCESSOR_{i+1}] Tool: {tool_name}, Using raw result")
                     
                     logger.info(f"🔧 [NON_STREAM_FINAL_RESULT_{i+1}] Tool: {tool_name}, Final result: {str(processed_result)[:500]}{'...' if len(str(processed_result)) > 500 else ''}")
+                    
+                    # 保存工具消息到数据库
+                    if self.message_manager:
+                        try:
+                            tool_message_data = {
+                                "session_id": self.session_id,
+                                "role": "tool",
+                                "content": processed_result,
+                                "status": "completed",
+                                "metadata": {
+                                    "tool_call_id": tool_call_id,
+                                    "tool_name": tool_name
+                                }
+                            }
+                            
+                            saved_tool_message = self.message_manager.save_tool_message_sync(tool_message_data)
+                            logger.info(f"🔧 [NON_STREAM_SAVE_{i+1}] Saved tool message: {tool_name} (ID: {saved_tool_message.id})")
+                            
+                        except Exception as e:
+                            logger.error(f"🔧 [NON_STREAM_SAVE_ERROR_{i+1}] Failed to save tool message: {e}")
                     
                     # 构造工具响应消息
                     tool_response_message = Message(

@@ -118,173 +118,6 @@ class AiServer:
                 callback("error", {"error": str(e)})
             raise
 
-    async def send_message_direct(
-        self,
-        session_id: str,
-        messages: List[Dict[str, Any]],
-        model_config: Optional[Dict[str, Any]] = None,
-        callback: Optional[Callable] = None
-    ) -> None:
-        """
-        直接发送消息（不保存用户消息）
-        
-        Args:
-            session_id: 会话ID
-            messages: 消息列表
-            model_config: 模型配置
-            callback: 回调函数
-        """
-        try:
-            # 创建模型配置
-            if model_config:
-                ai_model_config = AiModelConfig(
-                    model_name=model_config.get("model_name", "gpt-3.5-turbo"),
-                    temperature=model_config.get("temperature", 0.7),
-                    max_tokens=model_config.get("max_tokens", 1000),
-                    api_key=model_config.get("api_key", ""),
-                    base_url=model_config.get("base_url", "https://api.openai.com/v1")
-                )
-            else:
-                # 使用默认配置
-                ai_model_config = AiModelConfig()
-            
-            # 设置回调函数
-            effective_callback = callback or self.callback
-            
-            # 创建内部回调函数来处理各种事件
-            async def internal_callback_async(callback_type: str, data: Any):
-                try:
-                    if callback_type == "chunk":
-                        # 处理文本块
-                        if effective_callback:
-                            effective_callback("chunk", data)
-                    
-                    elif callback_type == "tool_call":
-                        # 处理工具调用
-                        if effective_callback:
-                            effective_callback("tool_call", data)
-                    
-                    elif callback_type == "tool_result":
-                        # 处理工具结果
-                        tool_call_id = data.get("tool_call_id")
-                        result = data.get("result")
-                        tool_name = data.get("tool_name", "unknown")
-                        
-                        # 使用工具结果处理器处理结果
-                        if self.tool_result_processor and result:
-                            processed_result = await self.tool_result_processor.process_tool_result(
-                                tool_call_id=tool_call_id,
-                                tool_name=tool_name,
-                                result=result,
-                                callback=effective_callback
-                            )
-                            
-                            # 更新结果
-                            data["result"] = processed_result
-                            result = processed_result
-                        
-                        # 保存工具消息到数据库
-                        try:
-                            tool_message_data = {
-                                "session_id": session_id,
-                                "role": "tool",
-                                "content": result,
-                                "status": "completed",
-                                "metadata": {
-                                    "tool_call_id": tool_call_id,
-                                    "tool_name": tool_name
-                                }
-                            }
-                            
-                            saved_tool_message = await self.message_manager.save_tool_message(tool_message_data)
-                            logger.info(f"🔧 [TOOL_SAVE] Saved tool message: {tool_name} (ID: {saved_tool_message.id})")
-                            
-                        except Exception as e:
-                            logger.error(f"🔧 [TOOL_SAVE_ERROR] Failed to save tool message: {e}")
-                        
-                        if effective_callback:
-                            effective_callback("tool_result", data)
-                    
-                    elif callback_type == "tool_stream_chunk":
-                        # 处理工具流式块
-                        if effective_callback:
-                            effective_callback("tool_stream_chunk", data)
-                    
-                    elif callback_type == "complete":
-                        # 处理完成事件 - 消息已经在AiRequestHandler中保存了
-                        logger.info("🎯 AI response completed - message already saved by AiRequestHandler")
-                        
-                        if effective_callback:
-                            effective_callback("complete", data)
-                    
-                    elif callback_type == "error":
-                        # 处理错误
-                        if effective_callback:
-                            effective_callback("error", data)
-                    
-                    elif callback_type == "summary_chunk":
-                        # 处理摘要块（来自工具结果处理器）
-                        if effective_callback:
-                            effective_callback("summary_chunk", data)
-                    
-                    else:
-                        # 其他类型的回调
-                        if effective_callback:
-                            effective_callback(callback_type, data)
-                            
-                except Exception as e:
-                    logger.error(f"Error in internal callback: {e}")
-                    if effective_callback:
-                            effective_callback("error", {"error": str(e)})
-            
-            # 创建同步包装器
-            def internal_callback(callback_type: str, data: Any):
-                """同步包装器，用于调度异步回调"""
-                import asyncio
-                try:
-                    # 获取当前事件循环
-                    loop = asyncio.get_event_loop()
-                    # 创建任务但不等待
-                    loop.create_task(internal_callback_async(callback_type, data))
-                except RuntimeError:
-                    # 如果没有运行的事件循环，创建一个新的
-                    asyncio.create_task(internal_callback_async(callback_type, data))
-                except Exception as e:
-                    logger.error(f"Error scheduling async callback: {e}")
-            
-            # 将字典格式的消息转换为Message对象
-            message_objects = []
-            for msg_dict in messages:
-                message_obj = Message(
-                    role=msg_dict.get("role", "user"),
-                    content=msg_dict.get("content", ""),
-                    session_id=session_id
-                )
-                message_objects.append(message_obj)
-            
-            # 获取可用工具
-            available_tools = self.get_available_tools()
-            
-            # 创建AI客户端
-            self.ai_client = self._create_ai_client(
-                model_config=ai_model_config,
-                messages=message_objects,
-                conversation_id=session_id,
-                tools=available_tools,
-                callback=internal_callback
-            )
-            
-            # 启动AI客户端
-            await self.ai_client.start()
-            
-        except Exception as e:
-            import traceback
-            error_details = f"Error in send_message_direct: {str(e)}\nTraceback: {traceback.format_exc()}"
-            logger.error(error_details)
-            if callback:
-                callback("error", {"error": str(e)})
-            raise
-    
     def send_message_direct_sync(
         self,
         session_id: str,
@@ -332,7 +165,7 @@ class AiServer:
                             effective_callback("tool_call", data)
                     
                     elif callback_type == "tool_result":
-                        # 处理工具结果
+                        # 处理工具结果 - 工具消息保存现在在AiClient中处理
                         tool_call_id = data.get("tool_call_id")
                         result = data.get("result")
                         tool_name = data.get("tool_name", "unknown")
@@ -350,25 +183,7 @@ class AiServer:
                             data["result"] = processed_result
                             result = processed_result
                         
-                        # 保存工具消息到数据库（同步版本）
-                        try:
-                            tool_message_data = {
-                                "session_id": session_id,
-                                "role": "tool",
-                                "content": result,
-                                "status": "completed",
-                                "metadata": {
-                                    "tool_call_id": tool_call_id,
-                                    "tool_name": tool_name
-                                }
-                            }
-                            
-                            saved_tool_message = self.message_manager.save_tool_message_sync(tool_message_data)
-                            logger.info(f"🔧 [TOOL_SAVE_SYNC] Saved tool message: {tool_name} (ID: {saved_tool_message.id})")
-                            
-                        except Exception as e:
-                            logger.error(f"🔧 [TOOL_SAVE_ERROR_SYNC] Failed to save tool message: {e}")
-                        
+                        # 工具消息保存已经在AiClient中处理，这里只需要转发回调
                         if effective_callback:
                             effective_callback("tool_result", data)
                     

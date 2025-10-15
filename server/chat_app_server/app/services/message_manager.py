@@ -351,6 +351,60 @@ class MessageManager:
         finally:
             self.pending_saves.discard(message_key)
 
+    def save_tool_message_sync(self, data: Dict[str, Any]) -> Message:
+        """保存工具消息（同步版本）"""
+        tool_call_id = data.get('metadata', {}).get('tool_call_id', '')
+        message_key = f"{data.get('session_id', '')}-{data.get('role', '')}-{tool_call_id}-{data.get('created_at', datetime.now()).timestamp()}"
+        
+        # 检查是否已保存
+        if message_key in self.saved_messages:
+            return self.saved_messages[message_key]
+        
+        try:
+            # 创建 MessageCreate 对象
+            created_at = data.get('created_at')
+            if isinstance(created_at, datetime):
+                created_at = created_at.isoformat()
+            
+            message_create = MessageCreate(
+                id=data.get('id'),
+                sessionId=data.get('session_id'),
+                role=data.get('role'),
+                content=data.get('content'),
+                summary=data.get('summary'),
+                toolCalls=data.get('tool_calls'),
+                tool_call_id=data.get('tool_call_id'),
+                reasoning=data.get('reasoning'),
+                metadata=data.get('metadata'),
+                createdAt=created_at,
+                status=data.get('status')
+            )
+            saved_message = MessageCreate.create_sync(message_create)
+            
+            # 检查 saved_message 是否为 None
+            if saved_message is None:
+                logger.error("🔧 [ERROR] Database service returned None for create_message_sync in save_tool_message_sync")
+                raise ValueError("Database service returned None for create_message_sync")
+            
+            # 转换为Message对象
+            message = Message(
+                id=saved_message.get('id'),
+                session_id=saved_message.get('session_id'),
+                role=saved_message.get('role'),
+                content=saved_message.get('content'),
+                status=saved_message.get('status', 'completed'),
+                created_at=saved_message.get('created_at'),
+                metadata=saved_message.get('metadata'),
+                tool_calls=saved_message.get('tool_calls')
+            )
+            
+            self.saved_messages[message_key] = message
+            return message
+            
+        except Exception as e:
+            logger.error(f"Error saving tool message (sync): {e}")
+            raise
+
     async def save_message(self, data: Dict[str, Any]) -> Message:
         """通用保存消息方法"""
         role = data.get('role', '')

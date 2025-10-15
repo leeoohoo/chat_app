@@ -188,7 +188,7 @@ class DatabaseManager:
         if params is None:
             params = ()
         with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
+            conn.row_factory = lambda cursor, row: dict(zip([col[0] for col in cursor.description], row))
             cursor = conn.execute(query, params)
             return cursor.fetchall()
 

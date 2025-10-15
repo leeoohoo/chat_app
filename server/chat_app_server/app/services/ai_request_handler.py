@@ -91,7 +91,7 @@ class Message:
 
 
 class AiRequestHandler:
-    """AI请求处理器，负责与OpenAI API交互"""
+    """AI请求处理器，负责与OpenAI API交互和消息保存"""
     
     def __init__(
         self,
@@ -123,6 +123,105 @@ class AiRequestHandler:
         
         logger.info(f"AiRequestHandler initialized - configUrl: {self.config_url}")
         logger.info(f"Model config base_url: {self.model_config.base_url}")
+
+    def save_user_message(self, content: str) -> Message:
+        """
+        保存用户消息
+        
+        Args:
+            content: 用户消息内容
+            
+        Returns:
+            保存的用户消息对象
+        """
+        if not self.message_manager:
+            logger.warning("⚠️ No message_manager available for saving user message")
+            return Message(
+                id=f"msg_{self.session_id}_{len(self.messages)}",
+                session_id=self.session_id,
+                role="user",
+                content=content,
+                status="completed",
+                created_at=datetime.now()
+            )
+        
+        try:
+            user_message_data = {
+                "session_id": self.session_id,
+                "role": "user", 
+                "content": content,
+                "status": "completed",
+                "created_at": datetime.now()
+            }
+            
+            saved_message = self.message_manager.save_user_message_sync(user_message_data)
+            logger.info(f"🎯 User message saved successfully: {saved_message.id}")
+            return saved_message
+            
+        except Exception as e:
+            logger.error(f"Error saving user message: {e}")
+            # 返回一个临时消息对象，确保流程继续
+            return Message(
+                id=f"msg_{self.session_id}_{len(self.messages)}",
+                session_id=self.session_id,
+                role="user",
+                content=content,
+                status="completed",
+                created_at=datetime.now()
+            )
+
+    def save_tool_result_message(self, tool_call_id: str, tool_name: str, result: str) -> Message:
+        """
+        保存工具结果消息
+        
+        Args:
+            tool_call_id: 工具调用ID
+            tool_name: 工具名称
+            result: 工具执行结果
+            
+        Returns:
+            保存的工具消息对象
+        """
+        if not self.message_manager:
+            logger.warning("⚠️ No message_manager available for saving tool result message")
+            return Message(
+                id=f"tool_msg_{tool_call_id}",
+                session_id=self.session_id,
+                role="tool",
+                content=result,
+                status="completed",
+                created_at=datetime.now(),
+                metadata={"tool_call_id": tool_call_id, "tool_name": tool_name}
+            )
+        
+        try:
+            tool_message_data = {
+                "session_id": self.session_id,
+                "role": "tool",
+                "content": result,
+                "status": "completed",
+                "metadata": {
+                    "tool_call_id": tool_call_id,
+                    "tool_name": tool_name
+                }
+            }
+            
+            saved_tool_message = self.message_manager.save_tool_message_sync(tool_message_data)
+            logger.info(f"🔧 [TOOL_SAVE] Saved tool message: {tool_name} (ID: {saved_tool_message.id})")
+            return saved_tool_message
+            
+        except Exception as e:
+            logger.error(f"🔧 [TOOL_SAVE_ERROR] Failed to save tool message: {e}")
+            # 返回一个临时消息对象，确保流程继续
+            return Message(
+                id=f"tool_msg_{tool_call_id}",
+                session_id=self.session_id,
+                role="tool",
+                content=result,
+                status="completed",
+                created_at=datetime.now(),
+                metadata={"tool_call_id": tool_call_id, "tool_name": tool_name}
+            )
 
     def chat_completion(self) -> List[Message]:
         """
@@ -350,15 +449,15 @@ class AiRequestHandler:
                     
                     # 保存助手消息
                     assistant_message_data = {
-                        "sessionId": self.session_id,
+                        "session_id": self.session_id,
                         "role": "assistant",
                         "content": assistant_message.content,
                         "status": "completed",
-                        "createdAt": datetime.now(),
+                        "created_at": datetime.now(),
                         "metadata": {
-                            "toolCalls": tool_calls_data
+                            "tool_calls": tool_calls_data
                         },
-                        "toolCalls": tool_calls_data
+                        "tool_calls": tool_calls_data
                     }
                     
                     logger.info(f"🔧 [DEBUG] Directly saving assistant message with {len(tool_calls_data)} tool calls")

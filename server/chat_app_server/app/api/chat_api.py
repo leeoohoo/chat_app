@@ -1,10 +1,12 @@
 """
 聊天API - 对外提供流式聊天接口
 """
-import asyncio
 import json
 import logging
-from typing import Dict, Any, Optional, AsyncGenerator, List
+import queue
+import threading
+import time
+from typing import Dict, Any, Optional, Generator, List
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -13,7 +15,6 @@ from pydantic import BaseModel, Field
 from ..services.ai_server import AiServer
 from ..services.ai_request_handler import AiModelConfig, Message, CallbackType
 from ..services.mcp_tool_execute import create_example_mcp_executor, McpToolExecute
-from ..services.stream_manager import stream_manager
 from ..models import db
 from ..models.message import MessageCreate
 
@@ -85,8 +86,69 @@ def get_active_sessions() -> List[str]:
     return list(_session_ai_servers.keys())
 
 
+def load_mcp_configs_sync() -> tuple[Dict[str, Dict[str, Any]], Dict[str, Dict[str, Any]]]:
+    """从数据库加载MCP配置（同步版本）"""
+    try:
+        # 获取所有启用的MCP配置
+        configs = db.fetchall_sync('SELECT * FROM mcp_configs WHERE enabled = 1')
+        
+        http_servers = {}
+        stdio_servers = {}
+        
+        for config in configs:
+            server_name = config['name']
+            command = config['command']
+            server_type = config.get('type', 'stdio')  # 默认为stdio
+            
+            # 解析args和env
+            try:
+                args = json.loads(config.get('args', '[]')) if config.get('args') else []
+            except json.JSONDecodeError:
+                # 如果不是JSON格式，尝试按逗号分割
+                args = config.get('args', '').split(',') if config.get('args') else []
+            
+            try:
+                env = json.loads(config.get('env', '{}')) if config.get('env') else {}
+            except json.JSONDecodeError:
+                # 如果不是JSON格式，尝试解析为字典字符串
+                env = {}
+            
+            # 根据type字段判断协议类型
+            if server_type == 'http':
+                # HTTP协议
+                http_servers[server_name] = {
+                    'url': command,
+                    'args': args,
+                    'env': env
+                }
+            else:
+                # stdio协议 - 解析 command 字段中的 `脚本地址--别名` 格式
+                actual_command = command
+                alias = server_name  # 默认使用服务名作为别名
+                
+                # 检查是否包含 --别名 格式
+                if '--' in command:
+                    parts = command.split('--', 1)  # 只分割第一个 --
+                    actual_command = parts[0].strip()
+                    alias = parts[1].strip()
+                
+                stdio_servers[server_name] = {
+                    'command': actual_command,
+                    'alias': alias,
+                    'args': args,
+                    'env': env
+                }
+        
+        logger.info(f"✅ 加载MCP配置完成: HTTP服务器 {len(http_servers)} 个, stdio服务器 {len(stdio_servers)} 个")
+        return http_servers, stdio_servers
+        
+    except Exception as e:
+        logger.error(f"❌ 加载MCP配置失败: {e}")
+        return {}, {}
+
+
 async def load_mcp_configs() -> tuple[Dict[str, Dict[str, Any]], Dict[str, Dict[str, Any]]]:
-    """从数据库加载MCP配置"""
+    """从数据库加载MCP配置（异步版本，保持兼容性）"""
     try:
         # 获取所有启用的MCP配置
         db.connection.row_factory = lambda cursor, row: dict(zip([col[0] for col in cursor.description], row))
@@ -163,8 +225,41 @@ def get_ai_server() -> AiServer:
     return ai_server
 
 
+def get_ai_server_with_mcp_configs_sync() -> AiServer:
+    """获取带有动态MCP配置的AI服务器实例（同步版本）"""
+    try:
+        # 加载MCP配置
+        http_servers, stdio_servers = load_mcp_configs_sync()
+        
+        # 创建支持stdio协议的MCP工具执行器
+        mcp_executor = McpToolExecute(
+            mcp_servers=http_servers,
+            stdio_mcp_servers=stdio_servers
+        )
+        
+        # 初始化工具执行器（同步版本）
+        mcp_executor.init_sync()
+        
+        # 记录工具构建结果
+        tools_count = len(mcp_executor.get_tools())
+        logger.info(f"🔧 MCP工具执行器初始化完成，共加载 {tools_count} 个工具")
+        
+        # 创建AI服务器
+        server = AiServer(
+            database_service=None,
+            mcp_tool_execute=mcp_executor
+        )
+        
+        return server
+        
+    except Exception as e:
+        logger.error(f"❌ 创建AI服务器失败: {e}")
+        # 回退到示例配置
+        return get_ai_server()
+
+
 async def get_ai_server_with_mcp_configs() -> AiServer:
-    """获取带有动态MCP配置的AI服务器实例"""
+    """获取带有动态MCP配置的AI服务器实例（异步版本，保持兼容性）"""
     try:
         # 加载MCP配置
         http_servers, stdio_servers = await load_mcp_configs()
@@ -198,14 +293,14 @@ async def get_ai_server_with_mcp_configs() -> AiServer:
         return get_ai_server()
 
 
-async def create_stream_response(
+def create_stream_response(
     session_id: str,
     content: str = None,
     messages: list[Dict[str, Any]] = None,
     model_config: Optional[Dict[str, Any]] = None
-) -> AsyncGenerator[str, None]:
+) -> Generator[str, None, None]:
     """
-    创建流式响应
+    创建流式响应（同步版本）
     
     Args:
         session_id: 会话ID
@@ -217,229 +312,238 @@ async def create_stream_response(
         SSE格式的数据
     """
     try:
-        server = await get_ai_server_with_mcp_configs()
+        # 获取AI服务器实例（同步版本）
+        server = get_ai_server_with_mcp_configs_sync()
         
         # 设置为指定会话的AI服务器实例
         set_session_ai_server(session_id, server)
         
-        # 创建事件队列
-        event_queue = asyncio.Queue()
-        
-        # 获取当前事件循环，用于回调
-        main_loop = asyncio.get_running_loop()
+        # 创建线程安全的事件队列
+        event_queue = queue.Queue()
         
         # 定义回调函数
         def callback(callback_type: str, data: Any):
             try:
-                # 使用线程安全的方式将事件放入队列
-                if main_loop and main_loop.is_running():
-                    # 使用call_soon_threadsafe在主线程中执行
-                    main_loop.call_soon_threadsafe(
-                        lambda: asyncio.create_task(event_queue.put((callback_type, data)))
-                    )
-                else:
-                    logger.warning(f"Main loop not available for callback: {callback_type}")
+                # 将事件放入队列
+                event_queue.put((callback_type, data))
             except Exception as e:
                 logger.error(f"Error in callback: {e}")
         
-        # 启动AI处理任务（使用同步版本）
-        if content is not None:
-            # 使用send_message_sync
-            ai_task = asyncio.create_task(
-                asyncio.to_thread(
-                    server.send_message_sync,
-                    session_id=session_id,
-                    content=content,
-                    model_config=model_config,
-                    callback=callback
-                )
-            )
-        else:
-            # 使用send_message_direct_sync
-            ai_task = asyncio.create_task(
-                asyncio.to_thread(
-                    server.send_message_direct_sync,
-                    session_id=session_id,
-                    messages=messages,
-                    model_config=model_config,
-                    callback=callback
-                )
-            )
+        # 创建一个标志来控制AI处理线程
+        ai_completed = threading.Event()
+        ai_error = None
         
-        # 将任务注册到stream_manager，以便可以被停止请求取消
-        try:
-            await stream_manager.register_stream(session_id, None, ai_task)
-        except Exception as e:
-            logger.error(f"Failed to register stream: {e}")
-            # 即使注册失败，也继续处理流式响应
+        # 启动AI处理线程
+        def ai_worker():
+            nonlocal ai_error
+            try:
+                if content is not None:
+                    # 使用send_message_sync
+                    server.send_message_sync(
+                        session_id=session_id,
+                        content=content,
+                        model_config=model_config,
+                        callback=callback
+                    )
+                else:
+                    # 使用send_message_direct_sync
+                    server.send_message_direct_sync(
+                        session_id=session_id,
+                        messages=messages,
+                        model_config=model_config,
+                        callback=callback
+                    )
+            except Exception as e:
+                ai_error = e
+                logger.error(f"Error in AI worker: {e}")
+            finally:
+                ai_completed.set()
+        
+        # 启动AI处理线程
+        ai_thread = threading.Thread(target=ai_worker, daemon=True)
+        ai_thread.start()
         
         # 处理事件流
         completed = False
+        last_heartbeat = time.time()
+        heartbeat_interval = 30  # 30秒心跳间隔
+        
         while not completed:
             try:
-                # 检查任务是否被取消
-                if ai_task.cancelled():
-                    logger.info(f"Stream for session {session_id} was cancelled")
-                    yield f"data: {json.dumps({'type': 'cancelled', 'message': 'Stream was stopped'}, ensure_ascii=False)}\n\n"
-                    yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
-                    break
-                
-                # 等待事件或任务完成
-                done, pending = await asyncio.wait(
-                    [event_queue.get(), ai_task],
-                    return_when=asyncio.FIRST_COMPLETED,
-                    timeout=1.0
-                )
-                
-                if ai_task in done:
-                    # AI任务完成或被取消
-                    logger.info(f"🎯 AI task completed, processing remaining events. Queue empty: {event_queue.empty()}")
+                # 检查是否有新事件
+                try:
+                    callback_type, data = event_queue.get(timeout=1.0)
                     
-                    # 检查任务是否被取消
-                    if ai_task.cancelled():
-                        logger.info(f"AI task for session {session_id} was cancelled")
-                        yield f"data: {json.dumps({'type': 'cancelled', 'message': 'Stream was stopped'}, ensure_ascii=False)}\n\n"
-                        yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
-                        completed = True
-                        break
-                    
-                    # 处理剩余的事件
-                    while not event_queue.empty():
-                        try:
-                            callback_type, data = event_queue.get_nowait()
-                            logger.info(f"🎯 Processing remaining event: {callback_type}")
-                            
-                            # 映射CallbackType到前端期望的格式
-                            if callback_type == CallbackType.ON_CHUNK:
-                                event_data = {
-                                    "type": "chunk",
-                                    "content": data.get("content", ""),
-                                    "accumulated": data.get("accumulated", "")
-                                }
-                            elif callback_type == CallbackType.ON_TOOL_CALL:
-                                event_data = {
-                                    "type": "tool_call",
-                                    "data": data
-                                }
-                            elif callback_type == CallbackType.ON_TOOL_RESULT:
-                                event_data = {
-                                    "type": "tool_result", 
-                                    "data": data
-                                }
-                            elif callback_type == CallbackType.ON_TOOL_STREAM_CHUNK:
-                                event_data = {
-                                    "type": "tool_stream_chunk",
-                                    "data": data
-                                }
-                            elif callback_type == CallbackType.ON_COMPLETE:
-                                # 确保Message对象正确序列化
-                                serialized_data = data.copy() if isinstance(data, dict) else {}
-                                if "message" in serialized_data and hasattr(serialized_data["message"], "to_dict"):
-                                    serialized_data["message"] = serialized_data["message"].to_dict()
-                                
-                                event_data = {
-                                    "type": "complete",
-                                    "data": serialized_data
-                                }
-                                logger.info(f"🎯 Sending complete event to frontend: {event_data['type']}")
-                            elif callback_type == CallbackType.ON_ERROR:
-                                event_data = {
-                                    "type": "error",
-                                    "data": data
-                                }
-                            else:
-                                event_data = {
-                                    "type": str(callback_type),
-                                    "data": data
-                                }
-                            
-                            yield f"data: {json.dumps(event_data, ensure_ascii=False, default=str)}\n\n"
-                        except asyncio.QueueEmpty:
-                            break
-                    
-                    # AI任务完成，但不直接发送done信号
-                    # 只有在收到ON_COMPLETE事件且有final标志时才发送done信号
-                    logger.info("🎯 AI task completed, waiting for final complete event")
-                    # 不设置completed=True，让系统继续处理事件
-                    break
-                
-                for task in done:
-                    if task != ai_task:
-                        # 处理事件
-                        callback_type, data = await task
+                    # 映射CallbackType到前端期望的格式
+                    if callback_type == CallbackType.ON_CHUNK:
+                        event_data = {
+                            "type": "chunk",
+                            "content": data.get("content", ""),
+                            "accumulated": data.get("accumulated", "")
+                        }
+                    elif callback_type == CallbackType.ON_TOOL_CALL:
+                        event_data = {
+                            "type": "tool_call",
+                            "data": data
+                        }
+                    elif callback_type == CallbackType.ON_TOOL_RESULT:
+                        event_data = {
+                            "type": "tool_result", 
+                            "data": data
+                        }
+                    elif callback_type == CallbackType.ON_TOOL_STREAM_CHUNK:
+                        event_data = {
+                            "type": "tool_stream_chunk",
+                            "data": data
+                        }
+                    elif callback_type == CallbackType.ON_COMPLETE:
+                        # 确保Message对象正确序列化
+                        serialized_data = data.copy() if isinstance(data, dict) else {}
+                        if "message" in serialized_data and hasattr(serialized_data["message"], "to_dict"):
+                            serialized_data["message"] = serialized_data["message"].to_dict()
                         
-                        # 映射CallbackType到前端期望的格式
-                        if callback_type == CallbackType.ON_CHUNK:
-                            # 对于chunk事件，直接使用data中的内容
-                            event_data = {
-                                "type": "chunk",
-                                "content": data.get("content", ""),
-                                "accumulated": data.get("accumulated", "")
-                            }
-                        elif callback_type == CallbackType.ON_TOOL_CALL:
-                            event_data = {
-                                "type": "tool_call",
-                                "data": data
-                            }
-                        elif callback_type == CallbackType.ON_TOOL_RESULT:
-                            event_data = {
-                                "type": "tool_result", 
-                                "data": data
-                            }
-                        elif callback_type == CallbackType.ON_TOOL_STREAM_CHUNK:
-                            event_data = {
-                                "type": "tool_stream_chunk",
-                                "data": data
-                            }
-                        elif callback_type == CallbackType.ON_COMPLETE:
-                            # 确保Message对象正确序列化
-                            serialized_data = data.copy() if isinstance(data, dict) else {}
-                            if "message" in serialized_data and hasattr(serialized_data["message"], "to_dict"):
-                                serialized_data["message"] = serialized_data["message"].to_dict()
-                            
-                            event_data = {
-                                "type": "complete",
-                                "data": serialized_data
-                            }
-                        elif callback_type == CallbackType.ON_ERROR:
-                            event_data = {
-                                "type": "error",
-                                "data": data
-                            }
+                        event_data = {
+                            "type": "complete",
+                            "data": serialized_data
+                        }
+                        logger.info(f"🎯 Sending complete event to frontend: {event_data['type']}")
+                    elif callback_type == CallbackType.ON_ERROR:
+                        event_data = {
+                            "type": "error",
+                            "data": data
+                        }
+                    else:
+                        event_data = {
+                            "type": str(callback_type),
+                            "data": data
+                        }
+                    
+                    # 发送SSE数据
+                    yield f"data: {json.dumps(event_data, ensure_ascii=False, default=str)}\n\n"
+                    
+                    # 检查是否完成
+                    if callback_type in [CallbackType.ON_COMPLETE, "complete"]:
+                        # 检查这是否是最终的完成事件（必须有final标志）
+                        is_final = False
+                        if isinstance(data, dict) and data.get("final") is True:
+                            is_final = True
+                            logger.info(f"🎯 Received FINAL complete event, sending done signal")
                         else:
-                            # 默认格式
-                            event_data = {
-                                "type": str(callback_type),
-                                "data": data
-                            }
+                            logger.info(f"🎯 Received intermediate complete event (no final flag), continuing...")
                         
-                        # 发送SSE数据
-                        yield f"data: {json.dumps(event_data, ensure_ascii=False, default=str)}\n\n"
-                        
-                        # 检查是否完成 - 只有在真正的最终完成时才发送done信号
-                        if callback_type in [CallbackType.ON_COMPLETE, "complete"]:
-                            # 检查这是否是最终的完成事件（必须有final标志）
-                            is_final = False
-                            if isinstance(data, dict) and data.get("final") is True:
-                                is_final = True
-                                logger.info(f"🎯 Received FINAL complete event, sending done signal")
-                            else:
-                                logger.info(f"🎯 Received intermediate complete event (no final flag), continuing...")
-                            
-                            if is_final:
-                                completed = True
-                                yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
-                                break
-                        elif callback_type in [CallbackType.ON_ERROR, "error"]:
-                            logger.info(f"🎯 Received error event, marking as completed")
+                        if is_final:
                             completed = True
                             yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
                             break
+                    elif callback_type in [CallbackType.ON_ERROR, "error"]:
+                        logger.info(f"🎯 Received error event, marking as completed")
+                        completed = True
+                        yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
+                        break
+                        
+                except queue.Empty:
+                    # 没有新事件，检查AI线程是否完成
+                    if ai_completed.is_set():
+                        # AI线程完成，处理剩余事件
+                        logger.info(f"🎯 AI thread completed, processing remaining events")
+                        
+                        # 检查是否有错误
+                        if ai_error:
+                            error_data = {
+                                "type": "error",
+                                "data": {"error": str(ai_error)}
+                            }
+                            yield f"data: {json.dumps(error_data, ensure_ascii=False)}\n\n"
+                            yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
+                            break
+                        
+                        # 处理剩余的事件
+                        remaining_events = []
+                        while True:
+                            try:
+                                remaining_events.append(event_queue.get_nowait())
+                            except queue.Empty:
+                                break
+                        
+                        if remaining_events:
+                            logger.info(f"🎯 Processing {len(remaining_events)} remaining events")
+                            for callback_type, data in remaining_events:
+                                # 映射CallbackType到前端期望的格式
+                                if callback_type == CallbackType.ON_CHUNK:
+                                    event_data = {
+                                        "type": "chunk",
+                                        "content": data.get("content", ""),
+                                        "accumulated": data.get("accumulated", "")
+                                    }
+                                elif callback_type == CallbackType.ON_TOOL_CALL:
+                                    event_data = {
+                                        "type": "tool_call",
+                                        "data": data
+                                    }
+                                elif callback_type == CallbackType.ON_TOOL_RESULT:
+                                    event_data = {
+                                        "type": "tool_result", 
+                                        "data": data
+                                    }
+                                elif callback_type == CallbackType.ON_TOOL_STREAM_CHUNK:
+                                    event_data = {
+                                        "type": "tool_stream_chunk",
+                                        "data": data
+                                    }
+                                elif callback_type == CallbackType.ON_COMPLETE:
+                                    # 确保Message对象正确序列化
+                                    serialized_data = data.copy() if isinstance(data, dict) else {}
+                                    if "message" in serialized_data and hasattr(serialized_data["message"], "to_dict"):
+                                        serialized_data["message"] = serialized_data["message"].to_dict()
+                                    
+                                    event_data = {
+                                        "type": "complete",
+                                        "data": serialized_data
+                                    }
+                                    logger.info(f"🎯 Sending complete event to frontend: {event_data['type']}")
+                                elif callback_type == CallbackType.ON_ERROR:
+                                    event_data = {
+                                        "type": "error",
+                                        "data": data
+                                    }
+                                else:
+                                    event_data = {
+                                        "type": str(callback_type),
+                                        "data": data
+                                    }
+                                
+                                yield f"data: {json.dumps(event_data, ensure_ascii=False, default=str)}\n\n"
+                                
+                                # 检查是否完成
+                                if callback_type in [CallbackType.ON_COMPLETE, "complete"]:
+                                    # 检查这是否是最终的完成事件
+                                    is_final = False
+                                    if isinstance(data, dict) and data.get("final") is True:
+                                        is_final = True
+                                        logger.info(f"🎯 Received FINAL complete event, sending done signal")
+                                    
+                                    if is_final:
+                                        completed = True
+                                        yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
+                                        break
+                                elif callback_type in [CallbackType.ON_ERROR, "error"]:
+                                    logger.info(f"🎯 Received error event, marking as completed")
+                                    completed = True
+                                    yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
+                                    break
+                        
+                        # 如果没有收到完成事件，发送done信号
+                        if not completed:
+                            logger.info("🎯 AI thread completed but no final complete event received, sending done signal")
+                            yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
+                            completed = True
+                    else:
+                        # 发送心跳（如果需要）
+                        current_time = time.time()
+                        if current_time - last_heartbeat > heartbeat_interval:
+                            yield f"data: {json.dumps({'type': 'heartbeat'}, ensure_ascii=False)}\n\n"
+                            last_heartbeat = current_time
                 
-            except asyncio.TimeoutError:
-                # 发送心跳
-                yield f"data: {json.dumps({'type': 'heartbeat'}, ensure_ascii=False)}\n\n"
-                continue
             except Exception as e:
                 logger.error(f"Error in stream processing: {e}")
                 error_data = {
@@ -450,13 +554,9 @@ async def create_stream_response(
                 yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
                 break
         
-        # 确保任务被取消
-        if not ai_task.done():
-            ai_task.cancel()
-            try:
-                await ai_task
-            except asyncio.CancelledError:
-                pass
+        # 等待AI线程完成
+        if ai_thread.is_alive():
+            ai_thread.join(timeout=5.0)
     
     except Exception as e:
         logger.error(f"Error in create_stream_response: {e}")
@@ -469,13 +569,6 @@ async def create_stream_response(
         yield f"data: {json.dumps({'type': 'done'}, ensure_ascii=False)}\n\n"
     
     finally:
-        # 确保在所有情况下都取消注册流
-        try:
-            await stream_manager.unregister_stream(session_id)
-            logger.info(f"🧹 Stream {session_id} unregistered successfully")
-        except Exception as cleanup_error:
-            logger.error(f"Failed to unregister stream during cleanup: {cleanup_error}")
-        
         # 清理会话AI服务器实例
         try:
             remove_session_ai_server(session_id)
@@ -575,7 +668,7 @@ async def chat_stream_direct(request: DirectChatRequest):
 async def get_available_tools():
     """获取可用工具列表"""
     try:
-        server = await get_ai_server_with_mcp_configs()
+        server = get_ai_server_with_mcp_configs_sync()
         tools = server.get_available_tools()
         return {"tools": tools}
     
@@ -588,7 +681,7 @@ async def get_available_tools():
 async def get_servers_info():
     """获取MCP服务器信息"""
     try:
-        server = await get_ai_server_with_mcp_configs()
+        server = get_ai_server_with_mcp_configs_sync()
         servers = server.get_servers_info()
         return {"servers": servers}
     
@@ -609,12 +702,8 @@ async def abort_chat(request: Request):
         server = get_ai_server()
         server.abort_request()
         
-        # 中止流管理器中的流
-        if session_id:
-            abort_success = await stream_manager.abort_stream(session_id)
-            logger.info(f"🛑 Stream abort for session {session_id}: {'success' if abort_success else 'failed'}")
-        else:
-            logger.warning("⚠️ No session_id provided for abort request")
+        # 注意：由于我们已经移除了stream_manager，这里只需要中止AI服务器请求
+        logger.info(f"🛑 Chat abort request for session {session_id}")
         
         return {"message": "Chat request aborted"}
     

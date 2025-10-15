@@ -403,6 +403,57 @@ class McpToolExecute:
     async def init(self):
         """初始化，构建工具列表"""
         await self.build_tools()
+    
+    def init_sync(self):
+        """初始化，构建工具列表（同步版本）"""
+        import asyncio
+        
+        # 对于同步版本，我们需要运行异步的build_tools方法
+        self.openai_tools = []
+        self.tool_metadata = {}
+        
+        logger.info(f"🔧 同步初始化MCP工具执行器，HTTP服务器数量: {len(self.mcp_servers)}, stdio服务器数量: {len(self.stdio_mcp_servers)}")
+        
+        # 运行异步的build_tools方法
+        try:
+            # 创建新的事件循环或使用现有的
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # 如果已有运行中的循环，创建新的线程来运行
+                    import threading
+                    import concurrent.futures
+                    
+                    def run_build_tools():
+                        new_loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(new_loop)
+                        try:
+                            return new_loop.run_until_complete(self.build_tools())
+                        finally:
+                            new_loop.close()
+                    
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(run_build_tools)
+                        future.result(timeout=30)  # 30秒超时
+                else:
+                    # 如果循环未运行，直接运行
+                    loop.run_until_complete(self.build_tools())
+            except RuntimeError:
+                # 没有事件循环，创建新的
+                asyncio.run(self.build_tools())
+                
+            logger.info(f"🔧 同步初始化完成，工具数量: {len(self.openai_tools)}")
+            
+        except Exception as e:
+            logger.error(f"❌ 同步初始化工具时发生错误: {e}")
+            # 即使失败也要记录服务器信息
+            for server_name in self.mcp_servers:
+                logger.info(f"🔧 注册HTTP MCP服务器: {server_name}")
+            
+            for server_name in self.stdio_mcp_servers:
+                logger.info(f"🔧 注册stdio MCP服务器: {server_name}")
+            
+            logger.info(f"🔧 同步初始化完成（有错误），工具数量: {len(self.openai_tools)}")
 
     async def __aenter__(self):
         """异步上下文管理器入口"""
