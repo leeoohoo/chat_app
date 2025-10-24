@@ -730,12 +730,21 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                                             if (messageIndex !== -1) {
                                                 const currentMessage = state.messages[messageIndex];
                                                 console.log('🔍 当前临时消息的toolCalls:', currentMessage.metadata?.toolCalls);
+                                                console.log('🔍 当前临时消息的contentSegments:', currentMessage.metadata?.contentSegments);
+                                                
+                                                // 合并metadata，保留临时消息中的重要数据
+                                                const finalMetadata = savedMessage.metadata || {};
                                                 
                                                 // 如果后端消息没有工具调用数据，但临时消息有，则保留临时消息的工具调用数据
-                                                const finalMetadata = savedMessage.metadata || {};
                                                 if (!finalMetadata.toolCalls && currentMessage.metadata?.toolCalls) {
                                                     console.log('⚠️ 后端消息缺少工具调用数据，保留临时消息的工具调用数据');
                                                     finalMetadata.toolCalls = currentMessage.metadata.toolCalls;
+                                                }
+                                                
+                                                // 如果后端消息没有contentSegments数据，但临时消息有，则保留临时消息的contentSegments数据
+                                                if (!finalMetadata.contentSegments && currentMessage.metadata?.contentSegments) {
+                                                    console.log('⚠️ 后端消息缺少contentSegments数据，保留临时消息的contentSegments数据');
+                                                    finalMetadata.contentSegments = currentMessage.metadata.contentSegments;
                                                 }
                                                 
                                                 state.messages[messageIndex] = {

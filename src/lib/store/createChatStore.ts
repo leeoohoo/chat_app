@@ -609,6 +609,17 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
                                             // 保存助手消息到数据库
                                             const savedMessage = await messageManager.saveAssistantMessage(messageData);
                                             
+                                            // 确保保存的消息包含完整的contentSegments数据
+                                            if (tempMessage.metadata?.contentSegments && 
+                                                (!savedMessage.metadata?.contentSegments || 
+                                                 savedMessage.metadata.contentSegments.length === 0)) {
+                                                console.warn('ContentSegments lost during save, preserving from temp message');
+                                                if (!savedMessage.metadata) {
+                                                    savedMessage.metadata = {};
+                                                }
+                                                savedMessage.metadata.contentSegments = tempMessage.metadata.contentSegments;
+                                            }
+                                            
                                             // 更新状态，用真实消息替换临时消息
                                             set((state) => {
                                                 const tempIndex = state.messages.findIndex(m => m.id === tempAssistantMessage.id);

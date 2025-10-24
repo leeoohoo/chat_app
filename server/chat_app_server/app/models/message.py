@@ -120,6 +120,19 @@ class MessageCreate(BaseModel):
         return [row_to_dict(row) for row in rows]
 
     @classmethod
+    def get_by_session_sync(cls, session_id: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """获取会话的所有消息（同步版本）"""
+        query = "SELECT * FROM messages WHERE session_id = ? ORDER BY created_at ASC"
+        params = (session_id,)
+        
+        if limit:
+            query += " LIMIT ?"
+            params = (session_id, limit)
+        
+        rows = db.fetchall_sync(query, params)
+        return [row_to_dict(row) for row in rows]
+
+    @classmethod
     async def get_by_id(cls, message_id: str) -> Optional[Dict[str, Any]]:
         """根据ID获取消息"""
         query = "SELECT * FROM messages WHERE id = ?"
@@ -131,6 +144,13 @@ class MessageCreate(BaseModel):
         """删除会话的所有消息"""
         query = "DELETE FROM messages WHERE session_id = ?"
         cursor = await db.execute(query, (session_id,))
+        return cursor.rowcount > 0
+
+    @classmethod
+    def delete_by_session_sync(cls, session_id: str) -> bool:
+        """删除会话的所有消息（同步版本）"""
+        query = "DELETE FROM messages WHERE session_id = ?"
+        cursor = db.execute_sync(query, (session_id,))
         return cursor.rowcount > 0
 
 class ChatStopRequest(BaseModel):

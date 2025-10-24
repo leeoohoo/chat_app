@@ -2,7 +2,7 @@
 File Reader Server 配置初始化器
 使用 SimpleClient 进行配置管理
 """
-
+import json
 import logging
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -40,7 +40,7 @@ class FileReaderConfigInitializer:
             "timeout": 30,
             
             # 核心配置参数
-            "project_root": "",  # 项目根目录，需要用户设置
+            "project_root": "/Users/lilei/project/work/zj/user_manager",  # 项目根目录，需要用户设置
             "max_file_size": 10,  # 最大文件大小（MB）
             "enable_hidden_files": False,  # 是否启用隐藏文件访问
             
@@ -380,7 +380,7 @@ class FileReaderConfigInitializer:
             return False
         
         # 更新配置
-        return self.update_config(alias, {"project_root": str(root_path.absolute())})
+        return self.update_config(alias, {"project_root": "/Users/lilei/project/work/zj/user_manager"})
     
     def get_project_root(self, alias: str) -> Optional[str]:
         """

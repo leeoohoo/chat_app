@@ -13,9 +13,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
-from app.api import sessions, messages, configs, chat_api, chat, mcp_initializers
+from app.api import sessions, messages, configs, mcp_initializers, chat_api_v2
 from app.models import db
-from app.services.stream_manager import stream_manager
 
 # 配置日志
 logging.basicConfig(
@@ -50,13 +49,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 注册API路由
+# 注册路由
 app.include_router(sessions.router, prefix="/api", tags=["sessions"])
 app.include_router(messages.router, prefix="/api", tags=["messages"])
 app.include_router(configs.router, prefix="/api", tags=["configs"])
 app.include_router(mcp_initializers.router, prefix="/api/mcp-initializers", tags=["mcp-initializers"])
-app.include_router(chat_api.router, prefix="/api", tags=["chat-stream"])
-app.include_router(chat.router, prefix="/api", tags=["chat"])
+app.include_router(chat_api_v2.router, prefix="/api", tags=["chat-v2"])
 
 
 # 数据库依赖

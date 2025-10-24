@@ -65,6 +65,13 @@ class SessionCreate(BaseModel):
         cursor = await db.execute(query, (session_id,))
         return cursor.rowcount > 0
 
+    @classmethod
+    def delete_sync(cls, session_id: str) -> bool:
+        """删除会话（同步版本）"""
+        query = "DELETE FROM sessions WHERE id = ?"
+        cursor = db.execute_sync(query, (session_id,))
+        return cursor.rowcount > 0
+
 class SessionMcpServerCreate(BaseModel):
     session_id: str
     mcp_config_id: str
