@@ -27,7 +27,7 @@ class AiClient:
         self.mcp_tool_execute = mcp_tool_execute
         self.tool_result_processor = tool_result_processor
         self.message_manager = message_manager
-        self.max_iterations = 10  # 最大递归次数，防止无限循环
+        self.max_iterations = 25  # 最大递归次数，防止无限循环
     
     def process_request(self, 
                        messages: List[Dict[str, Any]], 
