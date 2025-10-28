@@ -166,8 +166,38 @@ def get_ai_server_v2() -> AiServer:
         if not openai_api_key:
             raise HTTPException(status_code=500, detail="OPENAI_API_KEY 环境变量未设置")
         
+        # 加载 MCP 配置
+        http_servers, stdio_servers = load_mcp_configs_sync()
+        
+        # 将 HTTP 配置转换为 mcp_servers 格式
+        mcp_servers = []
+        for name, config in http_servers.items():
+            mcp_servers.append({
+                "name": name,
+                "url": config["url"]
+            })
+        
+        # 将 stdio 配置转换为 stdio_mcp_servers 格式
+        stdio_mcp_servers = []
+        for name, config in stdio_servers.items():
+            stdio_mcp_servers.append({
+                "name": name,
+                "command": config["command"],
+                "alias": config["alias"],
+                "args": config.get("args", []),
+                "env": config.get("env", {})
+            })
+        
+        # 设置配置目录
+        config_dir = os.path.expanduser("~/.mcp_framework/configs")
+        
         # 创建 MCP 执行器
-        mcp_tool_execute = McpToolExecute(mcp_servers=[])
+        mcp_tool_execute = McpToolExecute(
+            mcp_servers=mcp_servers,
+            stdio_mcp_servers=stdio_mcp_servers,
+            config_dir=config_dir
+        )
+        mcp_tool_execute.init()  # 初始化工具列表
         
         # 创建 v2 AI 服务器
         ai_server = AiServer(
@@ -197,7 +227,7 @@ def get_ai_server_with_mcp_configs_v2(api_key: Optional[str] = None, base_url: O
         api_key = ""
     
     # 创建带配置的 MCP 执行器
-    # 将配置转换为 mcp_servers 格式
+    # 将 HTTP 配置转换为 mcp_servers 格式
     mcp_servers = []
     for name, config in http_servers.items():
         mcp_servers.append({
@@ -205,7 +235,26 @@ def get_ai_server_with_mcp_configs_v2(api_key: Optional[str] = None, base_url: O
             "url": config["url"]
         })
     
-    mcp_tool_execute = McpToolExecute(mcp_servers=mcp_servers)
+    # 将 stdio 配置转换为 stdio_mcp_servers 格式
+    stdio_mcp_servers = []
+    for name, config in stdio_servers.items():
+        stdio_mcp_servers.append({
+            "name": name,
+            "command": config["command"],
+            "alias": config["alias"],
+            "args": config.get("args", []),
+            "env": config.get("env", {})
+        })
+    
+    # 设置配置目录
+    config_dir = os.path.expanduser("~/.mcp_framework/configs")
+    
+    mcp_tool_execute = McpToolExecute(
+        mcp_servers=mcp_servers,
+        stdio_mcp_servers=stdio_mcp_servers,
+        config_dir=config_dir
+    )
+    mcp_tool_execute.init()  # 初始化工具列表
     
     # 创建 v2 AI 服务器
     server = AiServer(

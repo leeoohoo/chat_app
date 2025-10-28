@@ -8,20 +8,24 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 from mcp_framework.client.simple import SimpleClient
 
+from ...utils.config_reader import get_config_dir
+
 logger = logging.getLogger(__name__)
 
 
 class ExpertStreamConfigInitializer:
     """Expert Stream Server 配置初始化器 - 基于 SimpleClient"""
     
-    def __init__(self, config_dir: str, server_script: str):
+    def __init__(self, config_dir: str = None, server_script: str = None):
         """
         初始化配置器
         
         Args:
-            config_dir: 配置文件目录
+            config_dir: 配置文件目录，如果为None则从配置文件读取
             server_script: 服务器可执行文件路径
         """
+        if config_dir is None:
+            config_dir = get_config_dir()
         self.config_dir = Path(config_dir)
         self.config_dir.mkdir(parents=True, exist_ok=True)
         self.server_script = server_script

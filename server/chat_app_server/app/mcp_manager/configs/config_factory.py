@@ -7,6 +7,7 @@ import logging
 from typing import Dict, Any, Optional, Type, Union
 from pathlib import Path
 
+from ...utils.config_reader import get_config_dir
 from .expert_stream_config import ExpertStreamConfigInitializer
 from .file_reader_config import FileReaderConfigInitializer
 
@@ -22,13 +23,15 @@ class ConfigInitializerFactory:
         "file-reader-server": FileReaderConfigInitializer,
     }
     
-    def __init__(self, config_dir: str):
+    def __init__(self, config_dir: str = None):
         """
         初始化工厂
         
         Args:
-            config_dir: 配置文件目录
+            config_dir: 配置文件目录，如果为None则从配置文件读取
         """
+        if config_dir is None:
+            config_dir = get_config_dir()
         self.config_dir = Path(config_dir)
         self.config_dir.mkdir(parents=True, exist_ok=True)
         self._initializers = {}  # 缓存初始化器实例

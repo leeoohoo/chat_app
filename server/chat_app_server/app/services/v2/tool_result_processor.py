@@ -50,6 +50,7 @@ class ToolResultProcessor:
                 saved_message = self.message_manager.save_tool_message(
                     session_id=session_id,
                     content=self._format_tool_result_content(tool_result),
+                    tool_call_id=tool_result.get("tool_call_id", "unknown"),
                     metadata=metadata
                 )
                 saved_messages.append(saved_message)
