@@ -571,7 +571,12 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                                                     
                                                     // 数据转换函数：将后端格式转换为前端期望的格式
                                                     const convertToolCallData = (tc: any) => {
-                                                        return {
+                                                        console.log('🔧 [DEBUG] 原始工具调用数据:', tc);
+                                                        console.log('🔧 [DEBUG] tc.function:', tc.function);
+                                                        console.log('🔧 [DEBUG] tc.function?.name:', tc.function?.name);
+                                                        console.log('🔧 [DEBUG] tc.name:', tc.name);
+                                                        
+                                                        const toolCall = {
                                                             id: tc.id || tc.tool_call_id || `tool_${Date.now()}_${Math.random()}`, // 确保有ID
                                                             messageId: tempAssistantMessage.id, // 添加前端需要的messageId
                                                             name: tc.function?.name || tc.name || 'unknown_tool', // 兼容不同的name字段位置
@@ -580,10 +585,16 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                                                             error: tc.error || undefined, // 可选的error字段
                                                             createdAt: tc.createdAt || tc.created_at || new Date() // 添加前端需要的createdAt，支持多种时间格式
                                                         };
+                                                        
+                                                        console.log('🔧 [DEBUG] 转换后的工具调用:', toolCall);
+                                                        return toolCall;
                                                     };
                                                     
-                                                    // 统一处理数组和单个对象
-                                                    const toolCallsArray = Array.isArray(parsed.data) ? parsed.data : [parsed.data];
+                                                    // 修复：从 parsed.data.tool_calls 中提取工具调用数组
+                                                    console.log('🔧 [DEBUG] tools_start 原始数据:', parsed.data);
+                                                    const rawToolCalls = parsed.data.tool_calls || parsed.data;
+                                                    const toolCallsArray = Array.isArray(rawToolCalls) ? rawToolCalls : [rawToolCalls];
+                                                    console.log('🔧 [DEBUG] 提取的工具调用数组:', toolCallsArray);
                                                     
                                                     set((state) => {
                                                         const messageIndex = state.messages.findIndex(m => m.id === tempAssistantMessage.id);
@@ -650,22 +661,44 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                                                                     const toolCall = message.metadata!.toolCalls!.find((tc: any) => tc.id === toolCallId);
                                                                     
                                                                     if (toolCall) {
-                                                                        console.log('✅ 找到工具调用，更新结果:', toolCall.id);
+                                                                        console.log('✅ 找到工具调用，更新最终结果:', toolCall.id);
                                                                         
-                                                                        // 更新结果，支持多种结果字段名称
+                                                                        // 根据后端数据格式处理最终结果
+                                                                        // 支持多种结果字段名称：result、content、output
                                                                         const resultContent = result.result || result.content || result.output || '';
-                                                                        toolCall.result = resultContent;
                                                                         
-                                                                        // 如果有错误信息，也要记录
-                                                                        if (result.error) {
-                                                                            toolCall.error = result.error;
+                                                                        // 检查执行状态
+                                                                        if (result.success === false || result.is_error === true) {
+                                                                            // 工具执行失败
+                                                                            toolCall.error = result.error || resultContent || '工具执行失败';
+                                                                            console.log('❌ 工具执行失败:', {
+                                                                                id: toolCall.id,
+                                                                                name: result.name || toolCall.name,
+                                                                                error: toolCall.error,
+                                                                                success: result.success,
+                                                                                is_error: result.is_error
+                                                                            });
+                                                                        } else {
+                                                                            // 工具执行成功，更新最终结果
+                                                                            // 如果之前有流式内容，保留；否则使用最终结果
+                                                                            if (!toolCall.result || toolCall.result.trim() === '') {
+                                                                                toolCall.result = resultContent;
+                                                                            }
+                                                                            
+                                                                            // 清除可能存在的错误状态
+                                                                            if (toolCall.error) {
+                                                                                delete toolCall.error;
+                                                                            }
+                                                                            
+                                                                            console.log('✅ 工具执行成功，最终结果已更新:', {
+                                                                                id: toolCall.id,
+                                                                                name: result.name || toolCall.name,
+                                                                                resultLength: toolCall.result.length,
+                                                                                success: result.success,
+                                                                                is_stream: result.is_stream
+                                                                            });
                                                                         }
                                                                         
-                                                                        console.log('🔧 工具调用结果已更新:', {
-                                                                            id: toolCall.id,
-                                                                            result: resultContent,
-                                                                            error: result.error
-                                                                        });
                                                                     } else {
                                                                         console.log('❌ 未找到对应的工具调用:', toolCallId);
                                                                         console.log('📋 当前可用的工具调用ID:', message.metadata?.toolCalls?.map(tc => tc.id));
@@ -700,14 +733,35 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                                                                 const toolCall = message.metadata.toolCalls.find((tc: any) => tc.id === toolCallId);
                                                                 
                                                                 if (toolCall) {
-                                                                    // 支持多种chunk字段名称
-                                                                    const chunkContent = data.chunk || data.content || data.data || '';
-                                                                    toolCall.result = (toolCall.result || '') + chunkContent;
-                                                                    console.log('🔧 工具流式数据已更新:', {
-                                                                        id: toolCall.id,
-                                                                        chunkLength: chunkContent.length,
-                                                                        totalLength: toolCall.result.length
-                                                                    });
+                                                                    // 根据后端实际发送的数据格式处理
+                                                                    // 后端发送: {tool_call_id, name, success, is_error, content, is_stream: true}
+                                                                    const chunkContent = data.content || data.chunk || data.data || '';
+                                                                    
+                                                                    // 检查是否有错误
+                                                                    if (data.is_error || !data.success) {
+                                                                        // 如果是错误，标记工具调用失败
+                                                                        toolCall.error = chunkContent || '工具执行出错';
+                                                                        console.log('❌ 工具流式执行出错:', {
+                                                                            id: toolCall.id,
+                                                                            error: toolCall.error,
+                                                                            success: data.success,
+                                                                            is_error: data.is_error
+                                                                        });
+                                                                    } else {
+                                                                        // 正常情况下累积内容
+                                                                        toolCall.result = (toolCall.result || '') + chunkContent;
+                                                                        console.log('🔧 工具流式数据已更新:', {
+                                                                            id: toolCall.id,
+                                                                            name: data.name,
+                                                                            chunkLength: chunkContent.length,
+                                                                            totalLength: toolCall.result.length,
+                                                                            success: data.success,
+                                                                            is_stream: data.is_stream
+                                                                        });
+                                                                    }
+                                                                    
+                                                                    // 强制触发UI更新
+                                                                    message.updatedAt = new Date();
                                                                 } else {
                                                                     console.log('❌ 未找到对应的工具调用进行流式更新:', toolCallId);
                                                                     console.log('📋 当前可用的工具调用ID:', message.metadata?.toolCalls?.map(tc => tc.id));
