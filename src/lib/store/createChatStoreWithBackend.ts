@@ -564,7 +564,7 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                                                             message.content = segments.filter((s: any) => s.type === 'text').map((s: any) => s.content).join('');
                                                         }
                                                     });
-                                                } else if (parsed.type === 'tool_call') {
+                                                } else if (parsed.type === 'tools_start') {
                                                     // 处理工具调用事件
                                                     console.log('🔧 收到工具调用:', parsed.data);
                                                     console.log('🔧 工具调用数据类型:', typeof parsed.data, '是否为数组:', Array.isArray(parsed.data));
@@ -623,7 +623,7 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                                                             console.log('🔧 ❌ 未找到对应的消息');
                                                         }
                                                     });
-                                                } else if (parsed.type === 'tool_result') {
+                                                } else if (parsed.type === 'tools_end') {
                                                     // 处理工具结果事件
                                                     console.log('🔧 收到工具结果:', parsed.data);
                                                     console.log('🔧 工具结果数据类型:', typeof parsed.data);
@@ -678,7 +678,7 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                                                             }
                                                         }
                                                     });
-                                                } else if (parsed.type === 'tool_stream_chunk') {
+                                                } else if (parsed.type === 'tools_stream') {
                                                     // 处理工具流式返回内容
                                                     console.log('🔧 收到工具流式数据:', parsed.data);
                                                     const data = parsed.data;

@@ -63,7 +63,7 @@ class McpToolExecute:
                     server_url = mcp_server.get("url")
 
                     if not server_name or not server_url:
-                        print(f"跳过无效的 HTTP 服务器配置: {mcp_server}")
+                        # print(f"跳过无效的 HTTP 服务器配置: {mcp_server}")
                         continue
 
                     # 调用 MCP 服务获取 tools - 使用标准的 MCP 协议
@@ -74,7 +74,7 @@ class McpToolExecute:
                         "params": {}
                     }
 
-                    print(f"获取 HTTP MCP 服务器 {server_name} 的工具列表: {server_url}")
+                    # print(f"获取 HTTP MCP 服务器 {server_name} 的工具列表: {server_url}")
                     response = self.session.post(server_url, json=request_data)
                     response.raise_for_status()
 
@@ -87,7 +87,7 @@ class McpToolExecute:
                     tools_result = response_data.get("result", {})
                     tools_list = tools_result.get("tools", [])
 
-                    print(f"从 HTTP 服务器 {server_name} 获取到 {len(tools_list)} 个工具")
+                    # print(f"从 HTTP 服务器 {server_name} 获取到 {len(tools_list)} 个工具")
 
                     # 处理每个工具
                     for tool in tools_list:
@@ -124,7 +124,7 @@ class McpToolExecute:
                         self.tools.append(openai_tool)
 
                 except Exception as e:
-                    print(f"获取 HTTP 服务器 {mcp_server.get('name', 'unknown')} 工具列表失败: {e}")
+                    # print(f"获取 HTTP 服务器 {mcp_server.get('name', 'unknown')} 工具列表失败: {e}")
                     continue
 
             # 处理 stdio 类型的 MCP 服务器
@@ -135,10 +135,10 @@ class McpToolExecute:
                     server_alias = stdio_server.get("alias")
 
                     if not server_name or not server_command:
-                        print(f"跳过无效的 stdio 服务器配置: {stdio_server}")
+                        # print(f"跳过无效的 stdio 服务器配置: {stdio_server}")
                         continue
 
-                    print(f"获取 stdio MCP 服务器 {server_name} 的工具列表")
+                    # print(f"获取 stdio MCP 服务器 {server_name} 的工具列表")
 
                     # 异步获取工具列表
                     async def get_stdio_tools():
@@ -155,7 +155,7 @@ class McpToolExecute:
                     # 运行异步函数
                     tools_list = asyncio.run(get_stdio_tools())
 
-                    print(f"从 stdio 服务器 {server_name} 获取到 {len(tools_list)} 个工具")
+                    # print(f"从 stdio 服务器 {server_name} 获取到 {len(tools_list)} 个工具")
 
                     # 处理每个工具
                     for tool in tools_list:
@@ -196,15 +196,15 @@ class McpToolExecute:
                         self.tools.append(openai_tool)
 
                 except Exception as e:
-                    print(f"获取 stdio 服务器 {stdio_server.get('name', 'unknown')} 工具列表失败: {e}")
+                    # print(f"获取 stdio 服务器 {stdio_server.get('name', 'unknown')} 工具列表失败: {e}")
                     import traceback
                     traceback.print_exc()
                     continue
 
-            print(f"总共构建了 {len(self.tools)} 个工具 (HTTP: {len(self.mcp_servers)}, stdio: {len(self.stdio_mcp_servers)})")
+            # print(f"总共构建了 {len(self.tools)} 个工具 (HTTP: {len(self.mcp_servers)}, stdio: {len(self.stdio_mcp_servers)})")
 
         except Exception as e:
-            print(f"构建工具列表失败: {e}")
+            # print(f"构建工具列表失败: {e}")
             import traceback
             traceback.print_exc()
             self.tools = []
@@ -264,14 +264,14 @@ class McpToolExecute:
         """
         try:
             # 添加调试日志
-            print(f"[DEBUG] _call_mcp_tool_stream - tool_name: {tool_name}")
-            print(f"[DEBUG] _call_mcp_tool_stream - arguments type: {type(arguments)}")
-            print(f"[DEBUG] _call_mcp_tool_stream - arguments value: {repr(arguments)}")
+            # print(f"[DEBUG] _call_mcp_tool_stream - tool_name: {tool_name}")
+            # print(f"[DEBUG] _call_mcp_tool_stream - arguments type: {type(arguments)}")
+            # print(f"[DEBUG] _call_mcp_tool_stream - arguments value: {repr(arguments)}")
             
             # 验证参数类型
             if arguments is not None and not isinstance(arguments, dict):
                 error_msg = f"arguments 必须是字典类型，当前类型: {type(arguments)}"
-                print(f"[DEBUG] _call_mcp_tool_stream - 参数类型错误: {error_msg}")
+                # print(f"[DEBUG] _call_mcp_tool_stream - 参数类型错误: {error_msg}")
                 raise TypeError(error_msg)
             
             # 确保 arguments 是字典
@@ -282,7 +282,7 @@ class McpToolExecute:
             tool_info = self.find_tool_info(tool_name)
             if not tool_info:
                 error_msg = f"工具未找到: {tool_name}"
-                print(f"[DEBUG] _call_mcp_tool_stream - 工具不存在: {error_msg}")
+                # print(f"[DEBUG] _call_mcp_tool_stream - 工具不存在: {error_msg}")
                 raise Exception(error_msg)
 
             # 获取原始工具名称和服务器信息
@@ -292,15 +292,15 @@ class McpToolExecute:
 
             if server_type == "stdio":
                 # 处理 stdio 类型的服务器
-                print(f"流式调用 stdio MCP 工具: {server_name} -> {original_name}")
+                # print(f"流式调用 stdio MCP 工具: {server_name} -> {original_name}")
 
                 server_command = tool_info["server_script"]
                 server_alias = tool_info.get("server_alias")
 
                 # 调试信息：检查参数
-                print(f"调试信息 - server_command: {server_command}")
-                print(f"调试信息 - server_alias: {server_alias}")
-                print(f"调试信息 - config_dir: {self.config_dir}")
+                # print(f"调试信息 - server_command: {server_command}")
+                # print(f"调试信息 - server_alias: {server_alias}")
+                # print(f"调试信息 - config_dir: {self.config_dir}")
                 
                 # 确保所有必要参数都不是 None
                 if not server_command:
@@ -309,41 +309,41 @@ class McpToolExecute:
                     raise ValueError("config_dir 不能为空")
                 
                 # 每次调用创建新的客户端连接
-                print(f"[DEBUG] 准备创建 SimpleClient 连接 - script: {server_command}, alias: {server_alias}")
+                # print(f"[DEBUG] 准备创建 SimpleClient 连接 - script: {server_command}, alias: {server_alias}")
                 try:
                     async with SimpleClient(
                         server_script=server_command,
                         alias=server_alias,
                         config_dir=self.config_dir
                     ) as client:
-                        print(f"[DEBUG] SimpleClient 连接已建立")
-                        print(f"[DEBUG] stdio 流式调用开始 - tool: {original_name}, args: {arguments}")
+                        # print(f"[DEBUG] SimpleClient 连接已建立")
+                        # print(f"[DEBUG] stdio 流式调用开始 - tool: {original_name}, args: {arguments}")
                         # 流式调用工具
                         if arguments:
                             chunk_count = 0
                             async for chunk in client.call_stream(original_name, **arguments):
                                 chunk_count += 1
-                                print(f"[DEBUG] stdio 流式返回 chunk #{chunk_count}: {repr(chunk)}")
+                                # print(f"[DEBUG] stdio 流式返回 chunk #{chunk_count}: {repr(chunk)}")
                                 yield chunk
-                            print(f"[DEBUG] stdio 流式调用完成 - 总共返回 {chunk_count} 个 chunks")
+                            # print(f"[DEBUG] stdio 流式调用完成 - 总共返回 {chunk_count} 个 chunks")
                         else:
                             chunk_count = 0
                             async for chunk in client.call_stream(original_name):
                                 chunk_count += 1
-                                print(f"[DEBUG] stdio 流式返回 chunk #{chunk_count}: {repr(chunk)}")
+                                # print(f"[DEBUG] stdio 流式返回 chunk #{chunk_count}: {repr(chunk)}")
                                 yield chunk
-                            print(f"[DEBUG] stdio 流式调用完成 - 总共返回 {chunk_count} 个 chunks")
-                        print(f"[DEBUG] 即将退出 SimpleClient 上下文管理器")
-                    print(f"[DEBUG] SimpleClient 连接已关闭")
+                            # print(f"[DEBUG] stdio 流式调用完成 - 总共返回 {chunk_count} 个 chunks")
+                        # print(f"[DEBUG] 即将退出 SimpleClient 上下文管理器")
+                    # print(f"[DEBUG] SimpleClient 连接已关闭")
                 except Exception as client_error:
-                    print(f"[DEBUG] SimpleClient 连接异常: {client_error}")
+                    # print(f"[DEBUG] SimpleClient 连接异常: {client_error}")
                     import traceback
                     traceback.print_exc()
                     raise
 
             else:
                 # HTTP 服务器使用 SSE 流式调用
-                print(f"流式调用 HTTP SSE MCP 工具: {server_name} -> {original_name}")
+                # print(f"流式调用 HTTP SSE MCP 工具: {server_name} -> {original_name}")
                 
                 server_url = tool_info["server_url"]
                 
@@ -353,12 +353,12 @@ class McpToolExecute:
                     "arguments": arguments or {}
                 }
                 
-                print(f"[DEBUG] HTTP SSE 流式调用开始 - tool: {original_name}, args: {arguments}")
-                print(f"[DEBUG] HTTP SSE 请求数据: {request_data}")
+                # print(f"[DEBUG] HTTP SSE 流式调用开始 - tool: {original_name}, args: {arguments}")
+                # print(f"[DEBUG] HTTP SSE 请求数据: {request_data}")
                 
                 # 使用 SSE 端点进行流式调用
                 sse_url = f"{server_url}/sse/tool/call"
-                print(f"[DEBUG] HTTP SSE URL: {sse_url}")
+                # print(f"[DEBUG] HTTP SSE URL: {sse_url}")
                 
                 # 发送 SSE 请求
                 import aiohttp
@@ -372,17 +372,17 @@ class McpToolExecute:
                             "Content-Type": "application/json"
                         }
                     ) as response:
-                        print(f"[DEBUG] HTTP SSE 响应状态: {response.status}")
+                        # print(f"[DEBUG] HTTP SSE 响应状态: {response.status}")
                         if response.status != 200:
                             error_text = await response.text()
-                            print(f"[DEBUG] HTTP SSE 错误响应: {error_text}")
+                            # print(f"[DEBUG] HTTP SSE 错误响应: {error_text}")
                             raise Exception(f"HTTP SSE 请求失败: {response.status} - {error_text}")
                         
                         # 解析 SSE 流
                         chunk_count = 0
                         async for line in response.content:
                             line_str = line.decode('utf-8').strip()
-                            print(f"[DEBUG] HTTP SSE 原始行: {repr(line_str)}")
+                            # print(f"[DEBUG] HTTP SSE 原始行: {repr(line_str)}")
                             
                             # 跳过空行和注释行
                             if not line_str or line_str.startswith(':'):
@@ -391,11 +391,11 @@ class McpToolExecute:
                             # 解析 SSE 数据
                             if line_str.startswith('data: '):
                                 data = line_str[6:]  # 移除 'data: ' 前缀
-                                print(f"[DEBUG] HTTP SSE 数据部分: {repr(data)}")
+                                # print(f"[DEBUG] HTTP SSE 数据部分: {repr(data)}")
                                 
                                 # 检查是否是结束标记
                                 if data == '[DONE]':
-                                    print(f"[DEBUG] HTTP SSE 收到结束标记")
+                                    # print(f"[DEBUG] HTTP SSE 收到结束标记")
                                     break
                                 
                                 try:
@@ -404,19 +404,19 @@ class McpToolExecute:
                                     if isinstance(json_data, dict) and 'content' in json_data:
                                         chunk_count += 1
                                         content = json_data['content']
-                                        print(f"[DEBUG] HTTP SSE 流式返回 chunk #{chunk_count}: {repr(content)}")
+                                        # print(f"[DEBUG] HTTP SSE 流式返回 chunk #{chunk_count}: {repr(content)}")
                                         yield content
                                     else:
                                         chunk_count += 1
-                                        print(f"[DEBUG] HTTP SSE 流式返回 chunk #{chunk_count}: {repr(data)}")
+                                        # print(f"[DEBUG] HTTP SSE 流式返回 chunk #{chunk_count}: {repr(data)}")
                                         yield data
                                 except json.JSONDecodeError:
                                     # 如果不是 JSON，直接返回原始数据
                                     chunk_count += 1
-                                    print(f"[DEBUG] HTTP SSE 流式返回 chunk #{chunk_count} (非JSON): {repr(data)}")
+                                    # print(f"[DEBUG] HTTP SSE 流式返回 chunk #{chunk_count} (非JSON): {repr(data)}")
                                     yield data
                         
-                        print(f"[DEBUG] HTTP SSE 流式调用完成 - 总共返回 {chunk_count} 个 chunks")
+                        # print(f"[DEBUG] HTTP SSE 流式调用完成 - 总共返回 {chunk_count} 个 chunks")
 
         except Exception as e:
             print(f"MCP流式工具调用失败: {str(e)}")
@@ -424,7 +424,7 @@ class McpToolExecute:
             traceback.print_exc()
             raise Exception(f"MCP流式工具调用失败: {str(e)}")
 
-    def _accumulate_stream_result(self, tool_name: str, arguments: Dict[str, Any]) -> str:
+    def _accumulate_stream_result(self, tool_name: str, arguments: Dict[str, Any], on_tool_stream: Optional[Callable[[Dict[str, Any]], None]] = None, tool_call_id: str = "") -> str:
         """
         累积流式结果为完整字符串的同步方法
         
@@ -435,7 +435,7 @@ class McpToolExecute:
         Returns:
             str: 累积的完整结果
         """
-        print(f"[DEBUG] _accumulate_stream_result 开始 - tool: {tool_name}, args: {arguments}")
+        # print(f"[DEBUG] _accumulate_stream_result 开始 - tool: {tool_name}, args: {arguments}")
         try:
             # 运行异步流式调用并累积结果
             async def _accumulate():
@@ -444,12 +444,24 @@ class McpToolExecute:
                 async for chunk in self._call_mcp_tool_stream(tool_name, arguments):
                     chunk_count += 1
                     chunk_str = str(chunk)
-                    print(f"[DEBUG] _accumulate_stream_result 累积 chunk #{chunk_count}: {repr(chunk_str)}")
+                    # print(f"[DEBUG] _accumulate_stream_result 累积 chunk #{chunk_count}: {repr(chunk_str)}")
                     result_parts.append(chunk_str)
+                    
+                    # 如果有回调函数，立即发送流式内容
+                    if on_tool_stream:
+                        stream_data = {
+                            "tool_call_id": tool_call_id,
+                            "name": tool_name,
+                            "success": True,
+                            "is_error": False,
+                            "content": chunk_str,
+                            "is_stream": True
+                        }
+                        on_tool_stream(stream_data)
                 
                 final_result = "".join(result_parts)
                 print(f"[DEBUG] _accumulate_stream_result 完成 - 总共 {chunk_count} 个 chunks, 最终结果长度: {len(final_result)}")
-                print(f"[DEBUG] _accumulate_stream_result 最终结果: {repr(final_result)}")
+                # print(f"[DEBUG] _accumulate_stream_result 最终结果: {repr(final_result)}")
                 return final_result
             
             # 处理事件循环问题
@@ -464,23 +476,23 @@ class McpToolExecute:
                     
                     def run_in_thread():
                         try:
-                            print(f"[DEBUG] 新线程开始 - 线程ID: {threading.current_thread().ident}")
+                            # print(f"[DEBUG] 新线程开始 - 线程ID: {threading.current_thread().ident}")
                             new_loop = asyncio.new_event_loop()
                             asyncio.set_event_loop(new_loop)
-                            print(f"[DEBUG] 新事件循环已创建并设置")
+                            # print(f"[DEBUG] 新事件循环已创建并设置")
                             result = new_loop.run_until_complete(_accumulate())
                             result_container.append(result)
-                            print(f"[DEBUG] 关闭新事件循环")
+                            # print(f"[DEBUG] 关闭新事件循环")
                             new_loop.close()
-                            print(f"[DEBUG] 新线程即将结束 - 线程ID: {threading.current_thread().ident}")
+                            # print(f"[DEBUG] 新线程即将结束 - 线程ID: {threading.current_thread().ident}")
                         except Exception as e:
                             print(f"[DEBUG] 新线程异常: {e}")
                             exception_container.append(e)
                     
-                    print(f"[DEBUG] 创建新线程来运行异步任务")
+                    # print(f"[DEBUG] 创建新线程来运行异步任务")
                     thread = threading.Thread(target=run_in_thread)
                     thread.start()
-                    print(f"[DEBUG] 等待线程完成...")
+                    # print(f"[DEBUG] 等待线程完成...")
                     thread.join()
                     print(f"[DEBUG] 线程已完成并回收")
                     
@@ -496,7 +508,7 @@ class McpToolExecute:
                 # 没有事件循环，创建新的
                 result = asyncio.run(_accumulate())
             
-            print(f"[DEBUG] _accumulate_stream_result 返回结果: {repr(result)}")
+            # print(f"[DEBUG] _accumulate_stream_result 返回结果: {repr(result)}")
             return result
             
         except Exception as e:
@@ -584,13 +596,13 @@ class McpToolExecute:
 
     def execute_tools_with_validation(self,
                                     tool_calls: List[Dict[str, Any]],
-                                    on_tool_result: Optional[Callable[[Dict[str, Any]], None]] = None) -> List[Dict[str, Any]]:
+                                    on_tool_stream: Optional[Callable[[Dict[str, Any]], None]] = None) -> List[Dict[str, Any]]:
         """
-        执行工具调用（带验证，仅支持流式调用）
+        执行工具调用（带验证，支持流式回调）
 
         Args:
             tool_calls: 工具调用列表
-            on_tool_result: 工具结果回调函数
+            on_tool_stream: 工具流式内容回调函数
 
         Returns:
             工具执行结果列表
@@ -605,34 +617,33 @@ class McpToolExecute:
                 error_result = {
                     "tool_call_id": tool_call.get("id"),
                     "name": tool_call.get("function", {}).get("name", "unknown"),
+                    "success": False,
                     "content": validation["error_message"],
                     "is_error": True
                 }
                 results.append(error_result)
 
-                if on_tool_result:
-                    on_tool_result(error_result)
+                if on_tool_stream:
+                    on_tool_stream(error_result)
                 continue
 
-            # 执行工具调用
+            # 执行工具调用（流式）
             try:
-                result = self.execute_single_tool(tool_call)
+                result = self.execute_single_tool_stream(tool_call, on_tool_stream)
                 results.append(result)
-
-                if on_tool_result:
-                    on_tool_result(result)
 
             except Exception as e:
                 error_result = {
                     "tool_call_id": tool_call.get("id"),
                     "name": tool_call.get("function", {}).get("name", "unknown"),
+                    "success": False,
                     "content": f"工具执行失败: {str(e)}",
                     "is_error": True
                 }
                 results.append(error_result)
 
-                if on_tool_result:
-                    on_tool_result(error_result)
+                if on_tool_stream:
+                    on_tool_stream(error_result)
 
         return results
 
@@ -680,15 +691,17 @@ class McpToolExecute:
                 arguments_str = function_info.get("arguments", "{}")
                 
                 # 添加调试日志
-                print(f"[DEBUG] execute_tools_stream - tool_call: {tool_call}")
-                print(f"[DEBUG] execute_tools_stream - function_info: {function_info}")
-                print(f"[DEBUG] execute_tools_stream - tool_name: {tool_name}")
-                print(f"[DEBUG] execute_tools_stream - arguments_str type: {type(arguments_str)}")
-                print(f"[DEBUG] execute_tools_stream - arguments_str value: {repr(arguments_str)}")
+                # print(f"[DEBUG] execute_tools_stream - tool_call: {tool_call}")
+                # print(f"[DEBUG] execute_tools_stream - function_info: {function_info}")
+                # print(f"[DEBUG] execute_tools_stream - tool_name: {tool_name}")
+                # print(f"[DEBUG] execute_tools_stream - arguments_str type: {type(arguments_str)}")
+                # print(f"[DEBUG] execute_tools_stream - arguments_str value: {repr(arguments_str)}")
                 
                 if not tool_name:
                     result = {
                         "tool_call_id": tool_call.get("id", ""),
+                        "name": "unknown",
+                        "success": False,
                         "is_error": True,
                         "content": "工具名称不能为空"
                     }
@@ -711,6 +724,8 @@ class McpToolExecute:
                     print(f"[DEBUG] execute_tools_stream - JSON解析错误: {error_msg}")
                     result = {
                         "tool_call_id": tool_call.get("id", ""),
+                        "name": tool_name,
+                        "success": False,
                         "is_error": True,
                         "content": error_msg
                     }
@@ -724,6 +739,8 @@ class McpToolExecute:
                 
                 result = {
                     "tool_call_id": tool_call.get("id", ""),
+                    "name": tool_name,
+                    "success": True,
                     "is_error": False,
                     "content": content
                 }
@@ -737,6 +754,8 @@ class McpToolExecute:
             except Exception as e:
                 result = {
                     "tool_call_id": tool_call.get("id", ""),
+                    "name": tool_name if 'tool_name' in locals() else "unknown",
+                    "success": False,
                     "is_error": True,
                     "content": f"工具执行失败: {str(e)}"
                 }
@@ -746,7 +765,7 @@ class McpToolExecute:
         
         return results
 
-    def execute_single_tool_stream(self, tool_call: Dict[str, Any]) -> Dict[str, Any]:
+    def execute_single_tool_stream(self, tool_call: Dict[str, Any], on_tool_stream: Optional[Callable[[Dict[str, Any]], None]] = None) -> Dict[str, Any]:
         """
         流式执行单个工具调用
 
@@ -764,14 +783,16 @@ class McpToolExecute:
             if not tool_name:
                 return {
                     "tool_call_id": tool_call.get("id", ""),
+                    "name": "unknown",
+                    "success": False,
                     "is_error": True,
                     "content": "工具名称不能为空"
                 }
             
-            # 添加调试日志
-            print(f"[DEBUG] execute_single_tool_stream - tool_name: {tool_name}")
-            print(f"[DEBUG] execute_single_tool_stream - arguments_str type: {type(arguments_str)}")
-            print(f"[DEBUG] execute_single_tool_stream - arguments_str value: {repr(arguments_str)}")
+            # # 添加调试日志
+            # print(f"[DEBUG] execute_single_tool_stream - tool_name: {tool_name}")
+            # print(f"[DEBUG] execute_single_tool_stream - arguments_str type: {type(arguments_str)}")
+            # print(f"[DEBUG] execute_single_tool_stream - arguments_str value: {repr(arguments_str)}")
             
             # 解析参数
             try:
@@ -787,15 +808,19 @@ class McpToolExecute:
                 print(f"[DEBUG] execute_single_tool_stream - JSON解析错误: {error_msg}")
                 return {
                     "tool_call_id": tool_call.get("id", ""),
+                    "name": tool_name,
+                    "success": False,
                     "is_error": True,
                     "content": error_msg
                 }
             
             # 使用流式方法调用工具
-            content = self._accumulate_stream_result(tool_name, arguments)
+            content = self._accumulate_stream_result(tool_name, arguments, on_tool_stream, tool_call.get("id", ""))
             
             return {
                 "tool_call_id": tool_call.get("id", ""),
+                "name": tool_name,
+                "success": True,
                 "is_error": False,
                 "content": content
             }
@@ -803,6 +828,8 @@ class McpToolExecute:
         except Exception as e:
             return {
                 "tool_call_id": tool_call.get("id", ""),
+                "name": tool_name if 'tool_name' in locals() else "unknown",
+                "success": False,
                 "is_error": True,
                 "content": f"工具执行失败: {str(e)}"
             }

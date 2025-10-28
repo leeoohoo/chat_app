@@ -321,16 +321,38 @@ def create_stream_response_v2(
             except Exception as e:
                 logger.error(f"Error in chunk callback: {e}")
         
-        def on_tool_result(result: Dict[str, Any]):
+        def on_tools_start(tool_calls: List[Dict[str, Any]]):
             try:
                 with queue_lock:
                     if not event_queue.full():
-                        event_queue.put(("tool_result", result), block=False)
-                        logger.debug(f"Added tool result to queue: {result}")
+                        event_queue.put(("tools_start", {"tool_calls": tool_calls}), block=False)
+                        logger.debug(f"Added tools start to queue: {len(tool_calls)} tools")
                     else:
-                        logger.warning("Event queue is full, dropping tool result")
+                        logger.warning("Event queue is full, dropping tools start")
             except Exception as e:
-                logger.error(f"Error in tool_result callback: {e}")
+                logger.error(f"Error in tools_start callback: {e}")
+        
+        def on_tools_stream(result: Dict[str, Any]):
+            try:
+                with queue_lock:
+                    if not event_queue.full():
+                        event_queue.put(("tools_stream", result), block=False)
+                        logger.debug(f"Added tools stream to queue: {result}")
+                    else:
+                        logger.warning("Event queue is full, dropping tools stream")
+            except Exception as e:
+                logger.error(f"Error in tools_stream callback: {e}")
+        
+        def on_tools_end(tool_results: List[Dict[str, Any]]):
+            try:
+                with queue_lock:
+                    if not event_queue.full():
+                        event_queue.put(("tools_end", {"tool_results": tool_results}), block=False)
+                        logger.debug(f"Added tools end to queue: {len(tool_results)} results")
+                    else:
+                        logger.warning("Event queue is full, dropping tools end")
+            except Exception as e:
+                logger.error(f"Error in tools_end callback: {e}")
         
         # 创建一个标志来控制AI处理线程
         ai_completed = threading.Event()
@@ -360,7 +382,9 @@ def create_stream_response_v2(
                     max_tokens=max_tokens,
                     use_tools=use_tools,
                     on_chunk=on_chunk,
-                    on_tool_result=on_tool_result
+                    on_tools_start=on_tools_start,
+                    on_tools_stream=on_tools_stream,
+                    on_tools_end=on_tools_end
                 )
                 
                 logger.info(f"AI worker completed successfully for session {session_id}")
@@ -409,9 +433,25 @@ def create_stream_response_v2(
                         }
                         yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
                         
-                    elif event_type == "tool_result":
+                    elif event_type == "tools_start":
                         event_data = {
-                            "type": "tool_result",
+                            "type": "tools_start",
+                            "data": data,
+                            "timestamp": datetime.now().isoformat()
+                        }
+                        yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                        
+                    elif event_type == "tools_stream":
+                        event_data = {
+                            "type": "tools_stream",
+                            "data": data,
+                            "timestamp": datetime.now().isoformat()
+                        }
+                        yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                        
+                    elif event_type == "tools_end":
+                        event_data = {
+                            "type": "tools_end",
                             "data": data,
                             "timestamp": datetime.now().isoformat()
                         }

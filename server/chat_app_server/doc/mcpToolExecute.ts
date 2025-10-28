@@ -88,7 +88,7 @@ class McpToolExecute {
                 
                 // 检查工具是否支持流式输出
                 const supportsStreaming = this.toolSupportsStreaming(toolName);
-                console.log("开始调用工具：", supportsStreaming)
+                // console.log("开始调用工具：", supportsStreaming)
 
                 if (supportsStreaming) {
                     // 使用 SSE 进行流式调用
