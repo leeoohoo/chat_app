@@ -40,11 +40,22 @@ class SessionCreate(BaseModel):
         return await cls.get_by_id(session_id)
 
     @classmethod
-    async def get_all(cls, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    async def get_all(cls, user_id: Optional[str] = None, project_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """获取所有会话"""
+        conditions = []
+        params = []
+        
         if user_id:
-            query = "SELECT * FROM sessions WHERE user_id = ? ORDER BY updated_at DESC"
-            rows = await db.fetchall(query, (user_id,))
+            conditions.append("user_id = ?")
+            params.append(user_id)
+        
+        if project_id:
+            conditions.append("project_id = ?")
+            params.append(project_id)
+        
+        if conditions:
+            query = f"SELECT * FROM sessions WHERE {' AND '.join(conditions)} ORDER BY updated_at DESC"
+            rows = await db.fetchall(query, tuple(params))
         else:
             query = "SELECT * FROM sessions ORDER BY updated_at DESC"
             rows = await db.fetchall(query)

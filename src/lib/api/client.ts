@@ -51,8 +51,8 @@ class ApiClient {
   // 会话相关API
   async getSessions(userId?: string, projectId?: string): Promise<any[]> {
     const params = new URLSearchParams();
-    if (userId) params.append('userId', userId);
-    if (projectId) params.append('projectId', projectId);
+    if (userId) params.append('user_id', userId);  // 修复：使用user_id匹配后端参数名
+    if (projectId) params.append('project_id', projectId);  // 修复：使用project_id匹配后端参数名
     const queryString = params.toString();
     console.log('🔍 getSessions API调用:', { userId, projectId, queryString });
     return this.request<any[]>(`/sessions${queryString ? `?${queryString}` : ''}`);
@@ -177,17 +177,17 @@ class ApiClient {
 
   // 系统上下文相关API
   async getSystemContexts(userId: string): Promise<any[]> {
-    return this.request<any[]>(`/system-contexts?userId=${userId}`);
+    return this.request<any[]>(`/system-contexts?user_id=${userId}`);
   }
 
   async getActiveSystemContext(userId: string): Promise<{ content: string; context: any }> {
-    return this.request<{ content: string; context: any }>(`/system-context/active?userId=${userId}`);
+    return this.request<{ content: string; context: any }>(`/system-context/active?user_id=${userId}`);
   }
 
   async createSystemContext(data: {
     name: string;
     content: string;
-    userId: string;
+    user_id: string;
   }): Promise<any> {
     return this.request<any>('/system-contexts', {
       method: 'POST',
@@ -214,7 +214,7 @@ class ApiClient {
   async activateSystemContext(id: string, userId: string): Promise<any> {
     return this.request<any>(`/system-contexts/${id}/activate`, {
       method: 'POST',
-      body: JSON.stringify({ userId }),
+      body: JSON.stringify({ user_id: userId }),
     });
   }
 

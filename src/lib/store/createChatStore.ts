@@ -993,7 +993,7 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
                             const newContext = await client.createSystemContext({
                                 name,
                                 content,
-                                userId: getUserIdParam()
+                                user_id: getUserIdParam()
                             });
                             set((state) => {
                                 state.systemContexts.push(newContext);

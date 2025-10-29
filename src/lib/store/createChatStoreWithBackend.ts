@@ -1136,7 +1136,7 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                             const context = await client.createSystemContext({
                                 name,
                                 content,
-                                userId: getUserIdParam(),
+                                user_id: getUserIdParam(),
                             });
                             set((state) => {
                                 state.systemContexts.push(context);

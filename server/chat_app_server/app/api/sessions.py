@@ -13,11 +13,14 @@ router = APIRouter()
 
 
 @router.get("/sessions")
-async def get_sessions(user_id: Optional[str] = Query(None)):
+async def get_sessions(
+    user_id: Optional[str] = Query(None),
+    project_id: Optional[str] = Query(None)
+):
     """获取会话列表"""
     try:
-        sessions = await SessionCreate.get_all(user_id=user_id)
-        logger.info(f"获取到 {len(sessions)} 个会话")
+        sessions = await SessionCreate.get_all(user_id=user_id, project_id=project_id)
+        logger.info(f"获取到 {len(sessions)} 个会话 (user_id={user_id}, project_id={project_id})")
         return sessions
         
     except Exception as e:

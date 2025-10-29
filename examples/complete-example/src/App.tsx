@@ -18,7 +18,7 @@ function App() {
     try {
       // 创建 AiChat 实例 - 使用自定义参数测试
       const aiChat = new AiChat(
-        'custom_user_124',            // 自定义用户ID
+        'custom_user_125',            // 自定义用户ID
         'custom_project_456',         // 自定义项目ID
         'http://localhost:8000/api',  // 自定义API基础URL
         'h-full w-full'               // CSS类名
@@ -34,7 +34,7 @@ function App() {
       // 验证自定义参数是否被正确使用
       const config = aiChat.getConfig();
       console.log('✅ 验证自定义参数:');
-      console.log('  - 用户ID:', config.userId, '(期望: custom_user_123)');
+      console.log('  - 用户ID:', config.userId, '(期望: custom_user_125)');
       console.log('  - 项目ID:', config.projectId, '(期望: custom_project_456)');
       console.log('  - API URL:', config.baseUrl, '(期望: http://localhost:8000/api)');
       
@@ -43,7 +43,7 @@ function App() {
       console.log('  - API客户端baseUrl:', apiClient.getBaseUrl());
       
       // 验证参数是否正确传递
-      const isUserIdCorrect = config.userId === 'custom_user_123';
+      const isUserIdCorrect = config.userId === 'custom_user_125';
       const isProjectIdCorrect = config.projectId === 'custom_project_456';
       const isBaseUrlCorrect = config.baseUrl === 'http://localhost:8000/api';
       const isApiClientBaseUrlCorrect = apiClient.getBaseUrl() === 'http://localhost:8000/api';
