@@ -5,18 +5,6 @@ import { ToolCallRenderer } from './ToolCallRenderer';
 import { cn, formatTime } from '../lib/utils';
 import type { Message, Attachment } from '../types';
 
-// 工具调用数据转换函数
-const convertToolCallData = (tc: any) => {
-  return {
-    id: tc.id || tc.tool_call_id || `tool_${Date.now()}_${Math.random()}`,
-    messageId: tc.messageId || '',
-    name: tc.function?.name || tc.name || 'unknown_tool',
-    arguments: tc.function?.arguments || tc.arguments || '{}',
-    result: tc.result || '',
-    error: tc.error || undefined,
-    createdAt: tc.createdAt || tc.created_at || new Date()
-  };
-};
 
 interface MessageItemProps {
   message: Message;
@@ -106,45 +94,51 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
   return (
     <div
       className={cn(
-        'group relative flex gap-3 px-4 py-4 rounded-lg transition-colors',
-        isUser && 'bg-user-message ml-12',
-        isAssistant && 'bg-assistant-message mr-12',
-        isSystem && 'bg-muted mx-12 border-l-4 border-primary',
-        isTool && 'bg-blue-50 dark:bg-blue-950/20 mx-12 border-l-4 border-blue-500',
+        'group relative rounded-lg transition-colors',
+        // 基础布局样式 - 所有消息都使用统一的左对齐布局
+        !isAssistant && 'flex gap-3 px-4 py-4',
+        // assistant消息使用简化布局（无头像无头部）
+        // 角色特定样式 - 移除左右对齐差异，统一左对齐
+        isUser && 'bg-user-message',
+        isSystem && 'bg-muted border-l-4 border-primary',
+        isTool && 'bg-blue-50 dark:bg-blue-950/20 border-l-4 border-blue-500',
         'hover:bg-opacity-80'
       )}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >
-      {/* 头像 */}
-      <div className="flex-shrink-0">
-        <div className={cn(
-          'w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium',
-          isUser && 'bg-primary text-primary-foreground',
-          isAssistant && 'bg-secondary text-secondary-foreground',
-          isSystem && 'bg-muted text-muted-foreground',
-          isTool && 'bg-blue-500 text-white'
-        )}>
-          {isUser ? 'U' : isAssistant ? 'AI' : isTool ? 'T' : 'S'}
+      {/* 头像 - assistant消息不显示头像 */}
+      {!isAssistant && (
+        <div className="flex-shrink-0">
+          <div className={cn(
+            'w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium',
+            isUser && 'bg-primary text-primary-foreground',
+            isSystem && 'bg-muted text-muted-foreground',
+            isTool && 'bg-blue-500 text-white'
+          )}>
+            {isUser ? 'U' : isTool ? 'T' : 'S'}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 消息内容 */}
       <div className="flex-1 min-w-0">
-        {/* 消息头部 */}
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-sm font-medium">
-            {isUser ? 'You' : isAssistant ? 'Assistant' : isTool ? 'Tool Result' : 'System'}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            {formatTime(message.createdAt)}
-          </span>
-          {message.metadata?.model && (
-            <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
-              {message.metadata.model}
+        {/* 消息头部 - assistant消息不显示头部 */}
+        {!isAssistant && (
+          <div className="flex items-center gap-2 mb-1">
+            <span className="text-sm font-medium">
+              {isUser ? 'You' : isTool ? 'Tool Result' : 'System'}
             </span>
-          )}
-        </div>
+            <span className="text-xs text-muted-foreground">
+              {formatTime(message.createdAt)}
+            </span>
+            {message.metadata?.model && (
+              <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+                {message.metadata.model}
+              </span>
+            )}
+          </div>
+        )}
 
         {/* 附件 */}
         {attachments.length > 0 && (
@@ -197,7 +191,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                 console.log('🎨 使用分段渲染，分段数量:', contentSegments.length);
                 console.log('🎨 分段详情:', contentSegments);
                 return (
-                  <div className="space-y-3">
+                  <div className="space-y-0.5">
                     {contentSegments.map((segment, index) => {
                        console.log(`🎨 渲染分段 ${index}:`, segment);
                        if (segment.type === 'text') {
@@ -241,7 +235,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
               console.log('🎨 hasContent:', hasContent);
               console.log('🎨 toolCalls.length:', toolCalls.length);
               return (
-                <div className="space-y-3">
+                <div className="space-y-0.5">
                   {/* 渲染文本内容 */}
                   {hasContent && (
                     <div className="prose prose-sm max-w-none">
@@ -255,8 +249,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                   
                   {/* 渲染工具调用（历史消息兼容） - 修复：确保工具调用总是被渲染 */}
                   {toolCalls.length > 0 && (
-                    <div className="space-y-2">
-                      <div className="text-sm text-muted-foreground font-medium">工具调用:</div>
+                    <div className="space-y-0.5">
                       {toolCalls.map((toolCall) => {
                          console.log('🎨 传统方式渲染工具调用:', toolCall);
                          return (

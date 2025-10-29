@@ -127,27 +127,22 @@ export const ToolCallRenderer: React.FC<ToolCallRendererProps> = ({
         )}
       </div>
 
-      {/* 参数内容 - 只在有参数时显示 */}
-      {hasArguments && argumentsMessage && (
-        <div className="border-l-4 border-blue-400 dark:border-blue-500 rounded-lg overflow-hidden bg-blue-50/50 dark:bg-blue-900/20">
-          <MarkdownRenderer 
-            content={argumentsMessage} 
-            className="p-3"
-          />
-        </div>
-      )}
-
       {/* 详细信息 - 展开时显示 */}
       {showDetails && (
          <div className="details-container">
          
-          {/* 参数详情 */}
+          {/* 参数详情 - 移动到详情里面，移除标题 */}
           {hasArguments && (
             <div>
-              <div className="details-title">参数:</div>
-              <pre className="bg-gray-100 dark:bg-gray-800 p-2 rounded text-sm overflow-x-auto">
-                {JSON.stringify(parsedArguments, null, 2)}
-              </pre>
+              {/* 使用格式化的参数内容，而不是原始JSON */}
+              {argumentsMessage && (
+                <div className="border-l-4 border-blue-400 dark:border-blue-500 rounded-lg overflow-hidden bg-blue-50/50 dark:bg-blue-900/20 mb-4">
+                  <MarkdownRenderer 
+                    content={argumentsMessage} 
+                    className="p-3"
+                  />
+                </div>
+              )}
             </div>
           )}
 
