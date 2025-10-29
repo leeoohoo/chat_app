@@ -5,6 +5,18 @@ import { ToolCallRenderer } from './ToolCallRenderer';
 import { cn, formatTime } from '../lib/utils';
 import type { Message, Attachment } from '../types';
 
+// 工具调用数据转换函数
+const convertToolCallData = (tc: any) => {
+  return {
+    id: tc.id || tc.tool_call_id || `tool_${Date.now()}_${Math.random()}`,
+    messageId: tc.messageId || '',
+    name: tc.function?.name || tc.name || 'unknown_tool',
+    arguments: tc.function?.arguments || tc.arguments || '{}',
+    result: tc.result || '',
+    error: tc.error || undefined,
+    createdAt: tc.createdAt || tc.created_at || new Date()
+  };
+};
 
 interface MessageItemProps {
   message: Message;
@@ -98,6 +110,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
         // 基础布局样式 - 所有消息都使用统一的左对齐布局
         !isAssistant && 'flex gap-3 px-4 py-4',
         // assistant消息使用简化布局（无头像无头部）
+        isAssistant && 'px-4 py-2',
         // 角色特定样式 - 移除左右对齐差异，统一左对齐
         isUser && 'bg-user-message',
         isSystem && 'bg-muted border-l-4 border-primary',
@@ -250,6 +263,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                   {/* 渲染工具调用（历史消息兼容） - 修复：确保工具调用总是被渲染 */}
                   {toolCalls.length > 0 && (
                     <div className="space-y-0.5">
+                      <div className="text-sm text-muted-foreground font-medium">工具调用:</div>
                       {toolCalls.map((toolCall) => {
                          console.log('🎨 传统方式渲染工具调用:', toolCall);
                          return (

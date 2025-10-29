@@ -66,25 +66,50 @@ export const ToolCallRenderer: React.FC<ToolCallRendererProps> = ({
   const parsedArguments = parseArguments();
   const hasArguments = parsedArguments && Object.keys(parsedArguments).length > 0;
 
+  // 递归平铺对象属性
+  const flattenObject = (obj: any, prefix: string = ''): Record<string, any> => {
+    const flattened: Record<string, any> = {};
+    
+    for (const key in obj) {
+      if (obj.hasOwnProperty(key)) {
+        const value = obj[key];
+        const newKey = prefix ? `${prefix}.${key}` : key;
+        
+        if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
+          // 如果是对象，递归平铺
+          Object.assign(flattened, flattenObject(value, newKey));
+        } else {
+          // 如果是基本类型或数组，直接添加
+          flattened[newKey] = value;
+        }
+      }
+    }
+    
+    return flattened;
+  };
+
   // 格式化参数为对话内容
   const formatArgumentsAsMessage = () => {
     if (!hasArguments) return '';
     
-    const argKeys = Object.keys(parsedArguments);
+    // 平铺所有参数
+    const flattenedArgs = flattenObject(parsedArguments);
+    const argKeys = Object.keys(flattenedArgs);
     
-    // 如果只有一个参数，直接显示其内容
-    if (argKeys.length === 1) {
-      const value = parsedArguments[argKeys[0]];
-      return typeof value === 'string' ? value : JSON.stringify(value, null, 2);
-    }
-    
-    // 如果有多个参数，用表格形式显示
+    // 统一使用表格形式显示所有参数（包括单个参数）
     let tableContent = '| 参数 | 值 |\n|------|------|\n';
     argKeys.forEach(key => {
-      const value = parsedArguments[key];
-      const formattedValue = typeof value === 'string' 
-        ? value.replace(/\n/g, '<br>').replace(/\|/g, '\\|')
-        : JSON.stringify(value).replace(/\|/g, '\\|');
+      const value = flattenedArgs[key];
+      let formattedValue: string;
+      
+      if (typeof value === 'string') {
+        formattedValue = value.replace(/\n/g, '<br>').replace(/\|/g, '\\|');
+      } else if (Array.isArray(value)) {
+        formattedValue = `[${value.join(', ')}]`.replace(/\|/g, '\\|');
+      } else {
+        formattedValue = JSON.stringify(value).replace(/\|/g, '\\|');
+      }
+      
       tableContent += `| ${key} | ${formattedValue} |\n`;
     });
     
@@ -139,7 +164,6 @@ export const ToolCallRenderer: React.FC<ToolCallRendererProps> = ({
                 <div className="border-l-4 border-blue-400 dark:border-blue-500 rounded-lg overflow-hidden bg-blue-50/50 dark:bg-blue-900/20 mb-4">
                   <MarkdownRenderer 
                     content={argumentsMessage} 
-                    className="p-3"
                   />
                 </div>
               )}

@@ -35,7 +35,7 @@ export const MessageList: React.FC<MessageListProps> = ({
   return (
     <div className="flex flex-col h-full">
       <div 
-        className="flex-1 overflow-y-auto px-4 py-6 space-y-6"
+        className="flex-1 overflow-y-auto px-4 py-6 space-y-1"
         style={{
           // 优化滚动性能
           willChange: 'scroll-position',

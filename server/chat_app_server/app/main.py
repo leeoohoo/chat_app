@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse
 
 from app.api import sessions, messages, configs, mcp_initializers, chat_api_v2
 from app.models import db
+from app.mcp_manager.configs import startup_initialize_mcp
 
 # 配置日志
 logging.basicConfig(
@@ -29,6 +30,22 @@ async def lifespan(app: FastAPI):
     logger.info("正在初始化数据库...")
     await db.init_database()
     logger.info("数据库初始化完成")
+    
+    # 启动时初始化MCP配置
+    logger.info("正在初始化MCP配置...")
+    try:
+        mcp_results = await startup_initialize_mcp()
+        success_count = sum(1 for success in mcp_results.values() if success)
+        total_count = len(mcp_results)
+        logger.info(f"MCP配置初始化完成: {success_count}/{total_count} 成功")
+        
+        # 记录详细结果
+        for server_type, success in mcp_results.items():
+            status = "✅ 成功" if success else "❌ 失败"
+            logger.info(f"  - {server_type}: {status}")
+            
+    except Exception as e:
+        logger.error(f"MCP配置初始化失败: {e}")
     
     yield
     

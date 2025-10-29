@@ -396,23 +396,23 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                         try {
                             // 创建用户消息并保存到数据库
                             const userMessageTime = new Date();
-                            const userMessage = await messageManager.saveUserMessage({
-                                sessionId: currentSessionId,
-                                role: 'user',
-                                content,
-                                status: 'completed',
-                                createdAt: userMessageTime,
-                                metadata: {
-                                    ...(attachments.length > 0 ? { attachments } : {}),
-                                    model: selectedModel.model_name,
-                                    modelConfig: {
-                                        id: selectedModel.id,
-                                        name: selectedModel.name,
-                                        base_url: selectedModel.base_url,
-                                        model_name: selectedModel.model_name,
-                                    }
-                                },
-                            });
+                            // const userMessage = await messageManager.saveUserMessage({
+                            //     sessionId: currentSessionId,
+                            //     role: 'user',
+                            //     content,
+                            //     status: 'completed',
+                            //     createdAt: userMessageTime,
+                            //     metadata: {
+                            //         ...(attachments.length > 0 ? { attachments } : {}),
+                            //         model: selectedModel.model_name,
+                            //         modelConfig: {
+                            //             id: selectedModel.id,
+                            //             name: selectedModel.name,
+                            //             base_url: selectedModel.base_url,
+                            //             model_name: selectedModel.model_name,
+                            //         }
+                            //     },
+                            // });
 
                             set((state) => {
                                 state.messages.push(userMessage);

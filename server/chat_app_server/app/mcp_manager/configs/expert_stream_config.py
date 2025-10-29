@@ -42,18 +42,17 @@ class ExpertStreamConfigInitializer:
             "log_level": "INFO",
             "max_connections": 100,
             "timeout": 30,
-            
             # 核心配置参数 - 需要用户配置
-            "api_key": "",  # 需要用户提供
-            "model_name": "gpt-4",
-            "base_url": "https://api.openai.com/v1",
-            "system_prompt": "你是一个专业的AI助手，能够提供准确、详细和有用的回答。",
+            "api_key": "16994514-0eaa-450b-961a-372e5eae0509",  # 需要用户提供
+            "model_name": "kimi-k2-250905",
+            "base_url": "https://ark.cn-beijing.volces.com/api/v3",
+            "system_prompt": "你是一个专业的AI助手，能够熟练的使用工具查到对应的文件后提供准确、详细和有用的回答。",
             
             # MCP服务器配置
             "mcp_servers": "[]",  # JSON字符串格式
             
             # stdio MCP服务器配置
-            "stdio_mcp_servers": "",  # 格式: "server_name:path--alias"
+            "stdio_mcp_servers": "file_find:/Users/lilei/project/learn/chat_app/server/chat_app_server/mcp_services/file-reader-server-macos-arm64/file-reader-server--default",  # 格式: "server_name:path--alias"
             
             # 数据库配置
             "mongodb_url": "",  # 可选的MongoDB连接URL
@@ -182,7 +181,7 @@ class ExpertStreamConfigInitializer:
             # 检查必需的配置项
             required_fields = [
                 "server_type", "alias", "executable_path",
-                "model_name", "base_url", "system_prompt"
+                "model_name", "base_url", "system_prompt", "api_key"
             ]
             
             missing_fields = []
