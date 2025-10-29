@@ -5,18 +5,7 @@ import { ToolCallRenderer } from './ToolCallRenderer';
 import { cn, formatTime } from '../lib/utils';
 import type { Message, Attachment } from '../types';
 
-// 工具调用数据转换函数
-const convertToolCallData = (tc: any) => {
-  return {
-    id: tc.id || tc.tool_call_id || `tool_${Date.now()}_${Math.random()}`,
-    messageId: tc.messageId || '',
-    name: tc.function?.name || tc.name || 'unknown_tool',
-    arguments: tc.function?.arguments || tc.arguments || '{}',
-    result: tc.result || '',
-    error: tc.error || undefined,
-    createdAt: tc.createdAt || tc.created_at || new Date()
-  };
-};
+
 
 interface MessageItemProps {
   message: Message;
