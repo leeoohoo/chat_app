@@ -165,6 +165,8 @@ const SystemContextEditor: React.FC<SystemContextEditorProps> = ({ onClose, stor
   const handleActivate = async (context: SystemContext) => {
     try {
       await activateSystemContext(context.id);
+      // 重新加载系统上下文列表以更新UI状态
+      await loadSystemContexts();
     } catch (error) {
       console.error('Failed to activate system context:', error);
       alert('激活失败，请重试');

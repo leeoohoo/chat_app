@@ -194,3 +194,6 @@ class DatabaseManager:
 
 # 全局数据库管理器实例
 db = DatabaseManager()
+
+# 导出列表
+__all__ = ['db', 'DatabaseManager']

@@ -214,7 +214,7 @@ class ApiClient {
   async activateSystemContext(id: string, userId: string): Promise<any> {
     return this.request<any>(`/system-contexts/${id}/activate`, {
       method: 'POST',
-      body: JSON.stringify({ user_id: userId }),
+      body: JSON.stringify({ user_id: userId, is_active: true }),
     });
   }
 

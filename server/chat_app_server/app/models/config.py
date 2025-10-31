@@ -364,7 +364,8 @@ class SystemContextUpdate(BaseModel):
         return await SystemContextCreate.get_by_id(context_id)
 
 class SystemContextActivate(BaseModel):
-    is_active: bool
+    user_id: str
+    is_active: bool = True
 
     @classmethod
     async def activate(cls, context_id: str, user_id: str) -> Optional[Dict[str, Any]]:

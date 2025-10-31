@@ -8,6 +8,9 @@ export interface AiChatConfig {
   projectId: string;
   configUrl?: string;
   className?: string;
+  showMcpManager?: boolean;
+  showAiModelManager?: boolean;
+  showSystemContextEditor?: boolean;
 }
 
 /**
@@ -29,14 +32,33 @@ export class AiChat {
   private apiClient: ApiClient;
   private store: ReturnType<typeof createChatStoreWithBackend>;
   private className?: string;
+  private showMcpManager: boolean;
+  private showAiModelManager: boolean;
+  private showSystemContextEditor: boolean;
 
-  constructor(userId: string, projectId: string, configUrl?: string, className?: string) {
+  constructor(
+    userId: string, 
+    projectId: string, 
+    configUrl?: string, 
+    className?: string,
+    showMcpManager: boolean = true,
+    showAiModelManager: boolean = true,
+    showSystemContextEditor: boolean = true
+  ) {
     this.userId = userId;
     this.projectId = projectId;
     this.configUrl = configUrl || '/api';
     this.className = className;
+    this.showMcpManager = showMcpManager;
+    this.showAiModelManager = showAiModelManager;
+    this.showSystemContextEditor = showSystemContextEditor;
 
     console.log('🔧 AiChat Constructor - configUrl:', this.configUrl);
+    console.log('🔧 AiChat Constructor - Module Controls:', {
+      showMcpManager: this.showMcpManager,
+      showAiModelManager: this.showAiModelManager,
+      showSystemContextEditor: this.showSystemContextEditor
+    });
 
     // 创建自定义的 API 客户端
     this.apiClient = new ApiClient(this.configUrl);
@@ -58,7 +80,10 @@ export class AiChat {
       className: this.className,
       userId: this.userId,
       projectId: this.projectId,
-      configUrl: this.configUrl
+      configUrl: this.configUrl,
+      showMcpManager: this.showMcpManager,
+      showAiModelManager: this.showAiModelManager,
+      showSystemContextEditor: this.showSystemContextEditor
     });
   }
 
@@ -70,7 +95,10 @@ export class AiChat {
       userId: this.userId,
       projectId: this.projectId,
       configUrl: this.configUrl,
-      className: this.className
+      className: this.className,
+      showMcpManager: this.showMcpManager,
+      showAiModelManager: this.showAiModelManager,
+      showSystemContextEditor: this.showSystemContextEditor
     };
   }
 
@@ -90,6 +118,9 @@ export class AiChat {
       });
     }
     if (config.className !== undefined) this.className = config.className;
+    if (config.showMcpManager !== undefined) this.showMcpManager = config.showMcpManager;
+    if (config.showAiModelManager !== undefined) this.showAiModelManager = config.showAiModelManager;
+    if (config.showSystemContextEditor !== undefined) this.showSystemContextEditor = config.showSystemContextEditor;
   }
 
   /**
@@ -115,13 +146,19 @@ interface AiChatComponentProps {
   userId: string;
   projectId: string;
   configUrl: string;
+  showMcpManager?: boolean;
+  showAiModelManager?: boolean;
+  showSystemContextEditor?: boolean;
 }
 
 const AiChatComponent: React.FC<AiChatComponentProps> = ({
   className,
   userId,
   projectId,
-  configUrl
+  configUrl,
+  showMcpManager,
+  showAiModelManager,
+  showSystemContextEditor
 }) => {
   return (
     <StandaloneChatInterface 
@@ -129,6 +166,9 @@ const AiChatComponent: React.FC<AiChatComponentProps> = ({
       apiBaseUrl={configUrl}
       userId={userId}
       projectId={projectId}
+      showMcpManager={showMcpManager}
+      showAiModelManager={showAiModelManager}
+      showSystemContextEditor={showSystemContextEditor}
     />
   );
 };

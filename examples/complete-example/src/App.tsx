@@ -1,7 +1,7 @@
 /// <reference types="react" />
 /// <reference types="react-dom" />
 
-import React, { useEffect, useRef, useState } from 'react';
+import  { useEffect, useState } from 'react';
 import { AiChat } from '@leeoohoo/aichat';
 import '@leeoohoo/aichat/styles';
 
@@ -16,13 +16,42 @@ function App() {
 
   useEffect(() => {
     try {
-      // 创建 AiChat 实例 - 使用自定义参数测试
+      // 创建 AiChat 实例 - 完整功能版本
       const aiChat = new AiChat(
         'custom_user_125',            // 自定义用户ID
         'custom_project_456',         // 自定义项目ID
         'http://localhost:8000/api',  // 自定义API基础URL
-        'h-full w-full'               // CSS类名
+        'h-full w-full',              // CSS类名
+        true,                         // showMcpManager - 显示MCP服务管理
+        true,                         // showAiModelManager - 显示AI配置管理
+        true                          // showSystemContextEditor - 显示System Prompt编辑器
       );
+
+      // 其他配置示例：
+      
+      // 1. 简化聊天版本（隐藏所有管理模块）
+      // const simpleChatInstance = new AiChat(
+      //   'simple_user', 'simple_project', 'http://localhost:8000/api', 'h-full w-full',
+      //   false, false, false
+      // );
+
+      // 2. 只显示AI配置管理
+      // const aiConfigOnlyInstance = new AiChat(
+      //   'config_user', 'config_project', 'http://localhost:8000/api', 'h-full w-full',
+      //   false, true, false
+      // );
+
+      // 3. 只显示MCP服务管理
+      // const mcpOnlyInstance = new AiChat(
+      //   'mcp_user', 'mcp_project', 'http://localhost:8000/api', 'h-full w-full',
+      //   true, false, false
+      // );
+
+      // 4. 显示AI配置和System Prompt编辑器，隐藏MCP
+      // const aiAndSystemInstance = new AiChat(
+      //   'ai_system_user', 'ai_system_project', 'http://localhost:8000/api', 'h-full w-full',
+      //   false, true, true
+      // );
 
       setAiChatInstance(aiChat);
       setIsInitialized(true);

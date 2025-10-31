@@ -9,6 +9,7 @@ from app.models.config import (
     AiModelConfigCreate, AiModelConfigUpdate,
     SystemContextCreate, SystemContextUpdate, SystemContextActivate
 )
+from app.models import db
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -182,10 +183,10 @@ async def delete_ai_model_config(config_id: str):
 
 
 @router.get("/system-contexts")
-async def get_system_contexts(userId: str = Query(...)):
+async def get_system_contexts(user_id: str = Query(...)):
     """获取系统上下文列表"""
     try:
-        contexts = await SystemContextCreate.get_all(user_id=userId)
+        contexts = await SystemContextCreate.get_all(user_id=user_id)
         logger.info(f"获取到 {len(contexts)} 个系统上下文")
         return contexts
         
@@ -196,16 +197,14 @@ async def get_system_contexts(userId: str = Query(...)):
 
 @router.get("/system-context/active")
 async def get_active_system_context(user_id: str):
+    """获取用户的活跃系统上下文"""
     try:
-        db.connection.row_factory = lambda cursor, row: dict(zip([col[0] for col in cursor.description], row))
-        result = await db.fetchone(
-            'SELECT * FROM system_contexts WHERE user_id = ? AND is_active = true',
-            (user_id,)
-        )
+        result = await SystemContextCreate.get_active(user_id)
         return {"content": result.get('content', '') if result else '', "context": result}
         
-    except Exception as error:
-        raise HTTPException(status_code=500, detail=str(error))
+    except Exception as e:
+        logger.error(f"获取活跃系统上下文失败: {e}")
+        raise HTTPException(status_code=500, detail="获取活跃系统上下文失败")
 
 
 @router.post("/system-contexts")

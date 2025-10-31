@@ -1120,13 +1120,36 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                     loadSystemContexts: async () => {
                         try {
                             const contexts = await client.getSystemContexts(getUserIdParam());
+                            const activeContextResponse = await client.getActiveSystemContext(getUserIdParam());
                             set((state) => {
-                                state.systemContexts = contexts;
+                                // 先将所有上下文的isActive设为false
+                                const updatedContexts = contexts.map(ctx => ({
+                                    ...ctx,
+                                    isActive: false
+                                }));
+                                
+                                // 处理激活的上下文
+                                if (activeContextResponse && activeContextResponse.context) {
+                                    const activeContext = activeContextResponse.context;
+                                    // 找到对应的上下文并设置为激活状态
+                                    const activeIndex = updatedContexts.findIndex(ctx => ctx.id === activeContext.id);
+                                    if (activeIndex !== -1) {
+                                        updatedContexts[activeIndex].isActive = true;
+                                        state.activeSystemContext = { ...updatedContexts[activeIndex] };
+                                    } else {
+                                        state.activeSystemContext = null;
+                                    }
+                                } else {
+                                    state.activeSystemContext = null;
+                                }
+                                
+                                state.systemContexts = updatedContexts;
                             });
                         } catch (error) {
                             console.error('Failed to load system contexts:', error);
                             set((state) => {
-                                state.error = error instanceof Error ? error.message : 'Failed to load system contexts';
+                                state.systemContexts = [];
+                                state.activeSystemContext = null;
                             });
                         }
                     },
@@ -1185,9 +1208,16 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
 
                     activateSystemContext: async (id: string) => {
                         try {
-                            const context = get().systemContexts.find(c => c.id === id);
+                            await client.activateSystemContext(id, getUserIdParam());
                             set((state) => {
-                                state.activeSystemContext = context || null;
+                                const context = state.systemContexts.find(c => c.id === id);
+                                if (context) {
+                                    // 更新所有上下文的激活状态
+                                    state.systemContexts.forEach(ctx => {
+                                        ctx.isActive = ctx.id === id;
+                                    });
+                                    state.activeSystemContext = { ...context, isActive: true };
+                                }
                             });
                         } catch (error) {
                             console.error('Failed to activate system context:', error);
