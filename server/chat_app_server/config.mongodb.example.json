@@ -1,0 +1,26 @@
+{
+  "config_dir": "/Users/lilei/project/config/test_mcp_server_config",
+  "database": {
+    "type": "mongodb",
+    "sqlite": {
+      "database_path": "data/chat_app.db"
+    },
+    "mongodb": {
+      "host": "localhost",
+      "port": 27017,
+      "database": "chat_app",
+      "username": "your_username",
+      "password": "your_password",
+      "connection_options": {
+        "maxPoolSize": 20,
+        "minPoolSize": 5,
+        "maxIdleTimeMS": 60000,
+        "serverSelectionTimeoutMS": 10000,
+        "socketTimeoutMS": 60000,
+        "connectTimeoutMS": 20000,
+        "retryWrites": true,
+        "w": "majority"
+      }
+    }
+  }
+}

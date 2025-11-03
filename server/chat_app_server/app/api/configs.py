@@ -9,7 +9,6 @@ from app.models.config import (
     AiModelConfigCreate, AiModelConfigUpdate,
     SystemContextCreate, SystemContextUpdate, SystemContextActivate
 )
-from app.models import db
 
 logger = logging.getLogger(__name__)
 router = APIRouter()

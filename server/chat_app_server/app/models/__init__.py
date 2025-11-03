@@ -1,199 +1,191 @@
-# 数据模型模块
-# 包含数据库连接管理和所有数据模型
-
-import aiosqlite
+#!/usr/bin/env python3
+"""
+数据模型包
+"""
 import sqlite3
-import logging
-from pathlib import Path
+import os
+from typing import Optional, List, Dict, Any
+from contextlib import contextmanager
 
-logger = logging.getLogger(__name__)
 
 class DatabaseManager:
-    def __init__(self, db_path: str = None):
-        if db_path is None:
-            # 使用项目根目录的数据库文件
-            project_root = Path(__file__).parent.parent.parent
-            self.db_path = str(project_root / "chat_app.db")
-        else:
-            self.db_path = db_path
-        self.connection = None
-
-    async def init_database(self):
-        """初始化数据库连接和表结构"""
-        try:
-            # 创建数据库目录
-            db_dir = Path(self.db_path).parent
-            db_dir.mkdir(parents=True, exist_ok=True)
+    """数据库管理器（保留用于向后兼容）"""
+    
+    def __init__(self, db_path: str = "data/chat_app.db"):
+        """初始化数据库管理器"""
+        self.db_path = db_path
+        self.ensure_data_directory()
+        self.initialize_database()
+    
+    def ensure_data_directory(self):
+        """确保数据目录存在"""
+        data_dir = os.path.dirname(self.db_path)
+        if data_dir and not os.path.exists(data_dir):
+            os.makedirs(data_dir, exist_ok=True)
+    
+    def get_connection(self) -> sqlite3.Connection:
+        """获取数据库连接"""
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row  # 使结果可以通过列名访问
+        return conn
+    
+    def initialize_database(self):
+        """初始化数据库，创建表"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
             
-            self.connection = await aiosqlite.connect(self.db_path)
+            # 创建会话表
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS sessions (
+                    id TEXT PRIMARY KEY,
+                    title TEXT NOT NULL,
+                    description TEXT,
+                    metadata TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
             
-            # 设置row_factory以返回Row对象
-            self.connection.row_factory = aiosqlite.Row
+            # 创建消息表
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS messages (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT NOT NULL,
+                    role TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    metadata TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (session_id) REFERENCES sessions (id) ON DELETE CASCADE
+                )
+            """)
             
-            # 创建表结构
-            await self._create_tables()
+            # 创建MCP配置表
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS mcp_configs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    description TEXT,
+                    config_data TEXT NOT NULL,
+                    is_active BOOLEAN DEFAULT TRUE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
             
-            # 检查并添加新字段（如果不存在）
-            await self._migrate_tables()
+            # 创建AI模型配置表
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS ai_model_configs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    model_type TEXT NOT NULL,
+                    api_key TEXT,
+                    base_url TEXT,
+                    model_name TEXT NOT NULL,
+                    max_tokens INTEGER,
+                    temperature REAL,
+                    config_data TEXT,
+                    is_active BOOLEAN DEFAULT TRUE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
             
-            logger.info('数据库初始化成功')
-        except Exception as error:
-            logger.error(f'数据库初始化失败: {error}')
-            raise
-
-    async def _create_tables(self):
-        """创建所有必需的表"""
-        create_tables_sql = """
-        CREATE TABLE IF NOT EXISTS sessions (
-            id TEXT PRIMARY KEY,
-            title TEXT NOT NULL,
-            user_id TEXT,
-            project_id TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-        
-        CREATE TABLE IF NOT EXISTS messages (
-            id TEXT PRIMARY KEY,
-            session_id TEXT NOT NULL,
-            role TEXT NOT NULL,
-            content TEXT NOT NULL,
-            summary TEXT,
-            tool_calls TEXT,
-            tool_call_id TEXT,
-            reasoning TEXT,
-            metadata TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (session_id) REFERENCES sessions (id) ON DELETE CASCADE
-        );
-        
-        CREATE TABLE IF NOT EXISTS mcp_configs (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            command TEXT NOT NULL,
-            type TEXT DEFAULT 'stdio',
-            args TEXT,
-            env TEXT,
-            user_id TEXT,
-            enabled BOOLEAN DEFAULT true,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-        
-        CREATE TABLE IF NOT EXISTS ai_model_configs (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            provider TEXT NOT NULL,
-            model TEXT NOT NULL,
-            api_key TEXT,
-            base_url TEXT,
-            user_id TEXT,
-            enabled BOOLEAN DEFAULT true,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-        
-        CREATE TABLE IF NOT EXISTS session_mcp_servers (
-            id TEXT PRIMARY KEY,
-            session_id TEXT NOT NULL,
-            mcp_config_id TEXT NOT NULL,
-            enabled BOOLEAN DEFAULT true,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (session_id) REFERENCES sessions (id) ON DELETE CASCADE,
-            FOREIGN KEY (mcp_config_id) REFERENCES mcp_configs (id) ON DELETE CASCADE,
-            UNIQUE(session_id, mcp_config_id)
-        );
-        
-        CREATE TABLE IF NOT EXISTS system_contexts (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            content TEXT,
-            user_id TEXT,
-            is_active BOOLEAN DEFAULT false,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-        """
-        
-        await self.connection.executescript(create_tables_sql)
-        await self.connection.commit()
-
-    async def _migrate_tables(self):
-        """检查并添加新字段（如果不存在）"""
-        try:
-            # 检查 sessions 表字段
-            cursor = await self.connection.execute("PRAGMA table_info(sessions)")
-            sessions_columns = await cursor.fetchall()
-            column_names = [col[1] for col in sessions_columns]
+            # 创建系统上下文表
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS system_contexts (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    description TEXT,
+                    context_data TEXT NOT NULL,
+                    is_active BOOLEAN DEFAULT TRUE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
             
-            if 'user_id' not in column_names:
-                await self.connection.execute("ALTER TABLE sessions ADD COLUMN user_id TEXT")
-                logger.info('已为sessions表添加user_id字段')
+            # 创建会话MCP服务器关联表
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS session_mcp_servers (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_id TEXT NOT NULL,
+                    mcp_server_name TEXT NOT NULL,
+                    config TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (session_id) REFERENCES sessions (id) ON DELETE CASCADE
+                )
+            """)
             
-            if 'project_id' not in column_names:
-                await self.connection.execute("ALTER TABLE sessions ADD COLUMN project_id TEXT")
-                logger.info('已为sessions表添加project_id字段')
-            
-            await self.connection.commit()
-            
-        except Exception as error:
-            logger.info(f'字段迁移处理: {error}')
-
-    async def close(self):
-        """关闭数据库连接"""
-        if self.connection:
-            await self.connection.close()
-
-    async def execute(self, query: str, params: tuple = None):
-        """执行SQL查询"""
-        if params is None:
-            params = ()
-        cursor = await self.connection.execute(query, params)
-        await self.connection.commit()
-        return cursor
-
-    async def fetchone(self, query: str, params: tuple = None):
-        """获取单行数据"""
-        if params is None:
-            params = ()
-        cursor = await self.connection.execute(query, params)
-        return await cursor.fetchone()
-
-    async def fetchall(self, query: str, params: tuple = None):
-        """获取所有数据"""
-        if params is None:
-            params = ()
-        cursor = await self.connection.execute(query, params)
-        return await cursor.fetchall()
-
-    def execute_sync(self, query: str, params: tuple = None):
-        """同步执行SQL语句"""
-        if params is None:
-            params = ()
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.execute(query, params)
             conn.commit()
-            return cursor
-
-    def fetchone_sync(self, query: str, params: tuple = None):
-        """同步获取单行数据"""
-        if params is None:
-            params = ()
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.execute(query, params)
-            return cursor.fetchone()
-
-    def fetchall_sync(self, query: str, params: tuple = None):
-        """同步获取所有数据"""
-        if params is None:
-            params = ()
-        with sqlite3.connect(self.db_path) as conn:
-            conn.row_factory = lambda cursor, row: dict(zip([col[0] for col in cursor.description], row))
-            cursor = conn.execute(query, params)
+            
+            # 执行数据库迁移
+            self.migrate_database(cursor)
+    
+    def migrate_database(self, cursor):
+        """执行数据库迁移"""
+        # 检查是否需要添加新列或修改表结构
+        # 这里可以添加版本控制和迁移逻辑
+        pass
+    
+    def execute_query(self, query: str, params: tuple = ()) -> sqlite3.Cursor:
+        """执行查询"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute(query, params)
+        conn.commit()
+        return cursor
+    
+    def fetch_all(self, query: str, params: tuple = ()) -> List[sqlite3.Row]:
+        """获取所有结果"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, params)
             return cursor.fetchall()
+    
+    def fetch_one(self, query: str, params: tuple = ()) -> Optional[sqlite3.Row]:
+        """获取单个结果"""
+        with self.get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            return cursor.fetchone()
+    
+    def close(self):
+        """关闭数据库连接（SQLite不需要显式关闭）"""
+        pass
 
-# 全局数据库管理器实例
-db = DatabaseManager()
 
-# 导出列表
-__all__ = ['db', 'DatabaseManager']
+# 全局数据库实例（保留用于向后兼容）
+db_manager = DatabaseManager()
+
+
+# 导入数据库抽象层
+from .database_config import DatabaseConfig, DatabaseType
+from .database_interface import AbstractDatabaseAdapter
+from .database_factory import get_database, get_database_config, database_factory
+
+# 导出模型类
+from .config import McpConfigCreate, AiModelConfigCreate, SystemContextCreate
+from .message import MessageCreate
+from .session import SessionCreate, SessionMcpServerCreate
+
+# 导出数据库相关类和函数
+__all__ = [
+    # 传统数据库管理器（向后兼容）
+    'DatabaseManager',
+    'db_manager',
+    
+    # 新的数据库抽象层
+    'DatabaseConfig',
+    'DatabaseType', 
+    'AbstractDatabaseAdapter',
+    'get_database',
+    'get_database_config',
+    'database_factory',
+    
+    # 模型类
+    'McpConfigCreate',
+    'AiModelConfigCreate',
+    'SystemContextCreate',
+    'MessageCreate',
+    'SessionCreate',
+    'SessionMcpServerCreate',
+]

@@ -1,9 +1,14 @@
+#!/usr/bin/env python3
+"""
+消息相关的数据模型
+"""
 from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
 from datetime import datetime
+from .database_factory import get_database
+import asyncio
 import uuid
 import json
-from . import db
 
 def row_to_dict(row) -> Dict[str, Any]:
     """将数据库行转换为字典"""
@@ -60,7 +65,8 @@ class MessageCreate(BaseModel):
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         """
         
-        await db.execute(query, (
+        db = get_database()
+        await db.execute_query_async(query, (
             message_id,
             message_data.session_id,  # 使用属性访问器
             message_data.role,
@@ -85,6 +91,7 @@ class MessageCreate(BaseModel):
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         """
         
+        db = get_database()
         db.execute_sync(query, (
             message_id,
             message_data.session_id,  # 使用属性访问器
@@ -103,6 +110,7 @@ class MessageCreate(BaseModel):
     def get_by_id_sync(cls, message_id: str) -> Optional[Dict[str, Any]]:
         """根据ID获取消息（同步版本）"""
         query = "SELECT * FROM messages WHERE id = ?"
+        db = get_database()
         row = db.fetchone_sync(query, (message_id,))
         return row_to_dict(row)
 
@@ -116,7 +124,8 @@ class MessageCreate(BaseModel):
             query += " LIMIT ?"
             params = (session_id, limit)
         
-        rows = await db.fetchall(query, params)
+        db = get_database()
+        rows = await db.fetch_all_async(query, params)
         return [row_to_dict(row) for row in rows]
 
     @classmethod
@@ -129,6 +138,7 @@ class MessageCreate(BaseModel):
             query += " LIMIT ?"
             params = (session_id, limit)
         
+        db = get_database()
         rows = db.fetchall_sync(query, params)
         return [row_to_dict(row) for row in rows]
 
@@ -136,20 +146,23 @@ class MessageCreate(BaseModel):
     async def get_by_id(cls, message_id: str) -> Optional[Dict[str, Any]]:
         """根据ID获取消息"""
         query = "SELECT * FROM messages WHERE id = ?"
-        row = await db.fetchone(query, (message_id,))
+        db = get_database()
+        row = await db.fetch_one_async(query, (message_id,))
         return row_to_dict(row)
 
     @classmethod
     async def delete_by_session(cls, session_id: str) -> bool:
         """删除会话的所有消息"""
         query = "DELETE FROM messages WHERE session_id = ?"
-        cursor = await db.execute(query, (session_id,))
+        db = get_database()
+        cursor = await db.execute_query_async(query, (session_id,))
         return cursor.rowcount > 0
 
     @classmethod
     def delete_by_session_sync(cls, session_id: str) -> bool:
         """删除会话的所有消息（同步版本）"""
         query = "DELETE FROM messages WHERE session_id = ?"
+        db = get_database()
         cursor = db.execute_sync(query, (session_id,))
         return cursor.rowcount > 0
 

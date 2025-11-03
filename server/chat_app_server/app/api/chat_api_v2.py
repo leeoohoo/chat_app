@@ -19,7 +19,7 @@ from pydantic import BaseModel, Field
 
 from ..services.v2.ai_server import AiServer
 from ..services.v2.mcp_tool_execute import McpToolExecute
-from ..models import db
+from ..models.database_factory import get_database
 from ..models.message import MessageCreate
 
 logger = logging.getLogger(__name__)
@@ -103,6 +103,7 @@ def load_mcp_configs_sync() -> tuple[Dict[str, Dict[str, Any]], Dict[str, Dict[s
     """同步加载MCP配置"""
     try:
         # 从数据库加载配置
+        db = get_database()
         configs = db.fetchall_sync('SELECT * FROM mcp_configs WHERE enabled = 1')
         
         http_servers = {}

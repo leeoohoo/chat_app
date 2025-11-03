@@ -6,7 +6,7 @@ import time
 from typing import Dict, Any, Optional
 
 from fastapi import APIRouter, HTTPException, Query
-from app.models.session import SessionCreate, SessionMcpServerCreate
+from app.models.session import SessionCreate, SessionMcpServerCreate, SessionService, SessionMcpServerService
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -19,8 +19,10 @@ async def get_sessions(
 ):
     """获取会话列表"""
     try:
-        sessions = await SessionCreate.get_all(user_id=user_id, project_id=project_id)
-        logger.info(f"获取到 {len(sessions)} 个会话 (user_id={user_id}, project_id={project_id})")
+        # 目前忽略 user_id 和 project_id 参数，返回所有会话
+        # 后续可以根据需要添加过滤逻辑
+        sessions = SessionService.get_all()
+        logger.info(f"获取到 {len(sessions)} 个会话")
         return sessions
         
     except Exception as e:
@@ -31,9 +33,13 @@ async def get_sessions(
 async def create_session(session: SessionCreate):
     """创建新会话"""
     try:
-        new_session = await SessionCreate.create(session)
-        logger.info(f"创建会话成功: {new_session['id']}")
-        return new_session
+        session_id = SessionService.create(session)
+        # 获取创建的会话信息返回
+        new_session = SessionService.get_by_id(session_id)
+        if new_session:
+            new_session['id'] = session_id
+        logger.info(f"创建会话成功: {session_id}")
+        return new_session or {"id": session_id, "title": session.title}
         
     except Exception as e:
         logger.error(f"创建会话失败: {e}")
@@ -43,7 +49,7 @@ async def create_session(session: SessionCreate):
 async def get_session(session_id: str):
     """获取特定会话"""
     try:
-        session = await SessionCreate.get_by_id(session_id)
+        session = SessionService.get_by_id(session_id)
         if not session:
             raise HTTPException(status_code=404, detail="会话不存在")
         
@@ -59,7 +65,7 @@ async def get_session(session_id: str):
 async def delete_session(session_id: str):
     """删除会话"""
     try:
-        success = await SessionCreate.delete(session_id)
+        success = await SessionService.delete_async(session_id)
         if not success:
             raise HTTPException(status_code=404, detail="会话不存在")
         
@@ -76,7 +82,7 @@ async def delete_session(session_id: str):
 async def get_session_mcp_servers(session_id: str):
     """获取会话的MCP服务器配置"""
     try:
-        servers = await SessionMcpServerCreate.get_by_session(session_id)
+        servers = SessionMcpServerService.get_by_session(session_id)
         logger.info(f"获取会话 {session_id} 的 {len(servers)} 个MCP服务器")
         return servers
         
@@ -87,33 +93,28 @@ async def get_session_mcp_servers(session_id: str):
 
 @router.post("/sessions/{session_id}/mcp-servers")
 async def add_session_mcp_server(session_id: str, server: SessionMcpServerCreate):
+    """添加会话MCP服务器关联"""
     try:
-        server_id = str(int(time.time() * 1000))
+        # 设置会话ID
+        server.session_id = session_id
+        server_id = SessionMcpServerService.create(server)
         
-        await db.execute(
-            'INSERT INTO session_mcp_servers (id, session_id, mcp_config_id) VALUES (?, ?, ?)',
-            (server_id, session_id, server.mcp_config_id)
-        )
+        logger.info(f"为会话 {session_id} 添加MCP服务器成功: {server_id}")
+        return {"id": server_id, "session_id": session_id, "mcp_server_name": server.mcp_server_name}
         
-        db.connection.row_factory = lambda cursor, row: dict(zip([col[0] for col in cursor.description], row))
-        session_mcp_server = await db.fetchone(
-            'SELECT * FROM session_mcp_servers WHERE id = ?',
-            (server_id,)
-        )
-        return session_mcp_server
-        
-    except Exception as error:
-        raise HTTPException(status_code=500, detail=str(error))
+    except Exception as e:
+        logger.error(f"添加会话MCP服务器失败: {e}")
+        raise HTTPException(status_code=500, detail="添加会话MCP服务器失败")
 
 
 @router.delete("/sessions/{session_id}/mcp-servers/{mcp_config_id}")
 async def delete_session_mcp_server(session_id: str, mcp_config_id: str):
+    """删除会话MCP服务器关联"""
     try:
-        await db.execute(
-            'DELETE FROM session_mcp_servers WHERE session_id = ? AND mcp_config_id = ?',
-            (session_id, mcp_config_id)
-        )
+        success = await SessionMcpServerService.delete_by_session_async(session_id)
+        logger.info(f"删除会话 {session_id} 的MCP服务器关联成功")
         return {"success": True}
         
-    except Exception as error:
-        raise HTTPException(status_code=500, detail=str(error))
+    except Exception as e:
+        logger.error(f"删除会话MCP服务器关联失败: {e}")
+        raise HTTPException(status_code=500, detail="删除会话MCP服务器关联失败")

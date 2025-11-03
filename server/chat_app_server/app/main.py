@@ -14,7 +14,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from app.api import sessions, messages, configs, mcp_initializers, chat_api_v2
-from app.models import db
+from app.models import db_manager
+from app.models.database_factory import get_database
 from app.mcp_manager.configs import startup_initialize_mcp
 
 # 配置日志
@@ -28,6 +29,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     # 启动时初始化数据库
     logger.info("正在初始化数据库...")
+    db = get_database()
     await db.init_database()
     logger.info("数据库初始化完成")
     
@@ -76,7 +78,7 @@ app.include_router(chat_api_v2.router, prefix="/api", tags=["chat-v2"])
 
 # 数据库依赖
 async def get_db():
-    return db
+    return get_database()
 
 
 # 服务前端静态文件（如果存在）

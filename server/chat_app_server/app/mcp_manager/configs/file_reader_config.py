@@ -44,7 +44,7 @@ class FileReaderConfigInitializer:
             "timeout": 30,
             
             # 核心配置参数
-            "project_root": "/Users/lilei/project/work/zj/user_manager",  # 项目根目录，需要用户设置
+            "project_root": "/Users/lilei/project/work/zj/code_few/python-sdk",  # 项目根目录，需要用户设置
             "max_file_size": 10,  # 最大文件大小（MB）
             "enable_hidden_files": False,  # 是否启用隐藏文件访问
             
