@@ -98,14 +98,8 @@ async def serve_frontend(full_path: str):
     raise HTTPException(status_code=404, detail='Page not found')
 
 
-# 优雅关闭处理
-def signal_handler(signum, frame):
-    logger.info(f'🔄 收到信号 {signum}，正在关闭服务器...')
-    asyncio.create_task(shutdown_event())
-
-
-signal.signal(signal.SIGINT, signal_handler)
-signal.signal(signal.SIGTERM, signal_handler)
+# 移除自定义信号处理器，让 uvicorn 自己处理
+# uvicorn 已经内置了正确的信号处理逻辑
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 3001))
