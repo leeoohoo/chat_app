@@ -382,7 +382,7 @@ class ApiClient {
   }
 
   // 流式聊天接口
-  async streamChat(sessionId: string, content: string, modelConfig: any): Promise<ReadableStream> {
+  async streamChat(sessionId: string, content: string, modelConfig: any, userId?: string): Promise<ReadableStream> {
     const url = `${this.baseUrl}/v2/chat/stream`;
     
     const response = await fetch(url, {
@@ -393,6 +393,7 @@ class ApiClient {
       body: JSON.stringify({
         session_id: sessionId,
         content: content,
+        user_id: userId,
         ai_model_config: {
           model_name: modelConfig.model_name,
           temperature: modelConfig.temperature || 0.7,

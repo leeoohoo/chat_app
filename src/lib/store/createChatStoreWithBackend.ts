@@ -470,7 +470,8 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                             const response = await client.streamChat(
                                 currentSessionId, 
                                 content, 
-                                selectedModel
+                                selectedModel,
+                                getUserIdParam()
                             );
                             
                             if (!response) {
@@ -993,6 +994,7 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                                     id: config.id,
                                     name: config.name,
                                     command: config.command,
+                                    type: config.type, // 更新时传递协议类型
                                     enabled: config.enabled,
                                     userId,
                                 };
@@ -1003,7 +1005,7 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                                     id: crypto.randomUUID(),
                                     name: config.name,
                                     command: config.command,
-                                    type: 'stdio' as const, // 添加必需的type字段，默认为stdio
+                                    type: (config.type ?? 'stdio') as 'http' | 'stdio', // 使用表单选择的类型
                                     enabled: config.enabled,
                                     user_id: userId,
                                 };

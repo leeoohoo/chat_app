@@ -21,6 +21,7 @@ from ..services.v2.ai_server import AiServer
 from ..services.v2.mcp_tool_execute import McpToolExecute
 from ..models.database_factory import get_database
 from ..models.message import MessageCreate
+from ..models.config import McpConfigCreate
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,7 @@ class ChatRequestV2(BaseModel):
     session_id: str = Field(description="会话ID")
     content: str = Field(description="消息内容")
     ai_model_config: Optional[ModelConfigV2] = Field(default=None, description="模型配置")
+    user_id: Optional[str] = Field(default=None, description="用户ID，用于按用户加载MCP配置")
 
 
 class ChatMessageV2(BaseModel):
@@ -99,12 +101,14 @@ def get_active_sessions() -> List[str]:
 
 # ===== MCP 配置加载 =====
 
-def load_mcp_configs_sync() -> tuple[Dict[str, Dict[str, Any]], Dict[str, Dict[str, Any]]]:
-    """同步加载MCP配置"""
+def load_mcp_configs_sync(user_id: Optional[str] = None) -> tuple[Dict[str, Dict[str, Any]], Dict[str, Dict[str, Any]]]:
+    """同步加载MCP配置（支持按用户过滤）"""
     try:
-        # 从数据库加载配置
-        db = get_database()
-        configs = db.fetchall_sync('SELECT * FROM mcp_configs WHERE enabled = 1')
+        # 使用模型的统一方法按需加载配置（异步方法在此同步调用）
+        configs = asyncio.run(McpConfigCreate.get_all(user_id=user_id))
+
+        # 仅保留启用的配置
+        configs = [c for c in configs if c.get('enabled')]
         
         http_servers = {}
         stdio_servers = {}
@@ -116,14 +120,14 @@ def load_mcp_configs_sync() -> tuple[Dict[str, Dict[str, Any]], Dict[str, Dict[s
             
             # 解析args和env
             try:
-                args = json.loads(config.get('args', '[]')) if config.get('args') else []
+                args = json.loads(config.get('args', '[]')) if isinstance(config.get('args'), str) else (config.get('args') or [])
             except json.JSONDecodeError:
-                args = config.get('args', '').split(',') if config.get('args') else []
+                args = config.get('args', []) or []
             
             try:
-                env = json.loads(config.get('env', '{}')) if config.get('env') else {}
+                env = json.loads(config.get('env', '{}')) if isinstance(config.get('env'), str) else (config.get('env') or {})
             except json.JSONDecodeError:
-                env = {}
+                env = config.get('env', {}) or {}
             
             if server_type == 'http':
                 http_servers[server_name] = {
@@ -213,10 +217,10 @@ def get_ai_server_v2() -> AiServer:
     return ai_server
 
 
-def get_ai_server_with_mcp_configs_v2(api_key: Optional[str] = None, base_url: Optional[str] = None) -> AiServer:
+def get_ai_server_with_mcp_configs_v2(api_key: Optional[str] = None, base_url: Optional[str] = None, user_id: Optional[str] = None) -> AiServer:
     """获取带有 MCP 配置的 v2 AI 服务器实例"""
     # 加载 MCP 配置
-    http_servers, stdio_servers = load_mcp_configs_sync()
+    http_servers, stdio_servers = load_mcp_configs_sync(user_id=user_id)
     
     # 获取 API 密钥 - 优先使用传入的参数，其次使用环境变量
     if not api_key:
@@ -275,7 +279,8 @@ def get_ai_server_with_mcp_configs_v2(api_key: Optional[str] = None, base_url: O
 def create_stream_response_v2(
     session_id: str,
     content: str,
-    model_config: Optional[Dict[str, Any]] = None
+    model_config: Optional[Dict[str, Any]] = None,
+    user_id: Optional[str] = None
 ) -> Generator[str, None, None]:
     """
     创建 v2 版本的流式响应
@@ -299,7 +304,7 @@ def create_stream_response_v2(
                 base_url = model_config["base_url"]
         
         # 获取AI服务器实例
-        server = get_ai_server_with_mcp_configs_v2(api_key=api_key, base_url=base_url)
+        server = get_ai_server_with_mcp_configs_v2(api_key=api_key, base_url=base_url, user_id=user_id)
         
         # 设置为指定会话的AI服务器实例
         set_session_ai_server(session_id, server)
@@ -548,7 +553,8 @@ def chat_stream_v2(request: ChatRequestV2):
             create_stream_response_v2(
                 session_id=request.session_id,
                 content=request.content,
-                model_config=model_config
+                model_config=model_config,
+                user_id=request.user_id
             ),
             media_type="text/event-stream",
             headers={

@@ -74,35 +74,9 @@ class ExpertStreamConfigInitializer:
             "summary_length_threshold": 50000
         }
     
-    def get_development_config(self) -> Dict[str, Any]:
-        """获取开发环境的配置模板"""
-        config = self.get_default_config()
-        config.update({
-            "log_level": "DEBUG",
-            "role": "development_assistant",
-            "tool_description": "🤖 **Development Assistant** - Professional Development Task Executor",
-            "parameter_description": "🎯 **Development Task Parameter**: Send development task to assistant",
-            "system_prompt": "你是一个专业的开发助手，能够帮助用户完成各种开发任务。",
-            "summary_interval": 5,
-            "max_rounds": 25,
-        })
-        return config
+  
     
-    def get_code_review_config(self) -> Dict[str, Any]:
-        """获取代码审查环境的配置模板"""
-        config = self.get_default_config()
-        config.update({
-            "role": "code_reviewer",
-            "tool_description": "🔧 **Code Review Assistant** - Advanced Code Analysis Tool",
-            "parameter_description": "📝 **Code Analysis Parameter**: Submit code for professional review",
-            "system_prompt": "你是一个专业的代码审查助手，能够分析代码质量、发现潜在问题并提供改进建议。",
-            "summary_interval": 3,
-            "max_rounds": 15,
-            "summary_instruction": "You are an expert code analyzer. Focus on critical code patterns and potential issues.",
-            "summary_request": "Generate a comprehensive code analysis summary with actionable insights.",
-            "summary_length_threshold": 20000,
-        })
-        return config
+
     
     async def initialize_config(self, alias: str, 
                          config_template: str = "default",
@@ -121,13 +95,8 @@ class ExpertStreamConfigInitializer:
         try:
             logger.info(f"🚀 开始初始化 Expert Stream Server 配置: {alias}")
             
-            # 获取配置模板
-            if config_template == "development":
-                config = self.get_development_config()
-            elif config_template == "code_review":
-                config = self.get_code_review_config()
-            else:
-                config = self.get_default_config()
+           
+            config = self.get_default_config()
             
             # 设置角色为别名
             config["role"] = alias
