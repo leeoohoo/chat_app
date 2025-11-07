@@ -824,6 +824,9 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
                                     name: config.name,
                                     command: config.command,
                                     type: config.type, // 确保更新时传递协议类型
+                                    args: config.args ?? undefined,
+                                    env: config.env ?? undefined,
+                                    cwd: (config as any).cwd ?? undefined,
                                     enabled: config.enabled,
                                     userId,
                                 };
@@ -835,6 +838,9 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
                                     name: config.name,
                                     command: config.command,
                                     type: (config.type ?? 'stdio') as 'http' | 'stdio', // 使用表单选择的类型
+                                    args: config.args ?? undefined,
+                                    env: config.env ?? undefined,
+                                    cwd: (config as any).cwd ?? undefined,
                                     enabled: config.enabled,
                                     user_id: userId,
                                 };

@@ -22,6 +22,7 @@ class McpConfigCreate(BaseModel):
     type: str = "stdio"
     args: Optional[List[str]] = None
     env: Optional[Dict[str, str]] = None
+    cwd: Optional[str] = None
     user_id: Optional[str] = None
     enabled: bool = True
 
@@ -36,10 +37,10 @@ class McpConfigCreate(BaseModel):
         env_json = json.dumps(config_data.env) if config_data.env else None
         
         query = """
-        INSERT INTO mcp_configs (id, name, command, type, args, env, user_id, enabled, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        INSERT INTO mcp_configs (id, name, command, type, args, env, cwd, user_id, enabled, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         """
-        
+
         await db.execute_query_async(query, (
             config_id,
             config_data.name,
@@ -47,6 +48,7 @@ class McpConfigCreate(BaseModel):
             config_data.type,
             args_json,
             env_json,
+            config_data.cwd,
             config_data.user_id,
             config_data.enabled
         ))
@@ -80,6 +82,7 @@ class McpConfigCreate(BaseModel):
                         config['env'] = json.loads(config['env'])
                     except (json.JSONDecodeError, TypeError):
                         config['env'] = None
+                # 保留cwd为字符串（可为空）
                 
                 configs.append(config)
         
@@ -106,6 +109,7 @@ class McpConfigCreate(BaseModel):
                     config['env'] = json.loads(config['env'])
                 except (json.JSONDecodeError, TypeError):
                     config['env'] = None
+            # 保留cwd原样
             
             return config
         return None
@@ -124,6 +128,7 @@ class McpConfigUpdate(BaseModel):
     type: Optional[str] = None
     args: Optional[List[str]] = None
     env: Optional[Dict[str, str]] = None
+    cwd: Optional[str] = None
     enabled: Optional[bool] = None
 
     @classmethod
@@ -155,6 +160,10 @@ class McpConfigUpdate(BaseModel):
             update_fields.append("env = ?")
             update_values.append(json.dumps(update_data.env))
         
+        if update_data.cwd is not None:
+            update_fields.append("cwd = ?")
+            update_values.append(update_data.cwd)
+        
         if update_data.enabled is not None:
             update_fields.append("enabled = ?")
             update_values.append(update_data.enabled)
@@ -172,6 +181,161 @@ class McpConfigUpdate(BaseModel):
         await db.execute_query_async(query, tuple(update_values))
         
         return await McpConfigCreate.get_by_id(config_id)
+
+
+class McpConfigProfileCreate(BaseModel):
+    mcp_config_id: str
+    name: str
+    args: Optional[List[str]] = None
+    env: Optional[Dict[str, str]] = None
+    cwd: Optional[str] = None
+    enabled: bool = False
+
+    @classmethod
+    async def create(cls, data: "McpConfigProfileCreate") -> Dict[str, Any]:
+        db = get_database()
+        profile_id = str(uuid.uuid4())
+        args_json = json.dumps(data.args) if data.args else None
+        env_json = json.dumps(data.env) if data.env else None
+        query = """
+        INSERT INTO mcp_config_profiles (id, mcp_config_id, name, args, env, cwd, enabled, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        """
+        await db.execute_query_async(query, (
+            profile_id,
+            data.mcp_config_id,
+            data.name,
+            args_json,
+            env_json,
+            data.cwd,
+            data.enabled,
+        ))
+        return await McpConfigProfileCreate.get_by_id(profile_id)
+
+    @classmethod
+    async def get_by_id(cls, profile_id: str) -> Optional[Dict[str, Any]]:
+        db = get_database()
+        row = await db.fetch_one_async("SELECT * FROM mcp_config_profiles WHERE id = ?", (profile_id,))
+        if not row:
+            return None
+        d = row_to_dict(row)
+        if d.get("args"):
+            try:
+                d["args"] = json.loads(d["args"])
+            except Exception:
+                d["args"] = None
+        if d.get("env"):
+            try:
+                d["env"] = json.loads(d["env"])
+            except Exception:
+                d["env"] = None
+        return d
+
+    @classmethod
+    async def list_by_config(cls, mcp_config_id: str) -> List[Dict[str, Any]]:
+        db = get_database()
+        rows = await db.fetch_all_async("SELECT * FROM mcp_config_profiles WHERE mcp_config_id = ? ORDER BY created_at DESC", (mcp_config_id,))
+        out: List[Dict[str, Any]] = []
+        for row in rows:
+            d = row_to_dict(row)
+            if d.get("args"):
+                try:
+                    d["args"] = json.loads(d["args"])
+                except Exception:
+                    d["args"] = None
+            if d.get("env"):
+                try:
+                    d["env"] = json.loads(d["env"])
+                except Exception:
+                    d["env"] = None
+            out.append(d)
+        return out
+
+    @classmethod
+    async def delete(cls, profile_id: str) -> bool:
+        """删除配置档案"""
+        db = get_database()
+        await db.execute_query_async(
+            "DELETE FROM mcp_config_profiles WHERE id = ?",
+            (profile_id,)
+        )
+        return True
+
+class McpConfigProfileUpdate(BaseModel):
+    name: Optional[str] = None
+    args: Optional[List[str]] = None
+    env: Optional[Dict[str, str]] = None
+    cwd: Optional[str] = None
+    enabled: Optional[bool] = None
+
+    @classmethod
+    async def update(cls, profile_id: str, data: "McpConfigProfileUpdate") -> Optional[Dict[str, Any]]:
+        db = get_database()
+        fields = []
+        values: List[Any] = []
+        if data.name is not None:
+            fields.append("name = ?")
+            values.append(data.name)
+        if data.args is not None:
+            fields.append("args = ?")
+            values.append(json.dumps(data.args))
+        if data.env is not None:
+            fields.append("env = ?")
+            values.append(json.dumps(data.env))
+        if data.cwd is not None:
+            fields.append("cwd = ?")
+            values.append(data.cwd)
+        if data.enabled is not None:
+            fields.append("enabled = ?")
+            values.append(data.enabled)
+        if not fields:
+            return await McpConfigProfileCreate.get_by_id(profile_id)
+        fields.append("updated_at = CURRENT_TIMESTAMP")
+        values.append(profile_id)
+        query = f"UPDATE mcp_config_profiles SET {', '.join(fields)} WHERE id = ?"
+        await db.execute_query_async(query, tuple(values))
+        return await McpConfigProfileCreate.get_by_id(profile_id)
+
+class McpConfigProfileActivate(BaseModel):
+    mcp_config_id: str
+    profile_id: str
+
+    @classmethod
+    async def activate(cls, mcp_config_id: str, profile_id: str) -> Optional[Dict[str, Any]]:
+        db = get_database()
+        # 禁用该配置下其他档案
+        await db.execute_query_async(
+            "UPDATE mcp_config_profiles SET enabled = 0, updated_at = CURRENT_TIMESTAMP WHERE mcp_config_id = ?",
+            (mcp_config_id,)
+        )
+        # 启用目标档案
+        await db.execute_query_async(
+            "UPDATE mcp_config_profiles SET enabled = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (profile_id,)
+        )
+        return await McpConfigProfileCreate.get_by_id(profile_id)
+
+    @classmethod
+    async def get_active(cls, mcp_config_id: str) -> Optional[Dict[str, Any]]:
+        db = get_database()
+        row = await db.fetch_one_async(
+            "SELECT * FROM mcp_config_profiles WHERE mcp_config_id = ? AND enabled = 1",
+            (mcp_config_id,)
+        )
+        if not row:
+            return None
+        d = row_to_dict(row)
+        if d.get("args"):
+            try:
+                d["args"] = json.loads(d["args"])
+            except Exception:
+                d["args"] = None
+        if d.get("env"):
+            try:
+                d["env"] = json.loads(d["env"])
+            except Exception:
+                d["env"] = None
+        return d
 
 class AiModelConfigCreate(BaseModel):
     name: str

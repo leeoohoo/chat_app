@@ -21,7 +21,7 @@ from ..services.v2.ai_server import AiServer
 from ..services.v2.mcp_tool_execute import McpToolExecute
 from ..models.database_factory import get_database
 from ..models.message import MessageCreate
-from ..models.config import McpConfigCreate
+from ..models.config import McpConfigCreate, McpConfigProfileActivate
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +114,11 @@ def load_mcp_configs_sync(user_id: Optional[str] = None) -> tuple[Dict[str, Dict
         stdio_servers = {}
         
         for config in configs:
+            # 原始名称
             server_name = config['name']
+            # 生成唯一别名，避免同名配置互相覆盖（导致激活档案被后加载项覆盖）
+            # 使用 name + 前8位配置ID 作为唯一键
+            server_alias = f"{server_name}_{config['id'][:8]}"
             command = config['command']
             server_type = config.get('type', 'stdio')
             
@@ -130,28 +134,46 @@ def load_mcp_configs_sync(user_id: Optional[str] = None) -> tuple[Dict[str, Dict
                 env = config.get('env', {}) or {}
             
             if server_type == 'http':
-                http_servers[server_name] = {
+                http_servers[server_alias] = {
                     'url': command,
                     'args': args,
                     'env': env
                 }
             else:
+                # 直接使用命令，不再从命令字符串中解析 alias
                 actual_command = command
-                alias = server_name
-                
-                if '--' in command:
-                    parts = command.split('--', 1)
-                    actual_command = parts[0].strip()
-                    alias = parts[1].strip()
-                
-                stdio_servers[server_name] = {
+                # 读取激活的 profile 并覆盖 args/env/cwd
+                cwd = config.get('cwd')
+                try:
+                    active_profile = asyncio.run(McpConfigProfileActivate.get_active(config['id']))
+                    print(active_profile)
+                except Exception:
+                    active_profile = None
+                if active_profile:
+                    prof_args = active_profile.get('args') or []
+                    prof_env = active_profile.get('env') or {}
+                    prof_cwd = active_profile.get('cwd')
+                    if prof_args:
+                        args = prof_args
+                    if prof_env:
+                        env = prof_env
+                    if prof_cwd:
+                        cwd = prof_cwd
+
+                stdio_servers[server_alias] = {
                     'command': actual_command,
-                    'alias': alias,
                     'args': args,
-                    'env': env
+                    'env': env,
+                    'cwd': cwd
                 }
         
-        logger.info(f"✅ v2 加载MCP配置完成: HTTP服务器 {len(http_servers)} 个, stdio服务器 {len(stdio_servers)} 个")
+        # 打印别名映射和覆盖结果，便于排查同名覆盖问题
+        try:
+            logger.info(f"✅ v2 加载MCP配置完成: HTTP服务器 {len(http_servers)} 个, stdio服务器 {len(stdio_servers)} 个")
+            logger.info("HTTP服务器别名列表: %s", list(http_servers.keys()))
+            logger.info("STDIO服务器别名列表: %s", list(stdio_servers.keys()))
+        except Exception:
+            pass
         return http_servers, stdio_servers
         
     except Exception as e:
@@ -174,23 +196,24 @@ def get_ai_server_v2() -> AiServer:
         # 加载 MCP 配置
         http_servers, stdio_servers = load_mcp_configs_sync()
         
-        # 将 HTTP 配置转换为 mcp_servers 格式
+        # 将 HTTP 配置转换为 mcp_servers 格式（使用唯一别名作为名称）
         mcp_servers = []
         for name, config in http_servers.items():
             mcp_servers.append({
                 "name": name,
                 "url": config["url"]
             })
-        
-        # 将 stdio 配置转换为 stdio_mcp_servers 格式
+
+        # 将 stdio 配置转换为 stdio_mcp_servers 格式（使用唯一别名作为名称）
         stdio_mcp_servers = []
         for name, config in stdio_servers.items():
             stdio_mcp_servers.append({
                 "name": name,
                 "command": config["command"],
-                "alias": config["alias"],
-                "args": config.get("args", []),
-                "env": config.get("env", {})
+                # 保持原值传递（可能为 None 或已解析的列表/字典），由执行器做统一规范化
+                "args": config.get("args"),
+                "env": config.get("env"),
+                "cwd": config.get("cwd")
             })
         
         # 设置配置目录
@@ -232,23 +255,24 @@ def get_ai_server_with_mcp_configs_v2(api_key: Optional[str] = None, base_url: O
         api_key = ""
     
     # 创建带配置的 MCP 执行器
-    # 将 HTTP 配置转换为 mcp_servers 格式
+    # 将 HTTP 配置转换为 mcp_servers 格式（使用唯一别名作为名称）
     mcp_servers = []
     for name, config in http_servers.items():
         mcp_servers.append({
             "name": name,
             "url": config["url"]
         })
-    
-    # 将 stdio 配置转换为 stdio_mcp_servers 格式
+
+    # 将 stdio 配置转换为 stdio_mcp_servers 格式（使用唯一别名作为名称）
     stdio_mcp_servers = []
     for name, config in stdio_servers.items():
         stdio_mcp_servers.append({
             "name": name,
             "command": config["command"],
-            "alias": config["alias"],
-            "args": config.get("args", []),
-            "env": config.get("env", {})
+            # 保持原值传递（可能为 None 或已解析的列表/字典），由执行器做统一规范化
+            "args": config.get("args"),
+            "env": config.get("env"),
+            "cwd": config.get("cwd")
         })
     
     # 设置配置目录

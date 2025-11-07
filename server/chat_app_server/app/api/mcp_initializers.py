@@ -1,8 +1,8 @@
-# MCP配置初始化器API路由
+# MCP配置初始化器API路由（按需初始化，无导入时副作用）
 
-import os
 import logging
 from pathlib import Path
+from functools import lru_cache
 from fastapi import APIRouter, HTTPException
 from typing import Dict, Any
 
@@ -16,53 +16,53 @@ from app.models.mcp_config_models import (
 )
 from app.mcp_manager.configs.expert_stream_config import ExpertStreamConfigInitializer
 from app.mcp_manager.configs.file_reader_config import FileReaderConfigInitializer
+from app.mcp_manager.system_detector import SystemDetector
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# 导入系统检测器
-from app.mcp_manager.system_detector import SystemDetector
 
-# 获取项目根目录（app 目录的父目录）
-PROJECT_ROOT = Path(__file__).parent.parent.parent.absolute()
+@lru_cache(maxsize=1)
+def _get_mcp_context() -> Dict[str, Any]:
+    """按需构建并缓存 MCP 相关上下文。
+    返回包含项目根目录、配置目录、服务目录、系统检测器以及各服务器脚本路径。
+    """
+    project_root = Path(__file__).parent.parent.parent.absolute()
+    config_dir_path = project_root / "mcp_config"
+    services_dir_path = project_root / "mcp_services"
 
-# 服务端配置目录路径 - 使用项目根目录
-CONFIG_DIR = str(PROJECT_ROOT / "mcp_config")
-MCP_SERVICES_DIR = str(PROJECT_ROOT / "mcp_services")
+    # 仅在需要时创建目录
+    config_dir_path.mkdir(parents=True, exist_ok=True)
+    services_dir_path.mkdir(parents=True, exist_ok=True)
 
-# 确保目录存在
-Path(CONFIG_DIR).mkdir(parents=True, exist_ok=True)
-Path(MCP_SERVICES_DIR).mkdir(parents=True, exist_ok=True)
+    detector = SystemDetector(str(services_dir_path))
+    expert_script = detector.get_server_executable_path("expert-stream-server")
+    file_reader_script = detector.get_server_executable_path("file-reader-server")
 
-logger.info(f"📁 项目根目录: {PROJECT_ROOT}")
-logger.info(f"📁 配置目录: {CONFIG_DIR}")
-logger.info(f"📁 MCP服务目录: {MCP_SERVICES_DIR}")
+    # 记录基础信息（不抛异常，路由内按需校验）
+    logger.info(f"📁 项目根目录: {project_root}")
+    logger.info(f"📁 配置目录: {config_dir_path}")
+    logger.info(f"📁 MCP服务目录: {services_dir_path}")
 
-# 初始化系统检测器
-system_detector = SystemDetector(MCP_SERVICES_DIR)
-
-# 动态获取服务器脚本路径
-EXPERT_STREAM_SERVER_SCRIPT = system_detector.get_server_executable_path("expert-stream-server")
-FILE_READER_SERVER_SCRIPT = system_detector.get_server_executable_path("file-reader-server")
-
-# 验证服务器路径
-if not EXPERT_STREAM_SERVER_SCRIPT:
-    logger.error("❌ 无法找到适合当前系统的 Expert Stream 服务器")
-    raise RuntimeError("Expert Stream 服务器不可用")
-
-if not FILE_READER_SERVER_SCRIPT:
-    logger.error("❌ 无法找到适合当前系统的 File Reader 服务器")
-    raise RuntimeError("File Reader 服务器不可用")
-
-logger.info(f"✅ Expert Stream 服务器路径: {EXPERT_STREAM_SERVER_SCRIPT}")
-logger.info(f"✅ File Reader 服务器路径: {FILE_READER_SERVER_SCRIPT}")
+    return {
+        "project_root": project_root,
+        "config_dir": str(config_dir_path),
+        "services_dir": str(services_dir_path),
+        "detector": detector,
+        "expert_script": expert_script,
+        "file_reader_script": file_reader_script,
+    }
 
 
 @router.post("/expert-stream/initialize", response_model=ConfigInitializerResponse)
 async def initialize_expert_stream_config(request: ExpertStreamConfigRequest):
     """初始化 Expert Stream 配置"""
     try:
-        initializer = ExpertStreamConfigInitializer(CONFIG_DIR, EXPERT_STREAM_SERVER_SCRIPT)
+        ctx = _get_mcp_context()
+        if not ctx["expert_script"]:
+            raise HTTPException(status_code=500, detail="Expert Stream 服务器不可用")
+
+        initializer = ExpertStreamConfigInitializer(ctx["config_dir"], ctx["expert_script"])
 
         # 调用初始化方法
         await initializer.initialize_config(
@@ -77,7 +77,7 @@ async def initialize_expert_stream_config(request: ExpertStreamConfigRequest):
         return ConfigInitializerResponse(
             success=True,
             message=f"Expert Stream 配置 '{request.alias}' 初始化成功",
-            config_path=str(Path(CONFIG_DIR) / f"expert_stream_server_alias_{request.alias}_server_config.json"),
+            config_path=str(Path(ctx["config_dir"]) / f"expert_stream_server_alias_{request.alias}_server_config.json"),
             config_data=config_data
         )
 
@@ -90,7 +90,11 @@ async def initialize_expert_stream_config(request: ExpertStreamConfigRequest):
 async def initialize_file_reader_config(request: FileReaderConfigRequest):
     """初始化 File Reader 配置"""
     try:
-        initializer = FileReaderConfigInitializer(CONFIG_DIR, FILE_READER_SERVER_SCRIPT)
+        ctx = _get_mcp_context()
+        if not ctx["file_reader_script"]:
+            raise HTTPException(status_code=500, detail="File Reader 服务器不可用")
+
+        initializer = FileReaderConfigInitializer(ctx["config_dir"], ctx["file_reader_script"])
 
         # 调用初始化方法
         await initializer.initialize_config(
@@ -106,7 +110,7 @@ async def initialize_file_reader_config(request: FileReaderConfigRequest):
         return ConfigInitializerResponse(
             success=True,
             message=f"File Reader 配置 '{request.alias}' 初始化成功",
-            config_path=str(Path(CONFIG_DIR) / f"File Reader MCP Server_alias_{request.alias}_server_config.json"),
+            config_path=str(Path(ctx["config_dir"]) / f"File Reader MCP Server_alias_{request.alias}_server_config.json"),
             config_data=config_data
         )
 
@@ -119,7 +123,10 @@ async def initialize_file_reader_config(request: FileReaderConfigRequest):
 async def get_expert_stream_config(alias: str):
     """获取 Expert Stream 配置"""
     try:
-        initializer = ExpertStreamConfigInitializer(CONFIG_DIR, EXPERT_STREAM_SERVER_SCRIPT)
+        ctx = _get_mcp_context()
+        if not ctx["expert_script"]:
+            raise HTTPException(status_code=500, detail="Expert Stream 服务器不可用")
+        initializer = ExpertStreamConfigInitializer(ctx["config_dir"], ctx["expert_script"])
         config_data = await initializer.get_config(alias)
 
         if not config_data:
@@ -128,7 +135,7 @@ async def get_expert_stream_config(alias: str):
         return ConfigInitializerResponse(
             success=True,
             message=f"获取 Expert Stream 配置 '{alias}' 成功",
-            config_path=str(Path(CONFIG_DIR) / f"expert_stream_server_alias_{alias}_server_config.json"),
+            config_path=str(Path(ctx["config_dir"]) / f"expert_stream_server_alias_{alias}_server_config.json"),
             config_data=config_data
         )
 
@@ -143,7 +150,10 @@ async def get_expert_stream_config(alias: str):
 async def get_file_reader_config(alias: str):
     """获取 File Reader 配置"""
     try:
-        initializer = FileReaderConfigInitializer(CONFIG_DIR, FILE_READER_SERVER_SCRIPT)
+        ctx = _get_mcp_context()
+        if not ctx["file_reader_script"]:
+            raise HTTPException(status_code=500, detail="File Reader 服务器不可用")
+        initializer = FileReaderConfigInitializer(ctx["config_dir"], ctx["file_reader_script"])
         config_data = await initializer.get_config(alias)
 
         if not config_data:
@@ -152,7 +162,7 @@ async def get_file_reader_config(alias: str):
         return ConfigInitializerResponse(
             success=True,
             message=f"获取 File Reader 配置 '{alias}' 成功",
-            config_path=str(Path(CONFIG_DIR) / f"File Reader MCP Server_alias_{alias}_server_config.json"),
+            config_path=str(Path(ctx["config_dir"]) / f"File Reader MCP Server_alias_{alias}_server_config.json"),
             config_data=config_data
         )
 
@@ -167,7 +177,10 @@ async def get_file_reader_config(alias: str):
 async def update_expert_stream_config(alias: str, request: ConfigUpdateRequest):
     """更新 Expert Stream 配置"""
     try:
-        initializer = ExpertStreamConfigInitializer(CONFIG_DIR, EXPERT_STREAM_SERVER_SCRIPT)
+        ctx = _get_mcp_context()
+        if not ctx["expert_script"]:
+            raise HTTPException(status_code=500, detail="Expert Stream 服务器不可用")
+        initializer = ExpertStreamConfigInitializer(ctx["config_dir"], ctx["expert_script"])
 
         # 更新配置
         await initializer.update_config(alias, request.config_data)
@@ -178,7 +191,7 @@ async def update_expert_stream_config(alias: str, request: ConfigUpdateRequest):
         return ConfigInitializerResponse(
             success=True,
             message=f"Expert Stream 配置 '{alias}' 更新成功",
-            config_path=str(Path(CONFIG_DIR) / f"expert_stream_server_alias_{alias}_server_config.json"),
+            config_path=str(Path(ctx["config_dir"]) / f"expert_stream_server_alias_{alias}_server_config.json"),
             config_data=config_data
         )
 
@@ -191,7 +204,10 @@ async def update_expert_stream_config(alias: str, request: ConfigUpdateRequest):
 async def update_file_reader_config(alias: str, request: ConfigUpdateRequest):
     """更新 File Reader 配置"""
     try:
-        initializer = FileReaderConfigInitializer(CONFIG_DIR, FILE_READER_SERVER_SCRIPT)
+        ctx = _get_mcp_context()
+        if not ctx["file_reader_script"]:
+            raise HTTPException(status_code=500, detail="File Reader 服务器不可用")
+        initializer = FileReaderConfigInitializer(ctx["config_dir"], ctx["file_reader_script"])
 
         # 更新配置
         await initializer.update_config(alias, request.config_data)
@@ -202,7 +218,7 @@ async def update_file_reader_config(alias: str, request: ConfigUpdateRequest):
         return ConfigInitializerResponse(
             success=True,
             message=f"File Reader 配置 '{alias}' 更新成功",
-            config_path=str(Path(CONFIG_DIR) / f"File Reader MCP Server_alias_{alias}_server_config.json"),
+            config_path=str(Path(ctx["config_dir"]) / f"File Reader MCP Server_alias_{alias}_server_config.json"),
             config_data=config_data
         )
 
@@ -215,16 +231,17 @@ async def update_file_reader_config(alias: str, request: ConfigUpdateRequest):
 async def get_system_info():
     """获取系统信息和可用服务器"""
     try:
-        system_info = system_detector.get_system_info()
-        available_servers = system_detector.get_available_servers()
+        ctx = _get_mcp_context()
+        system_info = ctx["detector"].get_system_info()
+        available_servers = ctx["detector"].get_available_servers()
 
         return {
             "system_info": system_info,
             "available_servers": available_servers,
             "current_config": {
-                "expert_stream_server": EXPERT_STREAM_SERVER_SCRIPT,
-                "file_reader_server": FILE_READER_SERVER_SCRIPT
-            }
+                "expert_stream_server": ctx["expert_script"],
+                "file_reader_server": ctx["file_reader_script"],
+            },
         }
 
     except Exception as e:
@@ -236,7 +253,8 @@ async def get_system_info():
 async def list_all_configs():
     """列出所有配置"""
     try:
-        config_dir = Path(CONFIG_DIR)
+        ctx = _get_mcp_context()
+        config_dir = Path(ctx["config_dir"])
         configs = []
 
         if config_dir.exists():
@@ -272,7 +290,8 @@ async def list_all_configs():
 async def delete_expert_stream_config(alias: str):
     """删除 Expert Stream 配置"""
     try:
-        config_file = Path(CONFIG_DIR) / f"expert_stream_server_alias_{alias}_server_config.json"
+        ctx = _get_mcp_context()
+        config_file = Path(ctx["config_dir"]) / f"expert_stream_server_alias_{alias}_server_config.json"
 
         if not config_file.exists():
             raise HTTPException(status_code=404, detail=f"配置 '{alias}' 不存在")
@@ -296,7 +315,8 @@ async def delete_expert_stream_config(alias: str):
 async def delete_file_reader_config(alias: str):
     """删除 File Reader 配置"""
     try:
-        config_file = Path(CONFIG_DIR) / f"File Reader MCP Server_alias_{alias}_server_config.json"
+        ctx = _get_mcp_context()
+        config_file = Path(ctx["config_dir"]) / f"File Reader MCP Server_alias_{alias}_server_config.json"
 
         if not config_file.exists():
             raise HTTPException(status_code=404, detail=f"配置 '{alias}' 不存在")

@@ -4,6 +4,8 @@ import { useChatStore } from '../lib/store';
 import { McpConfig } from '../types';
 import ConfirmDialog from './ui/ConfirmDialog';
 import { useConfirmDialog } from '../hooks/useConfirmDialog';
+import { apiClient } from '../lib/api/client';
+import McpProfilesModal from './McpProfilesModal';
 
 // 服务器图标组件
 const ServerIcon = () => (
@@ -50,6 +52,8 @@ interface McpFormData {
   command: string;
   type: 'http' | 'stdio';
   enabled: boolean;
+  cwd?: string;
+  argsInput?: string; // 逗号分隔的参数输入
 }
 
 const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }) => {
@@ -78,13 +82,45 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
     name: '',
     command: '',
     type: 'stdio',
-    enabled: true
+    enabled: true,
+    cwd: '',
+    argsInput: ''
   });
+
+  // stdio 资源配置相关状态
+  const [configLoading, setConfigLoading] = useState<boolean>(false);
+  const [configError, setConfigError] = useState<string | null>(null);
+  const [dynamicConfig, setDynamicConfig] = useState<Record<string, any>>({});
+  const [profiles, setProfiles] = useState<any[]>([]);
+  const [profileName, setProfileName] = useState<string>('');
+  // 配置档案弹窗相关状态
+  const [profilesModalOpen, setProfilesModalOpen] = useState<boolean>(false);
+  const [profilesModalConfig, setProfilesModalConfig] = useState<McpConfig | null>(null);
+  const [profilesLoading, setProfilesLoading] = useState<boolean>(false);
+  const [profilesError, setProfilesError] = useState<string | null>(null);
+
+
 
   // 组件初始化时加载MCP配置
   React.useEffect(() => {
     loadMcpConfigs();
   }, [loadMcpConfigs]);
+
+  // 仅在弹窗打开时加载配置档案列表
+  const openProfilesModal = async (config: McpConfig) => {
+    setProfilesModalConfig(config);
+    setProfilesModalOpen(true);
+    setProfilesLoading(true);
+    setProfilesError(null);
+    try {
+      const pfs = await apiClient.getMcpConfigProfiles(config.id);
+      setProfiles(Array.isArray(pfs) ? pfs : []);
+    } catch (e: any) {
+      setProfilesError('加载配置档案失败');
+    } finally {
+      setProfilesLoading(false);
+    }
+  };
 
   // 重置表单
   const resetForm = () => {
@@ -92,10 +128,15 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
       name: '',
       command: '',
       type: 'stdio',
-      enabled: true
+      enabled: true,
+      cwd: '',
+      argsInput: ''
     });
     setEditingConfig(null);
     setShowAddForm(false);
+    setDynamicConfig({});
+    setProfiles([]);
+    setProfileName('');
   };
 
   // 处理添加服务器
@@ -110,6 +151,8 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
       command: formData.command.trim(),
       type: formData.type,
       enabled: formData.enabled,
+      cwd: formData.cwd?.trim() ? formData.cwd.trim() : undefined,
+      args: formData.argsInput?.trim() ? formData.argsInput.split(',').map(s => s.trim()).filter(Boolean) : undefined,
       createdAt: new Date(),
       updatedAt: new Date()
     };
@@ -131,6 +174,8 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
       command: formData.command.trim(),
       type: formData.type,
       enabled: formData.enabled,
+      cwd: formData.cwd?.trim() ? formData.cwd.trim() : undefined,
+      args: formData.argsInput?.trim() ? formData.argsInput.split(',').map(s => s.trim()).filter(Boolean) : undefined,
       updatedAt: new Date()
     };
 
@@ -145,9 +190,15 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
       name: config.name,
       command: config.command,
       type: config.type || 'stdio',
-      enabled: config.enabled
+      enabled: config.enabled,
+      cwd: (config as any).cwd || '',
+      argsInput: Array.isArray(config.args) ? config.args.join(', ') : ''
     });
     setShowAddForm(true);
+    // 重置配置状态
+    setDynamicConfig({});
+    setConfigError(null);
+    setConfigLoading(false);
   };
 
   // 删除服务器
@@ -174,26 +225,32 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
   };
 
   return (
-    <div className="modal-container">
-      <div className="modal-content w-full max-w-2xl max-h-[80vh] overflow-hidden">
+    <>
+      {/* 背景遮罩 */}
+      <div 
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
+        onClick={onClose}
+      />
+
+      {/* 抽屉面板（右侧） */}
+      <div className="fixed right-0 top-0 h-full w-[520px] sm:w-[560px] bg-card z-50 shadow-xl breathing-border flex flex-col">
         {/* 头部 */}
-        <div className="flex items-center justify-between p-6 border-b border-border">
+        <div className="flex items-center justify-between p-4 border-b border-border">
           <div className="flex items-center space-x-3">
             <ServerIcon />
-            <h2 className="text-xl font-semibold text-foreground">
-              MCP 服务器管理
-            </h2>
+            <h2 className="text-lg font-semibold text-foreground">MCP 服务器管理</h2>
           </div>
           <button
             onClick={onClose}
             className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
+            title="关闭"
           >
             <XMarkIcon />
           </button>
         </div>
 
         {/* 内容区域 */}
-        <div className="p-6 overflow-y-auto max-h-[calc(80vh-120px)]">
+        <div className="p-4 flex-1 overflow-y-auto">
           {/* 添加按钮 */}
           {!showAddForm && (
             <button
@@ -253,8 +310,85 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
                     placeholder={formData.type === 'http' ? 'https://api.example.com/mcp' : 'npx @modelcontextprotocol/server-filesystem /path/to/allowed/files'}
                     required
                   />
+                  {formData.type === 'stdio' && (
+                    <></>
+                  )}
                 </div>
-                
+
+                {/* stdio 专有设置：工作目录和启动参数 */}
+                {formData.type === 'stdio' && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-2">
+                        可执行地址（cwd）
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.cwd}
+                        onChange={(e) => setFormData({ ...formData, cwd: e.target.value })}
+                        className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                        placeholder="/absolute/path/to/executable"
+                      />
+                      <p className="mt-1 text-xs text-muted-foreground">为空则使用当前页面的工作目录</p>
+                      <div className="mt-2 flex gap-2">
+                        <button
+                          type="button"
+                          className="px-3 py-1 text-xs bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80"
+                          onClick={async () => {
+                            if (!formData.command.trim()) return;
+                            setConfigLoading(true);
+                            setConfigError(null);
+                            try {
+                              const res = await apiClient.getMcpConfigResourceByCommand({
+                                type: formData.type,
+                                command: formData.command.trim(),
+                                args: formData.argsInput?.trim()
+                                  ? formData.argsInput.split(',').map(s => s.trim()).filter(Boolean)
+                                  : undefined,
+                                env: undefined,
+                                cwd: formData.cwd?.trim() ? formData.cwd.trim() : undefined,
+                                alias: null,
+                              });
+                              if (res && (res as any).success && (res as any).config) {
+                                const cfg = (res as any).config;
+                                setDynamicConfig(cfg);
+                                // 获取配置后，刷新当前配置的档案列表，便于查看已保存内容
+                                if (editingConfig?.id) {
+                                  try {
+                                    const pfs = await apiClient.getMcpConfigProfiles(editingConfig.id);
+                                    setProfiles(Array.isArray(pfs) ? pfs : []);
+                                  } catch (e) {}
+                                }
+                              } else {
+                                setConfigError('无法获取服务器可配置参数');
+                              }
+                            } catch (err: any) {
+                              setConfigError(err?.message || '获取配置失败');
+                            } finally {
+                              setConfigLoading(false);
+                            }
+                          }}
+                        >
+                          {configLoading ? '获取中…' : '获取配置'}
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-foreground mb-2">
+                        启动参数（args，逗号分隔）
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.argsInput}
+                        onChange={(e) => setFormData({ ...formData, argsInput: e.target.value })}
+                        className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
+                        placeholder="--flag, value, --opt"
+                      />
+                      <p className="mt-1 text-xs text-muted-foreground">将自动转换为参数数组</p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex items-center">
                   <input
                     type="checkbox"
@@ -267,8 +401,260 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
                     启用此服务器
                   </label>
                 </div>
+
+                {/* 动态配置表格：基于服务器定义的参数 */}
+                {formData.type === 'stdio' && Object.keys(dynamicConfig).length > 0 && (
+                  <div className="mt-4 p-3 border border-border rounded-md bg-card">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-foreground">服务器可配置参数（动态解析）</span>
+                      {configLoading && (
+                        <span className="text-xs text-muted-foreground">解析中…</span>
+                      )}
+                    </div>
+
+                    {configError && (
+                      <p className="text-xs text-red-600 mb-2">{configError}</p>
+                    )}
+
+                    <div className="grid grid-cols-1 gap-3">
+                      {Object.keys(dynamicConfig).map((key) => {
+                        const val = dynamicConfig[key];
+                        const type = typeof val;
+                        const isArray = Array.isArray(val);
+                        return (
+                          <div key={key}>
+                            <label className="block text-xs text-muted-foreground mb-1">{key}</label>
+                            {type === 'boolean' ? (
+                              <div className="flex items-center">
+                                <input
+                                  type="checkbox"
+                                  checked={!!val}
+                                  onChange={(e) => setDynamicConfig({ ...dynamicConfig, [key]: e.target.checked })}
+                                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                />
+                                <span className="ml-2 text-xs">{String(val)}</span>
+                              </div>
+                            ) : isArray ? (
+                              <input
+                                type="text"
+                                value={(val as any[]).join(', ')}
+                                onChange={(e) => setDynamicConfig({
+                                  ...dynamicConfig,
+                                  [key]: e.target.value
+                                    .split(',')
+                                    .map(s => s.trim())
+                                    .filter(Boolean)
+                                })}
+                                className="w-full px-2 py-1 border border-input bg-background text-foreground rounded-md"
+                              />
+                            ) : (
+                              <input
+                                type={type === 'number' ? 'number' : 'text'}
+                                value={val ?? ''}
+                                onChange={(e) => setDynamicConfig({
+                                  ...dynamicConfig,
+                                  [key]: type === 'number' ? Number(e.target.value) : e.target.value
+                                })}
+                                className="w-full px-2 py-1 border border-input bg-background text-foreground rounded-md"
+                              />
+                            )}
+                          </div>
+                        );
+                      })}
+
+                      {/* 保存为配置档案 */}
+                      {editingConfig?.id && (
+                        <div className="mt-2 p-2 border border-dashed rounded-md">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={profileName}
+                              onChange={(e) => setProfileName(e.target.value)}
+                              className="flex-1 px-2 py-1 border border-input bg-background text-foreground rounded-md"
+                              placeholder="配置档案名称（例如：开发环境）"
+                            />
+                            <button
+                              type="button"
+                              className="px-3 py-1 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                              onClick={async () => {
+                                if (!editingConfig?.id) return;
+                                try {
+                                  await apiClient.createMcpConfigProfile(editingConfig.id, {
+                                    name: profileName || `配置-${new Date().toLocaleString()}`,
+                                    env: Object.keys(dynamicConfig).reduce((acc: Record<string, string>, k) => {
+                                      const v = dynamicConfig[k];
+                                      acc[k] = typeof v === 'string' ? v : String(v);
+                                      return acc;
+                                    }, {}),
+                                    args: formData.argsInput?.trim()
+                                      ? formData.argsInput.split(',').map(s => s.trim()).filter(Boolean)
+                                      : undefined,
+                                    cwd: formData.cwd?.trim() ? formData.cwd.trim() : undefined,
+                                    enabled: false,
+                                  });
+                                  const pfs = await apiClient.getMcpConfigProfiles(editingConfig.id);
+                                  setProfiles(Array.isArray(pfs) ? pfs : []);
+                                  setProfileName('');
+                                } catch (err) {
+                                  console.error('保存配置档案失败:', err);
+                                  setConfigError('保存配置档案失败');
+                                }
+                              }}
+                            >
+                              保存为配置档案
+                            </button>
+                          </div>
+
+                      {/* 配置档案列表 */}
+                          {profiles.length > 0 && (
+                            <div className="mt-3 space-y-2">
+                              <div className="text-xs text-muted-foreground">已有配置档案：</div>
+                              {profiles.map((p: any) => {
+                                const argsPreview = Array.isArray(p.args) ? p.args.join(', ') : '';
+                                const envKeys = p.env ? Object.keys(p.env) : [];
+                                return (
+                                  <div key={p.id} className="px-2 py-1 border border-border rounded-md">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <div className="text-xs text-foreground font-medium">{p.name}</div>
+                                        {p.enabled && (
+                                          <span className="px-2 py-0.5 text-[10px] rounded-full bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200">已启用</span>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <button
+                                          type="button"
+                                          className="px-2 py-1 text-xs bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80"
+                                          onClick={async () => {
+                                            try {
+                                              await apiClient.activateMcpConfigProfile(editingConfig!.id, p.id);
+                                              const pfs = await apiClient.getMcpConfigProfiles(editingConfig!.id);
+                                              setProfiles(Array.isArray(pfs) ? pfs : []);
+                                            } catch (e) {}
+                                          }}
+                                        >
+                                          激活
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="px-2 py-1 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                                          onClick={() => {
+                                            setFormData((fd) => ({
+                                              ...fd,
+                                              argsInput: Array.isArray(p.args) ? p.args.join(', ') : fd.argsInput,
+                                              cwd: p.cwd ?? fd.cwd,
+                                            }));
+                                            setDynamicConfig(p.env || {});
+                                          }}
+                                        >
+                                          应用到表单
+                                        </button>
+                                      </div>
+                                    </div>
+                                    <div className="mt-2 grid grid-cols-1 gap-2 text-xs text-foreground">
+                                      <div><span className="text-muted-foreground">cwd：</span>{p.cwd || '未设置'}</div>
+                                      <div><span className="text-muted-foreground">args：</span>{argsPreview || '未设置'}</div>
+                                      <div>
+                                        <span className="text-muted-foreground">env（{envKeys.length}）：</span>
+                                        {envKeys.length === 0 ? '未设置' : (
+                                          <div className="mt-1 grid grid-cols-1 gap-1">
+                                            {envKeys.map((k: string) => (
+                                              <div key={k} className="flex items-center justify-between">
+                                                <span className="text-muted-foreground">{k}</span>
+                                                <span className="text-foreground">{String(p.env[k])}</span>
+                                              </div>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
-              
+
+              {/* 独立的配置档案列表（编辑态下始终可见） */}
+              {editingConfig?.id && !showAddForm && (
+                <div className="mt-4 p-3 border border-border rounded-md bg-card">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-foreground">配置档案列表</span>
+                    <button
+                      type="button"
+                      className="px-2 py-1 text-xs bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80"
+                      onClick={async () => {
+                        try {
+                          const pfs = await apiClient.getMcpConfigProfiles(editingConfig.id);
+                          setProfiles(Array.isArray(pfs) ? pfs : []);
+                        } catch (e) {}
+                      }}
+                    >
+                      刷新
+                    </button>
+                  </div>
+                  {profiles.length === 0 ? (
+                    <div className="text-xs text-muted-foreground">暂无配置档案</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {profiles.map((p: any) => {
+                        const argsPreview = Array.isArray(p.args) ? p.args.join(', ') : '';
+                        const envKeys = p.env ? Object.keys(p.env) : [];
+                        return (
+                          <div key={p.id} className="px-2 py-1 border border-border rounded-md">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <div className="text-xs text-foreground font-medium">{p.name}</div>
+                                {p.enabled && (
+                                  <span className="px-2 py-0.5 text-[10px] rounded-full bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200">已启用</span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  className="px-2 py-1 text-xs bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80"
+                                  onClick={async () => {
+                                    try {
+                                      await apiClient.activateMcpConfigProfile(editingConfig!.id, p.id);
+                                      const pfs = await apiClient.getMcpConfigProfiles(editingConfig!.id);
+                                      setProfiles(Array.isArray(pfs) ? pfs : []);
+                                    } catch (e) {}
+                                  }}
+                                >
+                                  激活
+                                </button>
+                              </div>
+                            </div>
+                            <div className="mt-2 grid grid-cols-1 gap-2 text-xs text-foreground">
+                              <div><span className="text-muted-foreground">cwd：</span>{p.cwd || '未设置'}</div>
+                              <div><span className="text-muted-foreground">args：</span>{argsPreview || '未设置'}</div>
+                              <div>
+                                <span className="text-muted-foreground">env（{envKeys.length}）：</span>
+                                {envKeys.length === 0 ? '未设置' : (
+                                  <div className="mt-1 grid grid-cols-1 gap-1">
+                                    {envKeys.map((k: string) => (
+                                      <div key={k} className="flex items-center justify-between">
+                                        <span className="text-muted-foreground">{k}</span>
+                                        <span className="text-foreground">{String(p.env[k])}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="flex space-x-3 mt-6">
                 <button
                   type="submit"
@@ -335,6 +721,15 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
                     >
                       {config.enabled ? '已启用' : '已禁用'}
                     </button>
+                    <button
+                      onClick={() => openProfilesModal(config)}
+                      className="p-2 text-muted-foreground hover:text-indigo-600 transition-colors"
+                      title="查看配置档案"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 7.5l7.5 3 7.5-3M3 7.5V18l7.5 3 7.5-3V7.5M10.5 10.5V21" />
+                      </svg>
+                    </button>
                     
                     <button
                       onClick={() => startEdit(config)}
@@ -359,6 +754,19 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
         </div>
       </div>
 
+      
+
+      {/* 配置档案弹窗（独立组件） */}
+      <McpProfilesModal
+        open={profilesModalOpen}
+        config={profilesModalConfig}
+        onClose={() => { setProfilesModalOpen(false); setProfilesModalConfig(null); }}
+      />
+
+      
+
+      
+
       {/* 确认对话框 */}
       <ConfirmDialog
         isOpen={dialogState.isOpen}
@@ -370,7 +778,7 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
         onConfirm={handleConfirm}
         onCancel={handleCancel}
       />
-    </div>
+    </>
   );
 };
 

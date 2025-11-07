@@ -103,6 +103,7 @@ export interface McpConfig {
   type: 'http' | 'stdio';
   args?: string[] | null;
   env?: Record<string, string> | null;
+  cwd?: string | null;
   enabled: boolean;
   config?: any;
   createdAt: Date;

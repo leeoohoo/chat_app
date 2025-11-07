@@ -396,6 +396,7 @@ class SQLiteAdapter(AbstractDatabaseAdapter):
             type TEXT DEFAULT 'stdio',
             args TEXT,
             env TEXT,
+            cwd TEXT,
             user_id TEXT,
             enabled BOOLEAN DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -434,6 +435,25 @@ class SQLiteAdapter(AbstractDatabaseAdapter):
             FOREIGN KEY (session_id) REFERENCES sessions (id) ON DELETE CASCADE,
             FOREIGN KEY (mcp_config_id) REFERENCES mcp_configs (id) ON DELETE CASCADE
         );
+
+        -- 每个 MCP 配置可拥有多个配置档案（profiles），仅允许一个启用
+        CREATE TABLE IF NOT EXISTS mcp_config_profiles (
+            id TEXT PRIMARY KEY,
+            mcp_config_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            args TEXT,
+            env TEXT,
+            cwd TEXT,
+            enabled BOOLEAN DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (mcp_config_id) REFERENCES mcp_configs (id) ON DELETE CASCADE
+        );
+
+        -- 约束：同一 mcp_config 仅允许一个 enabled=1 的配置档案
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_mcp_config_profiles_active
+        ON mcp_config_profiles (mcp_config_id)
+        WHERE enabled = 1;
         """
         
         # 分割并执行每个CREATE TABLE语句
@@ -460,6 +480,12 @@ class SQLiteAdapter(AbstractDatabaseAdapter):
             {
                 'table': 'messages',
                 'column': 'reasoning',
+                'definition': 'TEXT'
+            },
+            # 为mcp_configs添加cwd字段（如果不存在）
+            {
+                'table': 'mcp_configs',
+                'column': 'cwd',
                 'definition': 'TEXT'
             }
         ]

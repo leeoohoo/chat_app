@@ -115,6 +115,7 @@ class ApiClient {
     type: 'http' | 'stdio';
     args?: string[] | null;
     env?: Record<string, string> | null;
+    cwd?: string | null;
     enabled: boolean;
     user_id?: string;
   }) {
@@ -125,7 +126,17 @@ class ApiClient {
     });
   }
 
-  async updateMcpConfig(id: string, data: any) {
+  async updateMcpConfig(id: string, data: {
+    id?: string;
+    name?: string;
+    command?: string;
+    type?: 'http' | 'stdio';
+    args?: string[] | null;
+    env?: Record<string, string> | null;
+    cwd?: string | null;
+    enabled?: boolean;
+    userId?: string;
+  }) {
     console.log('🔍 API client updateMcpConfig 调用:', { id, data });
     return this.request(`/mcp-configs/${id}`, {
       method: 'PUT',
@@ -318,6 +329,87 @@ class ApiClient {
         }
       };
     }
+  }
+
+  async getMcpConfigResource(configId: string): Promise<{ success: boolean; config: any; alias?: string }> {
+    try {
+      const res = await this.request<any>(`/mcp-configs/${configId}/resource/config`);
+      return res;
+    } catch (error) {
+      console.error('Failed to get MCP config resource:', error);
+      return { success: false, config: null } as any;
+    }
+  }
+
+  async getMcpConfigResourceByCommand(data: {
+    type: 'stdio' | 'http';
+    command: string;
+    args?: string[] | null;
+    env?: Record<string, string> | null;
+    cwd?: string | null;
+    alias?: string | null;
+  }): Promise<{ success: boolean; config: any; alias?: string }> {
+    try {
+      const res = await this.request<any>(`/mcp-configs/resource/config`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      return res;
+    } catch (error) {
+      console.error('Failed to get MCP config resource by command:', error);
+      return { success: false, config: null } as any;
+    }
+  }
+  // MCP配置档案（Profiles）相关API
+  async getMcpConfigProfiles(configId: string): Promise<any[]> {
+    const res = await this.request<any>(`/mcp-configs/${configId}/profiles`);
+    // 后端返回结构为 { items: [...] }，此处兼容纯数组与对象包裹两种形式
+    if (Array.isArray(res)) {
+      return res as any[];
+    }
+    if (res && typeof res === 'object' && Array.isArray(res.items)) {
+      return res.items as any[];
+    }
+    return [];
+  }
+
+  async createMcpConfigProfile(configId: string, data: {
+    name: string;
+    args?: string[] | null;
+    env?: Record<string, string> | null;
+    cwd?: string | null;
+    enabled?: boolean;
+  }): Promise<any> {
+    return this.request<any>(`/mcp-configs/${configId}/profiles`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateMcpConfigProfile(configId: string, profileId: string, data: {
+    name?: string;
+    args?: string[] | null;
+    env?: Record<string, string> | null;
+    cwd?: string | null;
+    enabled?: boolean;
+  }): Promise<any> {
+    return this.request<any>(`/mcp-configs/${configId}/profiles/${profileId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteMcpConfigProfile(configId: string, profileId: string): Promise<any> {
+    return this.request<any>(`/mcp-configs/${configId}/profiles/${profileId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async activateMcpConfigProfile(configId: string, profileId: string): Promise<any> {
+    return this.request<any>(`/mcp-configs/${configId}/profiles/${profileId}/activate`, {
+      method: 'POST',
+      body: JSON.stringify({ is_active: true }),
+    });
   }
 
   async saveMessage(conversationId: string, message: any) {
