@@ -595,37 +595,7 @@ def chat_stream_v2(request: ChatRequestV2):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/chat")
-def chat_v2(request: ChatRequestV2):
-    """v2 版本的普通聊天端点"""
-    try:
-        logger.info(f"📨 v2 收到聊天请求: session_id={request.session_id}")
-        
-        # 获取AI服务器实例
-        server = get_ai_server_with_mcp_configs_v2()
-        
-        # 提取模型配置
-        model = request.ai_model_config.model_name if request.ai_model_config else "gpt-4"
-        temperature = request.ai_model_config.temperature if request.ai_model_config else 0.7
-        max_tokens = request.ai_model_config.max_tokens if request.ai_model_config else 4000
-        use_tools = request.ai_model_config.use_tools if request.ai_model_config else True
-        
-        # 调用 v2 版本的 chat 方法
-        result = server.chat(
-            session_id=request.session_id,
-            user_message=request.content,
-            model=model,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            use_tools=use_tools
-        )
-        
-        logger.info(f"✅ v2 聊天处理完成: session_id={request.session_id}")
-        return result
-        
-    except Exception as e:
-        logger.error(f"❌ v2 聊天处理失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @router.get("/tools")
