@@ -549,3 +549,128 @@ class SystemContextActivate(BaseModel):
         await db.execute_query_async(activate_query, (context_id, user_id))
         
         return await SystemContextCreate.get_by_id(context_id)
+
+
+class AgentCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    ai_model_config_id: str
+    mcp_config_ids: Optional[List[str]] = None
+    callable_agent_ids: Optional[List[str]] = None
+    system_context_id: Optional[str] = None
+    user_id: Optional[str] = None
+    enabled: bool = True
+
+    @classmethod
+    async def create(cls, data: "AgentCreate") -> Dict[str, Any]:
+        """创建智能体配置"""
+        db = get_database()
+        agent_id = str(uuid.uuid4())
+        mcp_ids_json = json.dumps(data.mcp_config_ids or [])
+        callable_ids_json = json.dumps(data.callable_agent_ids or [])
+        query = """
+        INSERT INTO agents (id, name, description, ai_model_config_id, mcp_config_ids, callable_agent_ids, system_context_id, user_id, enabled, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        """
+        await db.execute_query_async(query, (
+            agent_id,
+            data.name,
+            data.description,
+            data.ai_model_config_id,
+            mcp_ids_json,
+            callable_ids_json,
+            data.system_context_id,
+            data.user_id,
+            data.enabled
+        ))
+        return await AgentCreate.get_by_id(agent_id)
+
+    @classmethod
+    async def get_by_id(cls, agent_id: str) -> Optional[Dict[str, Any]]:
+        db = get_database()
+        row = await db.fetch_one_async("SELECT * FROM agents WHERE id = ?", (agent_id,))
+        if not row:
+            return None
+        d = row_to_dict(row)
+        # 解析mcp_config_ids
+        try:
+            d["mcp_config_ids"] = json.loads(d.get("mcp_config_ids") or "[]")
+        except Exception:
+            d["mcp_config_ids"] = []
+        # 解析callable_agent_ids
+        try:
+            d["callable_agent_ids"] = json.loads(d.get("callable_agent_ids") or "[]")
+        except Exception:
+            d["callable_agent_ids"] = []
+        return d
+
+    @classmethod
+    async def get_all(cls, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        db = get_database()
+        if user_id and user_id.strip():
+            rows = await db.fetch_all_async("SELECT * FROM agents WHERE user_id = ? ORDER BY created_at DESC", (user_id,))
+        else:
+            rows = await db.fetch_all_async("SELECT * FROM agents ORDER BY created_at DESC")
+        out: List[Dict[str, Any]] = []
+        for row in rows:
+            d = row_to_dict(row)
+            try:
+                d["mcp_config_ids"] = json.loads(d.get("mcp_config_ids") or "[]")
+            except Exception:
+                d["mcp_config_ids"] = []
+            try:
+                d["callable_agent_ids"] = json.loads(d.get("callable_agent_ids") or "[]")
+            except Exception:
+                d["callable_agent_ids"] = []
+            out.append(d)
+        return out
+
+    @classmethod
+    async def delete(cls, agent_id: str) -> bool:
+        db = get_database()
+        await db.execute_query_async("DELETE FROM agents WHERE id = ?", (agent_id,))
+        return True
+
+
+class AgentUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    ai_model_config_id: Optional[str] = None
+    mcp_config_ids: Optional[List[str]] = None
+    callable_agent_ids: Optional[List[str]] = None
+    system_context_id: Optional[str] = None
+    enabled: Optional[bool] = None
+
+    @classmethod
+    async def update(cls, agent_id: str, data: "AgentUpdate") -> Optional[Dict[str, Any]]:
+        db = get_database()
+        fields = []
+        values: List[Any] = []
+        if data.name is not None:
+            fields.append("name = ?")
+            values.append(data.name)
+        if data.description is not None:
+            fields.append("description = ?")
+            values.append(data.description)
+        if data.ai_model_config_id is not None:
+            fields.append("ai_model_config_id = ?")
+            values.append(data.ai_model_config_id)
+        if data.mcp_config_ids is not None:
+            fields.append("mcp_config_ids = ?")
+            values.append(json.dumps(data.mcp_config_ids))
+        if data.callable_agent_ids is not None:
+            fields.append("callable_agent_ids = ?")
+            values.append(json.dumps(data.callable_agent_ids))
+        if data.system_context_id is not None:
+            fields.append("system_context_id = ?")
+            values.append(data.system_context_id)
+        if data.enabled is not None:
+            fields.append("enabled = ?")
+            values.append(data.enabled)
+        if not fields:
+            return await AgentCreate.get_by_id(agent_id)
+        fields.append("updated_at = CURRENT_TIMESTAMP")
+        values.append(agent_id)
+        query = f"UPDATE agents SET {', '.join(fields)} WHERE id = ?"
+        await db.execute_query_async(query, tuple(values))
+        return await AgentCreate.get_by_id(agent_id)

@@ -37,8 +37,6 @@ const McpProfilesModal: React.FC<McpProfilesModalProps> = ({ open, config, onClo
   const [profilesLoading, setProfilesLoading] = useState(false);
   const [profilesError, setProfilesError] = useState<string | null>(null);
 
-  const [profileDetailModalOpen, setProfileDetailModalOpen] = useState(false);
-  const [selectedProfile, setSelectedProfile] = useState<any | null>(null);
   const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
 
   const [createProfileModalOpen, setCreateProfileModalOpen] = useState(false);

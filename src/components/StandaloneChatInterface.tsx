@@ -8,6 +8,7 @@ import { ThemeToggle } from './ThemeToggle';
 import McpManager from './McpManager';
 import AiModelManager from './AiModelManager';
 import SystemContextEditor from './SystemContextEditor';
+import AgentManager from './AgentManager';
 import { cn } from '../lib/utils';
 import ApiClient from '../lib/api/client';
 
@@ -92,6 +93,7 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
   const [mcpManagerOpen, setMcpManagerOpen] = useState(false);
   const [aiModelManagerOpen, setAiModelManagerOpen] = useState(false);
   const [systemContextEditorOpen, setSystemContextEditorOpen] = useState(false);
+  const [agentManagerOpen, setAgentManagerOpen] = useState(false);
 
   // 初始化加载会话和AI模型配置
   useEffect(() => {
@@ -183,6 +185,17 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
             </button>
           )}
 
+          {/* 智能体管理按钮 */}
+          <button
+            onClick={() => setAgentManagerOpen(true)}
+            className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
+            title="智能体管理"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6M9 16h6M6 8h12a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2v-8a2 2 0 012-2z" />
+            </svg>
+          </button>
+
           <ThemeToggle />
         </div>
       </div>
@@ -255,6 +268,11 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
       {/* AI模型管理器模态框 */}
       {aiModelManagerOpen && (
           <AiModelManager onClose={() => setAiModelManagerOpen(false)} store={store} />
+        )}
+
+      {/* 智能体管理器模态框 */}
+      {agentManagerOpen && (
+          <AgentManager onClose={() => setAgentManagerOpen(false)} store={store} />
         )}
 
       {/* 系统上下文编辑器模态框 */}

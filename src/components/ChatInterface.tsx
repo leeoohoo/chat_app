@@ -7,6 +7,7 @@ import { ThemeToggle } from './ThemeToggle';
 import McpManager from './McpManager';
 import AiModelManager from './AiModelManager';
 import SystemContextEditor from './SystemContextEditor';
+import AgentManager from './AgentManager';
 import { cn } from '../lib/utils';
 import type { ChatInterfaceProps } from '../types';
 
@@ -37,6 +38,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [showMcpManager, setShowMcpManager] = useState(false);
   const [showAiModelManager, setShowAiModelManager] = useState(false);
   const [showSystemContextEditor, setShowSystemContextEditor] = useState(false);
+  const [showAgentManager, setShowAgentManager] = useState(false);
 
   // 初始化加载会话和AI模型配置
   useEffect(() => {
@@ -102,6 +104,15 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01" />
+            </svg>
+          </button>
+          <button
+            onClick={() => setShowAgentManager(true)}
+            className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
+            title="智能体管理"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6M9 16h6M6 8h12a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2v-8a2 2 0 012-2z" />
             </svg>
           </button>
           <button
@@ -199,6 +210,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         {/* MCP管理器 */}
         {showMcpManager && (
           <McpManager onClose={() => setShowMcpManager(false)} />
+        )}
+
+        {/* 智能体管理器 */}
+        {showAgentManager && (
+          <AgentManager onClose={() => setShowAgentManager(false)} />
         )}
         
         {/* AI模型管理器 */}

@@ -13,7 +13,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
-from app.api import sessions, messages, configs, mcp_initializers, chat_api_v2
+from app.api import sessions, messages, configs, mcp_initializers, chat_api_v2, agents
 from app.models import db_manager
 from app.models.database_factory import get_database
 
@@ -60,6 +60,7 @@ app.include_router(messages.router, prefix="/api", tags=["messages"])
 app.include_router(configs.router, prefix="/api", tags=["configs"])
 app.include_router(mcp_initializers.router, prefix="/api/mcp-initializers", tags=["mcp-initializers"])
 app.include_router(chat_api_v2.router, prefix="/api", tags=["chat-v2"])
+app.include_router(agents.router, prefix="/api", tags=["agents"])
 
 
 # 数据库依赖

@@ -454,6 +454,23 @@ class SQLiteAdapter(AbstractDatabaseAdapter):
         CREATE UNIQUE INDEX IF NOT EXISTS idx_mcp_config_profiles_active
         ON mcp_config_profiles (mcp_config_id)
         WHERE enabled = 1;
+
+        -- 智能体（Agent）配置表
+        CREATE TABLE IF NOT EXISTS agents (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT,
+            ai_model_config_id TEXT NOT NULL,
+            mcp_config_ids TEXT, -- 存储为JSON数组字符串
+            callable_agent_ids TEXT, -- 可调用的其他智能体ID列表(JSON数组)
+            system_context_id TEXT,
+            user_id TEXT,
+            enabled BOOLEAN DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (ai_model_config_id) REFERENCES ai_model_configs (id) ON DELETE SET NULL,
+            FOREIGN KEY (system_context_id) REFERENCES system_contexts (id) ON DELETE SET NULL
+        );
         """
         
         # 分割并执行每个CREATE TABLE语句
@@ -486,6 +503,12 @@ class SQLiteAdapter(AbstractDatabaseAdapter):
             {
                 'table': 'mcp_configs',
                 'column': 'cwd',
+                'definition': 'TEXT'
+            },
+            # 为agents添加callable_agent_ids字段（如果不存在）
+            {
+                'table': 'agents',
+                'column': 'callable_agent_ids',
                 'definition': 'TEXT'
             }
         ]

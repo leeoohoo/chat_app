@@ -229,6 +229,49 @@ class ApiClient {
     });
   }
 
+  // 智能体（Agent）相关API
+  async getAgents(userId?: string): Promise<any[]> {
+    const params = userId ? `?user_id=${encodeURIComponent(userId)}` : '';
+    return this.request<any[]>(`/agents${params}`);
+  }
+
+  async createAgent(data: {
+    name: string;
+    description?: string;
+    ai_model_config_id: string;
+    mcp_config_ids?: string[];
+    callable_agent_ids?: string[];
+    system_context_id?: string;
+    user_id?: string;
+    enabled?: boolean;
+  }): Promise<any> {
+    return this.request<any>('/agents', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateAgent(agentId: string, data: {
+    name?: string;
+    description?: string;
+    ai_model_config_id?: string;
+    mcp_config_ids?: string[];
+    callable_agent_ids?: string[];
+    system_context_id?: string;
+    enabled?: boolean;
+  }): Promise<any> {
+    return this.request<any>(`/agents/${agentId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteAgent(agentId: string): Promise<any> {
+    return this.request<any>(`/agents/${agentId}`, {
+      method: 'DELETE',
+    });
+  }
+
   // 会话详情和助手相关API (从index.ts合并)
   async getConversationDetails(conversationId: string) {
     try {
