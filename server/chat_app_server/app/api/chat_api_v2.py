@@ -25,7 +25,7 @@ from ..models.config import McpConfigCreate, McpConfigProfileActivate
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/v2")
+router = APIRouter(prefix="/agent_v2")
 
 
 # ===== 数据模型 =====

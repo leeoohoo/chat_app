@@ -10,6 +10,7 @@ from .mcp_tool_execute import McpToolExecute
 from .ai_client import AiClient
 from .ai_server import AiServer
 from .chat_service import ChatService
+from .agent import Agent, AgentConfig, create_agent
 
 __all__ = [
     'MessageManager',
@@ -18,7 +19,10 @@ __all__ = [
     'McpToolExecute',
     'AiClient',
     'AiServer',
-    'ChatService'
+    'ChatService',
+    'Agent',
+    'AgentConfig',
+    'create_agent'
 ]
 
 __version__ = '2.0.0'

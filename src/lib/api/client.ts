@@ -475,7 +475,7 @@ class ApiClient {
 
   // 流式聊天接口
   async streamChat(sessionId: string, content: string, modelConfig: any, userId?: string): Promise<ReadableStream> {
-    const url = `${this.baseUrl}/v2/chat/stream`;
+    const url = `${this.baseUrl}/agent_v2/chat/stream`;
     
     const response = await fetch(url, {
       method: 'POST',
