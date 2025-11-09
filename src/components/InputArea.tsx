@@ -15,6 +15,9 @@ export const InputArea: React.FC<InputAreaProps> = ({
   selectedModelId = null,
   availableModels = [],
   onModelChange,
+  selectedAgentId = null,
+  availableAgents = [],
+  onAgentChange,
 }) => {
   const [message, setMessage] = useState('');
   const [attachments, setAttachments] = useState<File[]>([]);
@@ -66,9 +69,9 @@ export const InputArea: React.FC<InputAreaProps> = ({
     if (!trimmedMessage && attachments.length === 0) return;
     if (disabled) return;
 
-    // 检查是否选择了模型
-    if (showModelSelector && !selectedModelId) {
-      alert('请先选择一个AI模型');
+    // 检查是否选择了模型或智能体（二选一）
+    if (showModelSelector && !selectedModelId && !selectedAgentId) {
+      alert('请先选择一个模型或智能体');
       return;
     }
 
@@ -131,14 +134,24 @@ export const InputArea: React.FC<InputAreaProps> = ({
 
   return (
     <div className="border-t bg-background p-4">
-      {/* 模型选择器 */}
+      {/* 模型/智能体选择器 */}
       {showModelSelector && (
         <div className="mb-3">
-         
-          {availableModels.length > 0 ? (
+          {(availableModels.length > 0 || availableAgents.length > 0) ? (
             <select
-              value={selectedModelId || ''}
-              onChange={(e) => onModelChange?.(e.target.value || null)}
+              value={selectedAgentId ? `agent:${selectedAgentId}` : (selectedModelId || '')}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val.startsWith('agent:')) {
+                  const agentId = val.replace('agent:', '');
+                  onAgentChange?.(agentId);
+                  // 同时清空模型选择
+                  onModelChange?.(null);
+                } else {
+                  onModelChange?.(val || null);
+                  onAgentChange?.(null);
+                }
+              }}
               disabled={disabled}
               className={cn(
                 'w-80 max-w-full px-3 py-2 border border-input bg-background rounded-md',
@@ -147,19 +160,33 @@ export const InputArea: React.FC<InputAreaProps> = ({
                 'disabled:opacity-50 disabled:cursor-not-allowed'
               )}
             >
-              <option value="">请选择模型...</option>
-              {availableModels
-                .filter(model => model.enabled)
-                .map((model) => (
-                  <option key={model.id} value={model.id}>
-                    {model.name} ({model.model_name})
-                  </option>
-                ))
-              }
+              <option value="">请选择模型或智能体...</option>
+              {availableAgents && availableAgents.filter(a => a.enabled).length > 0 && (
+                <optgroup label="智能体">
+                  {availableAgents
+                    .filter(a => a.enabled)
+                    .map((agent) => (
+                      <option key={agent.id} value={`agent:${agent.id}`}>
+                        [Agent] {agent.name}
+                      </option>
+                    ))}
+                </optgroup>
+              )}
+              {availableModels && availableModels.filter(model => model.enabled).length > 0 && (
+                <optgroup label="模型">
+                  {availableModels
+                    .filter(model => model.enabled)
+                    .map((model) => (
+                      <option key={model.id} value={model.id}>
+                        {model.name} ({model.model_name})
+                      </option>
+                    ))}
+                </optgroup>
+              )}
             </select>
           ) : (
             <div className="w-80 max-w-full px-3 py-2 border border-input bg-muted rounded-md text-sm text-muted-foreground">
-              暂无可用模型，请先在右上角配置AI模型
+              暂无可用模型或智能体，请先在右上角配置
             </div>
           )}
         </div>

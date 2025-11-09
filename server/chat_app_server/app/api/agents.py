@@ -1,7 +1,11 @@
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
+import asyncio
 
 from ..models.config import AgentCreate, AgentUpdate
+from ..services.v2.agent import build_sse_stream_from_agent_id, load_model_config_for_agent
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
@@ -43,3 +47,31 @@ async def delete_agent(agent_id: str) -> Dict[str, Any]:
         raise HTTPException(status_code=404, detail="Agent 不存在")
     await AgentCreate.delete(agent_id)
     return {"ok": True}
+
+
+# ========== 新增：智能体聊天流式接口 ==========
+
+class AgentChatRequest(BaseModel):
+    session_id: str = Field(description="会话ID")
+    content: str = Field(description="消息内容")
+    agent_id: str = Field(description="智能体ID")
+    user_id: Optional[str] = Field(default=None, description="用户ID，用于按用户加载MCP配置")
+
+
+@router.post("/chat/stream")
+def agent_chat_stream(request: AgentChatRequest):
+    """基于智能体ID的流式聊天接口（SSE）。"""
+    try:
+        return StreamingResponse(
+            build_sse_stream_from_agent_id(
+                session_id=request.session_id,
+                content=request.content,
+                agent_id=request.agent_id,
+                user_id=request.user_id,
+            ),
+            media_type="text/event-stream",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

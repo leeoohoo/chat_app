@@ -30,6 +30,10 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     selectedModelId,
     setSelectedModel,
     loadAiModelConfigs,
+    agents,
+    selectedAgentId,
+    setSelectedAgent,
+    loadAgents,
     abortCurrentConversation,
   } = useChatStoreFromContext();
 
@@ -40,11 +44,12 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [showSystemContextEditor, setShowSystemContextEditor] = useState(false);
   const [showAgentManager, setShowAgentManager] = useState(false);
 
-  // 初始化加载会话和AI模型配置
+  // 初始化加载会话、AI模型和智能体配置
   useEffect(() => {
     loadSessions();
     loadAiModelConfigs();
-  }, [loadSessions, loadAiModelConfigs]);
+    loadAgents();
+  }, [loadSessions, loadAiModelConfigs, loadAgents]);
 
   // 自动滚动到底部
   useEffect(() => {
@@ -197,6 +202,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
               selectedModelId={selectedModelId}
               availableModels={aiModelConfigs}
               onModelChange={setSelectedModel}
+              selectedAgentId={selectedAgentId}
+              availableAgents={agents}
+              onAgentChange={setSelectedAgent}
             />
           </div>
         )}

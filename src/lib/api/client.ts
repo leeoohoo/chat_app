@@ -550,6 +550,34 @@ class ApiClient {
     return response.body;
   }
 
+  async streamAgentChat(sessionId: string, content: string, agentId: string, userId?: string): Promise<ReadableStream> {
+    const url = `${this.baseUrl}/agents/chat/stream`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'text/event-stream',
+      },
+      body: JSON.stringify({
+        session_id: sessionId,
+        content: content,
+        agent_id: agentId,
+        user_id: userId,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    if (!response.body) {
+      throw new Error('Response body is null');
+    }
+
+    return response.body;
+  }
+
   // 停止聊天流
   async stopChat(sessionId: string): Promise<any> {
     return this.request<any>('/chat/stop', {

@@ -2,7 +2,7 @@ import {create} from 'zustand';
 import {subscribeWithSelector} from 'zustand/middleware';
 import {immer} from 'zustand/middleware/immer';
 import {persist} from 'zustand/middleware';
-import type {Message, Session, ChatConfig, Theme, McpConfig, AiModelConfig, SystemContext} from '../../types';
+import type {Message, Session, ChatConfig, Theme, McpConfig, AiModelConfig, SystemContext, AgentConfig} from '../../types';
 import {DatabaseService} from '../database';
 import {apiClient} from '../api/client';
 import {ChatService, MessageManager} from '../services';
@@ -30,6 +30,8 @@ interface ChatState {
     mcpConfigs: McpConfig[];
     aiModelConfigs: AiModelConfig[];
     selectedModelId: string | null;
+    agents: AgentConfig[];
+    selectedAgentId: string | null;
     systemContexts: SystemContext[];
     activeSystemContext: SystemContext | null;
 
@@ -71,6 +73,9 @@ interface ChatActions {
     updateAiModelConfig: (config: AiModelConfig) => Promise<void>;
     deleteAiModelConfig: (id: string) => Promise<void>;
     setSelectedModel: (modelId: string | null) => void;
+    // 智能体
+    loadAgents: () => Promise<void>;
+    setSelectedAgent: (agentId: string | null) => void;
     loadSystemContexts: () => Promise<void>;
     createSystemContext: (name: string, content: string) => Promise<void>;
     updateSystemContext: (id: string, name: string, content: string) => Promise<void>;
@@ -147,6 +152,8 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                     mcpConfigs: [],
                     aiModelConfigs: [],
                     selectedModelId: null,
+                    agents: [],
+                    selectedAgentId: null,
                     systemContexts: [],
                     activeSystemContext: null,
                     error: null,
@@ -372,7 +379,7 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                     },
 
                     sendMessage: async (content: string, attachments = []) => {
-                        const { currentSessionId, selectedModelId, aiModelConfigs, chatConfig, isLoading, isStreaming, activeSystemContext } = get();
+                        const { currentSessionId, selectedModelId, aiModelConfigs, chatConfig, isLoading, isStreaming, activeSystemContext, selectedAgentId, agents } = get();
 
                         if (!currentSessionId) {
                             throw new Error('No active session');
@@ -384,13 +391,21 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                             return;
                         }
 
-                        if (!selectedModelId) {
-                            throw new Error('请先选择一个AI模型');
-                        }
-
-                        const selectedModel = aiModelConfigs.find(model => model.id === selectedModelId);
-                        if (!selectedModel || !selectedModel.enabled) {
-                            throw new Error('选择的模型不可用');
+                        // 需要选择模型或智能体之一
+                        let selectedModel = null as any;
+                        let selectedAgent = null as any;
+                        if (selectedAgentId) {
+                            selectedAgent = agents.find(a => a.id === selectedAgentId);
+                            if (!selectedAgent || (selectedAgent as any).enabled === false) {
+                                throw new Error('选择的智能体不可用');
+                            }
+                        } else if (selectedModelId) {
+                            selectedModel = aiModelConfigs.find(model => model.id === selectedModelId);
+                            if (!selectedModel || !selectedModel.enabled) {
+                                throw new Error('选择的模型不可用');
+                            }
+                        } else {
+                            throw new Error('请先选择一个模型或智能体');
                         }
 
                         try {
@@ -405,13 +420,15 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                                 createdAt: userMessageTime,
                                 metadata: {
                                     ...(attachments.length > 0 ? { attachments } : {}),
-                                    model: selectedModel.model_name,
-                                    modelConfig: {
-                                        id: selectedModel.id,
-                                        name: selectedModel.name,
-                                        base_url: selectedModel.base_url,
-                                        model_name: selectedModel.model_name,
-                                    }
+                                    model: selectedAgent ? `[Agent] ${selectedAgent.name}` : selectedModel.model_name,
+                                    ...(selectedModel ? {
+                                        modelConfig: {
+                                            id: selectedModel.id,
+                                            name: selectedModel.name,
+                                            base_url: selectedModel.base_url,
+                                            model_name: selectedModel.model_name,
+                                        }
+                                    } : {})
                                 },
                             };
 
@@ -431,13 +448,15 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                                 status: 'streaming' as const,
                                 createdAt: assistantMessageTime,
                                 metadata: {
-                                    model: selectedModel.model_name,
-                                    modelConfig: {
-                                        id: selectedModel.id,
-                                        name: selectedModel.name,
-                                        base_url: selectedModel.base_url,
-                                        model_name: selectedModel.model_name,
-                                    },
+                                    model: selectedAgent ? `[Agent] ${selectedAgent.name}` : selectedModel.model_name,
+                                    ...(selectedModel ? {
+                                        modelConfig: {
+                                            id: selectedModel.id,
+                                            name: selectedModel.name,
+                                            base_url: selectedModel.base_url,
+                                            model_name: selectedModel.model_name,
+                                        }
+                                    } : {}),
                                     toolCalls: [], // 初始化工具调用数组
                                     contentSegments: [{ content: '', type: 'text' as const }], // 初始化内容分段
                                     currentSegmentIndex: 0 // 当前正在写入的分段索引
@@ -449,10 +468,18 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                                 state.streamingMessageId = tempAssistantMessage.id;
                             });
 
-                            // 准备聊天请求数据
-                            const chatRequest = {
+                            // 准备聊天请求数据（根据选择的目标：模型或智能体）
+                            const chatRequest = selectedAgent ? {
                                 session_id: currentSessionId,
                                 message: content,
+                                // 仅在选择智能体时携带智能体信息，不包含模型配置
+                                agent_id: selectedAgent.id,
+                                system_context: activeSystemContext?.content || chatConfig.systemPrompt || '',
+                                attachments: attachments || []
+                            } : {
+                                session_id: currentSessionId,
+                                message: content,
+                                // 仅在选择模型时携带模型配置
                                 model_config: {
                                     model: selectedModel.model_name,
                                     base_url: selectedModel.base_url,
@@ -466,13 +493,20 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
 
                             console.log('🚀 开始调用后端流式聊天API:', chatRequest);
 
-                            // 使用后端API进行流式聊天
-                            const response = await client.streamChat(
-                                currentSessionId, 
-                                content, 
-                                selectedModel,
-                                getUserIdParam()
-                            );
+                            // 使用后端API进行流式聊天（模型或智能体）
+                            const response = selectedAgent
+                                ? await client.streamAgentChat(
+                                    currentSessionId,
+                                    content,
+                                    selectedAgent.id,
+                                    getUserIdParam()
+                                  )
+                                : await client.streamChat(
+                                    currentSessionId,
+                                    content,
+                                    selectedModel,
+                                    getUserIdParam()
+                                  );
                             
                             if (!response) {
                                 throw new Error('No response received');
@@ -1122,6 +1156,35 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                     setSelectedModel: (modelId: string | null) => {
                         set((state) => {
                             state.selectedModelId = modelId;
+                            // 选择模型时清空已选智能体
+                            if (modelId) {
+                                state.selectedAgentId = null;
+                            }
+                        });
+                    },
+
+                    loadAgents: async () => {
+                        try {
+                            const agents = await client.getAgents(getUserIdParam());
+                            set((state) => {
+                                state.agents = agents || [];
+                            });
+                        } catch (error) {
+                            console.error('Failed to load agents:', error);
+                            set((state) => {
+                                state.agents = [];
+                                state.error = error instanceof Error ? error.message : 'Failed to load agents';
+                            });
+                        }
+                    },
+
+                    setSelectedAgent: (agentId: string | null) => {
+                        set((state) => {
+                            state.selectedAgentId = agentId;
+                            // 选择智能体时清空已选模型
+                            if (agentId) {
+                                state.selectedModelId = null;
+                            }
                         });
                     },
 

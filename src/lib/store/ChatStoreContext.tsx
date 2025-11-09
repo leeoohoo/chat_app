@@ -8,6 +8,8 @@ type ChatStore = typeof useChatStore;
 // Context接口
 interface ChatStoreContextType {
   store: ChatStore;
+  userId?: string;
+  projectId?: string;
 }
 
 // 创建Context
@@ -44,7 +46,7 @@ export const ChatStoreProvider: React.FC<ChatStoreProviderProps> = ({
   }, [userId, projectId, customApiClient]);
 
   return (
-    <ChatStoreContext.Provider value={{ store }}>
+    <ChatStoreContext.Provider value={{ store, userId, projectId }}>
       {children}
     </ChatStoreContext.Provider>
   );
@@ -63,4 +65,13 @@ export const useChatStoreContext = (): ChatStore => {
 export const useChatStoreFromContext = () => {
   const store = useChatStoreContext();
   return store();
+};
+
+// 新增：导出当前运行环境（userId、projectId）
+export const useChatRuntimeEnv = () => {
+  const context = useContext(ChatStoreContext);
+  if (!context) {
+    return { userId: undefined, projectId: undefined } as const;
+  }
+  return { userId: context.userId, projectId: context.projectId } as const;
 };

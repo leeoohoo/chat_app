@@ -83,6 +83,10 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
     selectedModelId,
     setSelectedModel,
     loadAiModelConfigs,
+    agents,
+    selectedAgentId,
+    setSelectedAgent,
+    loadAgents,
     abortCurrentConversation,
   } = store();
 
@@ -95,11 +99,12 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
   const [systemContextEditorOpen, setSystemContextEditorOpen] = useState(false);
   const [agentManagerOpen, setAgentManagerOpen] = useState(false);
 
-  // 初始化加载会话和AI模型配置
+  // 初始化加载会话、AI模型与智能体配置
   useEffect(() => {
     loadSessions();
     loadAiModelConfigs();
-  }, [loadSessions, loadAiModelConfigs]);
+    loadAgents();
+  }, [loadSessions, loadAiModelConfigs, loadAgents]);
 
   // 自动滚动到底部
   useEffect(() => {
@@ -250,6 +255,9 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
           availableModels={aiModelConfigs}
           onModelChange={setSelectedModel}
           showModelSelector={true}
+          selectedAgentId={selectedAgentId}
+          availableAgents={agents}
+          onAgentChange={setSelectedAgent}
         />
       )}
 

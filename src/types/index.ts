@@ -122,6 +122,17 @@ export interface AiModelConfig {
   updatedAt: Date;
 }
 
+// 智能体配置（简化版）
+export interface AgentConfig {
+  id: string;
+  name: string;
+  description?: string;
+  ai_model_config_id: string;
+  enabled: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 // AI客户端配置
 export interface AiClientConfig {
   apiKey: string;
@@ -210,6 +221,10 @@ export interface InputAreaProps {
   selectedModelId?: string | null;
   availableModels?: AiModelConfig[];
   onModelChange?: (modelId: string | null) => void;
+  // 智能体选择支持
+  selectedAgentId?: string | null;
+  availableAgents?: AgentConfig[];
+  onAgentChange?: (agentId: string | null) => void;
 }
 
 export interface SessionListProps {

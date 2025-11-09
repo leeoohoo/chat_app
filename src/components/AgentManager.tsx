@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useChatStoreFromContext } from '../lib/store/ChatStoreContext';
+import { useChatStoreFromContext, useChatRuntimeEnv } from '../lib/store/ChatStoreContext';
 import { useChatStore } from '../lib/store';
 import { apiClient } from '../lib/api/client';
 
@@ -66,6 +66,10 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
     loadSystemContexts,
   } = storeData;
 
+  // 从上下文获取当前用户环境
+  const { userId: contextUserId } = useChatRuntimeEnv();
+  const effectiveUserId = contextUserId || 'custom_user_123';
+
   const [agents, setAgents] = useState<AgentItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [showAddForm, setShowAddForm] = useState<boolean>(false);
@@ -95,8 +99,10 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
         loadAiModelConfigs(),
         loadMcpConfigs(),
         loadSystemContexts(),
+        // 刷新全局store中的智能体列表，供输入区选择
+        (storeData.loadAgents ? storeData.loadAgents() : Promise.resolve()),
       ]);
-      const list = await apiClient.getAgents('default-user');
+      const list = await apiClient.getAgents(effectiveUserId);
       setAgents(Array.isArray(list) ? list : []);
     } catch (e) {
       console.error('加载智能体失败', e);
@@ -133,7 +139,7 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
         mcp_config_ids: formData.mcp_config_ids,
         callable_agent_ids: formData.callable_agent_ids,
         system_context_id: formData.system_context_id,
-        user_id: 'default-user',
+        user_id: effectiveUserId,
         enabled: true,
       });
       await loadAll();

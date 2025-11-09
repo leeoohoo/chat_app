@@ -27,6 +27,14 @@ except Exception:
     McpConfigCreate = None
     McpConfigProfileActivate = None
 
+# 智能体/模型/系统上下文配置，用于按 agent_id 封装模型配置
+try:
+    from app.models.config import AgentCreate, AiModelConfigCreate, SystemContextCreate
+except Exception:
+    AgentCreate = None
+    AiModelConfigCreate = None
+    SystemContextCreate = None
+
 logger = logging.getLogger(__name__)
 
 
@@ -526,6 +534,7 @@ def build_sse_stream(
             api_key=api_key,
             base_url=base_url,
             model_name=(model_config or {}).get("model_name", "gpt-4"),
+            system_prompt=(model_config or {}).get("system_prompt"),
             temperature=(model_config or {}).get("temperature", 0.7),
             max_tokens=(model_config or {}).get("max_tokens"),
             user_id=user_id,
@@ -659,3 +668,72 @@ def build_sse_stream(
         logger.error(f"Error creating stream response: {e}", exc_info=True)
         err_event = {"type": "error", "error": str(e), "timestamp": datetime.now().isoformat()}
         yield f"data: {json.dumps(err_event, ensure_ascii=False)}\n\n"
+
+
+def load_model_config_for_agent(agent_id: str) -> Dict[str, Any]:
+    """
+    根据 agent_id 加载模型配置和系统提示，返回供 Agent 使用的 model_config 字典。
+
+    返回示例：
+    {
+        "model_name": str,
+        "api_key": Optional[str],
+        "base_url": Optional[str],
+        "temperature": float,
+        "max_tokens": Optional[int],
+        "system_prompt": Optional[str],
+    }
+    """
+    if AgentCreate is None or AiModelConfigCreate is None:
+        raise RuntimeError("模型/智能体配置模块不可用，无法按 agent_id 加载配置")
+
+    agent = _asyncio_run(AgentCreate.get_by_id(agent_id))
+    if not agent or not agent.get("enabled", True):
+        raise ValueError("智能体不存在或未启用")
+
+    ai_model_id = agent.get("ai_model_config_id")
+    if not ai_model_id:
+        raise ValueError("智能体缺少模型配置")
+
+    model_cfg = _asyncio_run(AiModelConfigCreate.get_by_id(ai_model_id))
+    if not model_cfg or not model_cfg.get("enabled", True):
+        raise ValueError("模型配置不可用或未启用")
+
+    # 系统提示
+    system_prompt: Optional[str] = None
+    system_context_id = agent.get("system_context_id")
+    if system_context_id and SystemContextCreate is not None:
+        sc = _asyncio_run(SystemContextCreate.get_by_id(system_context_id))
+        if sc:
+            is_active = sc.get("is_active")
+            if is_active is None:
+                is_active = sc.get("isActive", True)
+            if is_active:
+                system_prompt = sc.get("content")
+
+    return {
+        "model_name": model_cfg.get("model"),
+        "api_key": model_cfg.get("api_key"),
+        "base_url": model_cfg.get("base_url"),
+        "temperature": 0.7,
+        "max_tokens": 4000,
+        "system_prompt": system_prompt,
+    }
+
+
+def build_sse_stream_from_agent_id(
+    session_id: str,
+    content: str,
+    agent_id: str,
+    user_id: Optional[str] = None,
+) -> "Generator[str, None, None]":
+    """
+    根据 agent_id 封装 SSE 流构建，便于多处复用。
+    """
+    model_config = load_model_config_for_agent(agent_id)
+    return build_sse_stream(
+        session_id=session_id,
+        content=content,
+        model_config=model_config,
+        user_id=user_id,
+    )
