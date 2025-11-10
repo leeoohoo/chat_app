@@ -119,8 +119,8 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
         return { userId, projectId };
     };
     
-    // 创建DatabaseService实例
-    const databaseService = new DatabaseService(userId, projectId);
+    // 创建DatabaseService实例（传入与UI一致的ApiClient，确保baseUrl正确）
+    const databaseService = new DatabaseService(userId, projectId, client);
     
     // 创建MessageManager和ChatService实例
     const messageManager = new MessageManager(databaseService);

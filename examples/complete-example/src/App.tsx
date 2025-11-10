@@ -1,5 +1,6 @@
 /// <reference types="react" />
 /// <reference types="react-dom" />
+/// <reference types="vite/client" />
 
 import  { useEffect, useState } from 'react';
 import { AiChat } from '@leeoohoo/aichat';
@@ -16,16 +17,19 @@ function App() {
 
   useEffect(() => {
     try {
+      // 统一使用环境变量控制后端 API 基础地址
+      const apiBase = import.meta.env.VITE_API_BASE || 'http://localhost:8000/api';
+
       // 创建 AiChat 实例 - 完整功能版本
       const aiChat = new AiChat(
         'custom_user_125',            // 自定义用户ID
         'custom_project_456',         // 自定义项目ID
-        'http://localhost:8000/api',  // 自定义API基础URL
+        apiBase,                      // 自定义API基础URL
         'h-full w-full',              // CSS类名
         true,                         // showMcpManager - 显示MCP服务管理
         true,                         // showAiModelManager - 显示AI配置管理
         true,                         // showSystemContextEditor - 显示System Prompt编辑器
-        true                          // showAgentManager - 显示智能体管理
+        false                          // showAgentManager - 显示智能体管理
       );
 
       // 其他配置示例：
@@ -66,7 +70,7 @@ function App() {
       console.log('✅ 验证自定义参数:');
       console.log('  - 用户ID:', config.userId, '(期望: custom_user_125)');
       console.log('  - 项目ID:', config.projectId, '(期望: custom_project_456)');
-      console.log('  - API URL:', config.baseUrl, '(期望: http://localhost:8000/api)');
+      console.log('  - API URL:', config.baseUrl, `(期望: ${apiBase})`);
       
       // 验证 API 客户端是否使用了正确的 baseUrl
       const apiClient = aiChat.getApiClient();
@@ -75,8 +79,8 @@ function App() {
       // 验证参数是否正确传递
       const isUserIdCorrect = config.userId === 'custom_user_125';
       const isProjectIdCorrect = config.projectId === 'custom_project_456';
-      const isBaseUrlCorrect = config.baseUrl === 'http://localhost:8000/api';
-      const isApiClientBaseUrlCorrect = apiClient.getBaseUrl() === 'http://localhost:8000/api';
+      const isBaseUrlCorrect = config.baseUrl === apiBase;
+      const isApiClientBaseUrlCorrect = apiClient.getBaseUrl() === apiBase;
       
       console.log('🔍 参数验证结果:');
       console.log('  ✅ 用户ID正确:', isUserIdCorrect);

@@ -27,9 +27,13 @@ def format_message(message_row) -> Dict[str, Any]:
 
 
 @router.get("/sessions/{session_id}/messages")
-async def get_session_messages(session_id: str, limit: Optional[int] = Query(None, ge=1, le=1000)):
+async def get_session_messages(session_id: str, limit: Optional[int] = Query(None, ge=0, le=1000)):
     """获取会话的消息列表"""
     try:
+        # 兼容前端可能传入的 limit=0（表示不限制）
+        if limit is not None and limit == 0:
+            limit = None
+
         messages = await MessageCreate.get_by_session(session_id, limit=limit)
         logger.info(f"获取会话 {session_id} 的 {len(messages)} 条消息")
         return messages

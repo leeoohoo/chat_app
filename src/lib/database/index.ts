@@ -1,4 +1,5 @@
 import { apiClient } from '../api/client';
+import type ApiClient from '../api/client';
 import type { Session, Message } from './mock';
 
 // 数据库初始化
@@ -19,10 +20,12 @@ export function closeDatabase(): Promise<void> {
 export class DatabaseService {
   private userId: string;
   private projectId: string;
+  private client: ApiClient;
 
-  constructor(userId: string, projectId: string) {
+  constructor(userId: string, projectId: string, client: ApiClient = apiClient) {
     this.userId = userId;
     this.projectId = projectId;
+    this.client = client;
   }
 
   // 会话相关操作
@@ -141,7 +144,7 @@ export class DatabaseService {
   }
 
   async getSessionMessages(sessionId: string): Promise<Message[]> {
-    const messages = await apiClient.getSessionMessages(sessionId);
+    const messages = await this.client.getSessionMessages(sessionId);
     
     // 第一步：解析所有消息并收集工具调用和结果
     const parsedMessages = messages.map(message => {

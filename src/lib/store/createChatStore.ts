@@ -114,8 +114,8 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
         return { userId, projectId };
     };
     
-    // 创建DatabaseService实例
-    const databaseService = new DatabaseService(userId, projectId);
+    // 创建DatabaseService实例（传入ApiClient，避免默认 '/api' 导致Electron环境相对路径问题）
+    const databaseService = new DatabaseService(userId, projectId, customApiClient || apiClient);
     
     // 创建MessageManager和ChatService实例
     const messageManager = new MessageManager(databaseService);
