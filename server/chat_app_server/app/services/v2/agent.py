@@ -123,6 +123,12 @@ class Agent:
             self.message_manager,
         )
 
+        # 将系统提示同步到 AiClient，确保在摘要与递归过程中可用
+        try:
+            self.ai_client.set_system_prompt(self.config.system_prompt)
+        except Exception:
+            pass
+
         print(
             f"[AGENT] 初始化完成 - 模型: {config.model_name}, 可用工具数: {len(self.mcp_tool_execute.get_available_tools())}"
         )
@@ -530,11 +536,23 @@ def build_sse_stream(
         api_key = (model_config or {}).get("api_key") or os.getenv("OPENAI_API_KEY") or ""
         base_url = (model_config or {}).get("base_url")
 
+        # 计算系统提示词：优先使用用户激活的系统上下文，其次使用传入的 model_config.system_prompt
+        effective_system_prompt: Optional[str] = (model_config or {}).get("system_prompt")
+        try:
+            if user_id and SystemContextCreate is not None:
+                sc = _asyncio_run(SystemContextCreate.get_active(user_id))
+                if sc and sc.get("content"):
+                    # 按用户激活的系统上下文优先
+                    effective_system_prompt = sc.get("content")
+        except Exception:
+            # 查询失败时忽略，继续使用现有的 system_prompt 逻辑
+            pass
+
         agent = create_agent(
             api_key=api_key,
             base_url=base_url,
             model_name=(model_config or {}).get("model_name", "gpt-4"),
-            system_prompt=(model_config or {}).get("system_prompt"),
+            system_prompt=effective_system_prompt,
             temperature=(model_config or {}).get("temperature", 0.7),
             max_tokens=(model_config or {}).get("max_tokens"),
             user_id=user_id,

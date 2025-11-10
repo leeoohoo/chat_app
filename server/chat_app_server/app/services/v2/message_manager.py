@@ -304,6 +304,23 @@ class MessageManager:
         """清空缓存"""
         self.recent_messages.clear()
     
+    def clear_cache_for_session(self, session_id: str) -> None:
+        """
+        清空指定会话的缓存消息（不影响其他会话）
+        
+        Args:
+            session_id: 会话ID
+        """
+        try:
+            if not self.recent_messages:
+                return
+            # 找出属于该会话的消息ID
+            to_delete = [mid for mid, msg in self.recent_messages.items() if msg.get("sessionId") == session_id]
+            for mid in to_delete:
+                del self.recent_messages[mid]
+        except Exception as e:
+            print(f"Error in clear_cache_for_session: {e}")
+    
     def get_stats(self) -> Dict[str, Any]:
         """
         获取统计信息
@@ -315,4 +332,21 @@ class MessageManager:
             "stats": self.stats.copy(),
             "cache_size": len(self.recent_messages),
             "pending_saves": len(self.pending_saves)
+        }
+
+    def get_cache_stats(self) -> Dict[str, Any]:
+        """
+        获取缓存统计信息（与AiClient使用接口对齐）
+        
+        Returns:
+            包含缓存大小与按会话计数的统计
+        """
+        session_counts = {}
+        for msg in self.recent_messages.values():
+            sid = msg.get("sessionId")
+            if sid:
+                session_counts[sid] = session_counts.get(sid, 0) + 1
+        return {
+            "cache_size": len(self.recent_messages),
+            "by_session": session_counts
         }

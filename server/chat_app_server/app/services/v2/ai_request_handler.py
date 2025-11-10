@@ -278,18 +278,27 @@ class AiRequestHandler:
         api_messages = []
         
         for message in messages:
+            # 防御性检查：跳过None或非字典消息
+            if not isinstance(message, dict):
+                continue
+            role = message.get("role")
+            content = message.get("content", "")
+            if role is None:
+                # 没有角色的消息不参与API调用
+                continue
             api_message = {
-                "role": message.get("role"),
-                "content": message.get("content", "")
+                "role": role,
+                "content": content
             }
             
             # 处理工具调用
-            if message.get("metadata", {}).get("toolCalls"):
-                api_message["tool_calls"] = message["metadata"]["toolCalls"]
+            metadata = message.get("metadata") or {}
+            if isinstance(metadata, dict) and metadata.get("toolCalls"):
+                api_message["tool_calls"] = metadata["toolCalls"]
             
             # 处理工具调用ID（用于tool角色消息）
-            if message.get("role") == "tool" and message.get("metadata", {}).get("toolCallId"):
-                api_message["tool_call_id"] = message["metadata"]["toolCallId"]
+            if role == "tool" and isinstance(metadata, dict) and metadata.get("toolCallId"):
+                api_message["tool_call_id"] = metadata["toolCallId"]
             
             api_messages.append(api_message)
         

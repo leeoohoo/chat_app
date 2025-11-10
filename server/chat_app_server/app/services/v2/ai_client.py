@@ -5,6 +5,8 @@ AI客户端
 import time
 import asyncio
 from typing import Dict, List, Any, Optional, Callable
+from .conversation_summarizer import ConversationSummarizer
+from .ai_request_handler import AiRequestHandler
 
 
 class AiClient:
@@ -29,6 +31,36 @@ class AiClient:
         self.tool_result_processor = tool_result_processor
         self.message_manager = message_manager
         self.max_iterations = 25  # 最大递归次数，防止无限循环
+        # 对话摘要相关配置
+        self.summary_threshold = 6  # 当消息条数超过该阈值时触发摘要
+        self.summary_keep_last_n = 2  # 摘要后保留最近N条原始消息（默认保留最近2条）
+        self.summary_max_tokens = 30000  # 摘要生成的最大token数
+        # 历史消息与系统提示配置（可配置）
+        self.history_limit = 2  # 默认只取最近2条历史
+        self.default_system_prompt: Optional[str] = None  # 默认系统提示（所有模式均可注入）
+        # 摘要器：使用一个全新的 AiRequestHandler 实例，避免与主请求处理互相影响
+        try:
+            summarizer_handler = AiRequestHandler(
+                openai_client=self.ai_request_handler.openai_client,
+                message_manager=self.message_manager
+            )
+        except Exception as e:
+            print(f"[AI_CLIENT] 创建摘要专用处理器失败，降级使用主处理器: {e}")
+            summarizer_handler = self.ai_request_handler
+
+        self.conversation_summarizer = ConversationSummarizer(
+            ai_request_handler=summarizer_handler,
+            message_manager=self.message_manager
+        )
+
+    def set_history_limit(self, limit: int) -> None:
+        """设置加载历史消息的条数（>0）"""
+        if isinstance(limit, int) and limit > 0:
+            self.history_limit = limit
+
+    def set_system_prompt(self, prompt: Optional[str]) -> None:
+        """设置默认系统提示（所有模式都可注入）"""
+        self.default_system_prompt = prompt
     
     def process_request(self, 
                        messages: List[Dict[str, Any]], 
@@ -37,6 +69,8 @@ class AiClient:
                        temperature: float = 0.7,
                        max_tokens: Optional[int] = None,
                        on_chunk: Optional[Callable[[str], None]] = None,
+                       system_prompt: Optional[str] = None,
+                       history_limit: Optional[int] = None,
                        on_tools_start: Optional[Callable[[List[Dict[str, Any]]], None]] = None,
                        on_tools_stream: Optional[Callable[[Dict[str, Any]], None]] = None,
                        on_tools_end: Optional[Callable[[List[Dict[str, Any]]], None]] = None) -> Dict[str, Any]:
@@ -64,8 +98,62 @@ class AiClient:
             available_tools = self.mcp_tool_execute.get_available_tools()
             print(f"[AI_CLIENT] 获取到可用工具数量: {len(available_tools)}")
             
-            # 准备API消息格式
-            api_messages = self.ai_request_handler.prepare_messages_for_api(messages)
+            # 1) 加载历史上下文（从数据库）
+            history_messages = []
+            try:
+                # 可配置历史条数（参数优先，其次实例默认值）
+                hist_limit = history_limit if isinstance(history_limit, int) and history_limit > 0 else self.history_limit
+                history_messages = self.message_manager.get_session_messages(session_id=session_id, limit=hist_limit) or []
+            except Exception as e:
+                print(f"[AI_CLIENT] 加载历史消息失败: {e}")
+
+            # 2) 归一化系统提示并合并历史与当前消息（去重 system，保证 system 位于最前）
+            combined_messages: List[Dict[str, Any]] = []
+            # 收集输入中的系统消息内容（历史与当前）
+            system_candidates: List[str] = []
+            for src in (messages or []):
+                if isinstance(src, dict) and src.get("role") == "system":
+                    content = src.get("content")
+                    if content:
+                        system_candidates.append(str(content))
+            for src in (history_messages or []):
+                if isinstance(src, dict) and src.get("role") == "system":
+                    content = src.get("content")
+                    if content:
+                        system_candidates.append(str(content))
+
+            eff_system_prompt_input = system_prompt if system_prompt is not None else self.default_system_prompt
+            eff_system_prompt = eff_system_prompt_input if eff_system_prompt_input else (system_candidates[0] if system_candidates else None)
+            if eff_system_prompt:
+                combined_messages.append({"role": "system", "content": eff_system_prompt})
+
+            # 历史消息（跳过 system，统一结构）
+            for msg in (history_messages or []):
+                if not isinstance(msg, dict):
+                    continue
+                role = msg.get("role")
+                if not role or role == "system":
+                    continue
+                combined_messages.append({
+                    "role": role,
+                    "content": msg.get("content", ""),
+                    "metadata": msg.get("metadata") or {}
+                })
+
+            # 当前消息（跳过 system，统一结构）
+            for cur in (messages or []):
+                if not isinstance(cur, dict):
+                    continue
+                role = cur.get("role")
+                if not role or role == "system":
+                    continue
+                combined_messages.append({
+                    "role": role,
+                    "content": cur.get("content", ""),
+                    "metadata": cur.get("metadata") or {}
+                })
+
+            api_messages = self.ai_request_handler.prepare_messages_for_api(combined_messages)
             
             # 开始递归处理
             result = self._process_with_tools(
@@ -76,6 +164,7 @@ class AiClient:
                 temperature=temperature,
                 max_tokens=max_tokens,
                 on_chunk=on_chunk,
+                system_prompt=eff_system_prompt,
                 on_tools_start=on_tools_start,
                 on_tools_stream=on_tools_stream,
                 on_tools_end=on_tools_end,
@@ -101,6 +190,7 @@ class AiClient:
                            temperature: float,
                            max_tokens: Optional[int],
                            on_chunk: Optional[Callable[[str], None]],
+                           system_prompt: Optional[str],
                            on_tools_start: Optional[Callable[[List[Dict[str, Any]]], None]],
                            on_tools_stream: Optional[Callable[[Dict[str, Any]], None]],
                            on_tools_end: Optional[Callable[[List[Dict[str, Any]]], None]],
@@ -137,6 +227,64 @@ class AiClient:
             }
         
         try:
+            # 当消息过长时，先进行摘要
+            if len(api_messages) > self.summary_threshold:
+                print(f"[AI_CLIENT] 触发对话摘要 - 会话ID: {session_id}, 当前消息数: {len(api_messages)}, 阈值: {self.summary_threshold}")
+                summary_text = self.conversation_summarizer.summarize(
+                    api_messages=api_messages,
+                    session_id=session_id,
+                    model=model,
+                    temperature=max(0.3, temperature - 0.2),  # 摘要用更稳定的温度
+                    max_tokens=self.summary_max_tokens,
+                    on_chunk=on_chunk
+                )
+
+                if summary_text:
+                    print(f"[AI_CLIENT] 摘要成功，长度: {len(summary_text)} - 会话ID: {session_id}")
+                    # 用摘要开启新对话：保留系统提示，摘要作为助手消息，仅追加本次用户消息，其余清除
+                    next_messages: List[Dict[str, Any]] = []
+                    # 直接从当前消息中抽取系统提示（置顶且唯一）
+                    extracted_system: Optional[str] = None
+                    for m in (api_messages or []):
+                        if isinstance(m, dict) and m.get("role") == "system":
+                            c = m.get("content")
+                            if c:
+                                extracted_system = str(c)
+                                break
+                    if extracted_system:
+                        next_messages.append({
+                            "role": "system",
+                            "content": extracted_system
+                        })
+                    # 合并摘要与本次用户消息为单条用户消息
+                    last_user_content: Optional[str] = None
+                    for m in reversed(api_messages or []):
+                        if isinstance(m, dict) and m.get("role") == "user":
+                            last_user_content = m.get("content", "")
+                            break
+                    merged_user_lines = ["对话摘要：", summary_text or ""]
+                    if last_user_content:
+                        merged_user_lines.extend(["", "用户请求：", last_user_content])
+                    merged_user_content = "\n".join(merged_user_lines).strip()
+                    next_messages.append({
+                        "role": "user",
+                        "content": merged_user_content
+                    })
+                    api_messages = next_messages
+
+                    # 清理该会话的缓存历史（优先会话级清理）
+                    try:
+                        if hasattr(self.message_manager, "clear_cache_for_session"):
+                            self.message_manager.clear_cache_for_session(session_id)
+                            print(f"[AI_CLIENT] 已清理会话缓存 - 会话ID: {session_id}")
+                        elif hasattr(self.message_manager, "clear_cache"):
+                            self.message_manager.clear_cache()
+                            print(f"[AI_CLIENT] 已清理全局消息缓存 - 会话ID: {session_id}")
+                    except Exception as ce:
+                        print(f"[AI_CLIENT] 清理缓存失败: {ce}")
+                else:
+                    print(f"[AI_CLIENT] 摘要失败或无内容，继续使用原始消息 - 会话ID: {session_id}")
+
             # 发送AI请求
             print(f"[AI_CLIENT] 发送AI请求 - 会话ID: {session_id}, 迭代: {iteration}, 模型: {model}")
             
@@ -281,6 +429,7 @@ class AiClient:
                 temperature=temperature,
                 max_tokens=max_tokens,
                 on_chunk=on_chunk,
+                system_prompt=system_prompt,
                 on_tools_start=on_tools_start,
                 on_tools_stream=on_tools_stream,
                 on_tools_end=on_tools_end,
@@ -296,13 +445,15 @@ class AiClient:
                 "final_response": None,
                 "iteration": iteration
             }
-    
+
     def process_simple_request(self, 
                               messages: List[Dict[str, Any]], 
                               session_id: str,
                               model: str = "gpt-4",
                               temperature: float = 0.7,
-                              max_tokens: Optional[int] = None) -> Dict[str, Any]:
+                              max_tokens: Optional[int] = None,
+                              system_prompt: Optional[str] = None,
+                              history_limit: Optional[int] = None) -> Dict[str, Any]:
         """
         处理简单AI请求（不使用工具）
         
@@ -317,7 +468,61 @@ class AiClient:
             AI响应结果
         """
         try:
-            api_messages = self.ai_request_handler.prepare_messages_for_api(messages)
+            # 注入系统提示与历史消息（归一化：system 置顶、去重）
+            combined_messages: List[Dict[str, Any]] = []
+
+            # 历史消息（可配置条数）
+            history_messages: List[Dict[str, Any]] = []
+            try:
+                hist_limit = history_limit if isinstance(history_limit, int) and history_limit > 0 else self.history_limit
+                history_messages = self.message_manager.get_session_messages(session_id=session_id, limit=hist_limit) or []
+            except Exception as e:
+                print(f"[AI_CLIENT] 简单模式加载历史失败: {e}")
+
+            # 归一化系统提示
+            system_candidates: List[str] = []
+            for src in (messages or []):
+                if isinstance(src, dict) and src.get("role") == "system":
+                    c = src.get("content")
+                    if c:
+                        system_candidates.append(str(c))
+            for src in (history_messages or []):
+                if isinstance(src, dict) and src.get("role") == "system":
+                    c = src.get("content")
+                    if c:
+                        system_candidates.append(str(c))
+            eff_system_prompt_input = system_prompt if system_prompt is not None else self.default_system_prompt
+            eff_system_prompt = eff_system_prompt_input if eff_system_prompt_input else (system_candidates[0] if system_candidates else None)
+            if eff_system_prompt:
+                combined_messages.append({"role": "system", "content": eff_system_prompt})
+
+            # 合并历史（跳过 system）
+            for msg in (history_messages or []):
+                if not isinstance(msg, dict):
+                    continue
+                role = msg.get("role")
+                if not role or role == "system":
+                    continue
+                combined_messages.append({
+                    "role": role,
+                    "content": msg.get("content", ""),
+                    "metadata": msg.get("metadata") or {}
+                })
+
+            # 合并当前（跳过 system）
+            for cur in (messages or []):
+                if not isinstance(cur, dict):
+                    continue
+                role = cur.get("role")
+                if not role or role == "system":
+                    continue
+                combined_messages.append({
+                    "role": role,
+                    "content": cur.get("content", ""),
+                    "metadata": cur.get("metadata") or {}
+                })
+
+            api_messages = self.ai_request_handler.prepare_messages_for_api(combined_messages)
             
             response = self.ai_request_handler.handle_request(
                 messages=api_messages,
