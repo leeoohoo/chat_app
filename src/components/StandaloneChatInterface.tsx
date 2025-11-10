@@ -21,6 +21,7 @@ export interface StandaloneChatInterfaceProps {
   showMcpManager?: boolean;
   showAiModelManager?: boolean;
   showSystemContextEditor?: boolean;
+  showAgentManager?: boolean;
 }
 
 /**
@@ -36,6 +37,7 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
   showMcpManager = true,
   showAiModelManager = true,
   showSystemContextEditor = true,
+  showAgentManager = true,
 }) => {
   // 根据传入的port或apiBaseUrl创建自定义的API基础URL
   const customApiBaseUrl = React.useMemo(() => {
@@ -191,15 +193,17 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
           )}
 
           {/* 智能体管理按钮 */}
-          <button
-            onClick={() => setAgentManagerOpen(true)}
-            className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
-            title="智能体管理"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6M9 16h6M6 8h12a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2v-8a2 2 0 012-2z" />
-            </svg>
-          </button>
+          {showAgentManager && (
+            <button
+              onClick={() => setAgentManagerOpen(true)}
+              className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
+              title="智能体管理"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6M9 16h6M6 8h12a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2v-8a2 2 0 012-2z" />
+              </svg>
+            </button>
+          )}
 
           <ThemeToggle />
         </div>
@@ -279,7 +283,7 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
         )}
 
       {/* 智能体管理器模态框 */}
-      {agentManagerOpen && (
+      {showAgentManager && agentManagerOpen && (
           <AgentManager onClose={() => setAgentManagerOpen(false)} store={store} />
         )}
 

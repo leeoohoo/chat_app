@@ -24,7 +24,8 @@ function App() {
         'h-full w-full',              // CSS类名
         true,                         // showMcpManager - 显示MCP服务管理
         true,                         // showAiModelManager - 显示AI配置管理
-        true                          // showSystemContextEditor - 显示System Prompt编辑器
+        true,                         // showSystemContextEditor - 显示System Prompt编辑器
+        true                          // showAgentManager - 显示智能体管理
       );
 
       // 其他配置示例：
@@ -32,25 +33,25 @@ function App() {
       // 1. 简化聊天版本（隐藏所有管理模块）
       // const simpleChatInstance = new AiChat(
       //   'simple_user', 'simple_project', 'http://localhost:8000/api', 'h-full w-full',
-      //   false, false, false
+      //   false, false, false, false
       // );
 
       // 2. 只显示AI配置管理
       // const aiConfigOnlyInstance = new AiChat(
       //   'config_user', 'config_project', 'http://localhost:8000/api', 'h-full w-full',
-      //   false, true, false
+      //   false, true, false, false
       // );
 
       // 3. 只显示MCP服务管理
       // const mcpOnlyInstance = new AiChat(
       //   'mcp_user', 'mcp_project', 'http://localhost:8000/api', 'h-full w-full',
-      //   true, false, false
+      //   true, false, false, false
       // );
 
       // 4. 显示AI配置和System Prompt编辑器，隐藏MCP
       // const aiAndSystemInstance = new AiChat(
       //   'ai_system_user', 'ai_system_project', 'http://localhost:8000/api', 'h-full w-full',
-      //   false, true, true
+      //   false, true, true, false
       // );
 
       setAiChatInstance(aiChat);

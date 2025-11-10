@@ -356,10 +356,25 @@ class Agent:
         Returns:
             执行结果
         """
-        # 构建消息列表
-        messages = conversation_history or []
+        # 若未提供会话ID，生成一个
+        if not session_id:
+            session_id = f"agent_session_{int(time.time() * 1000)}"
 
-        # 添加用户消息
+        # 先保存用户消息到数据库，确保 /chat/stream 路径持久化
+        try:
+            self.message_manager.save_user_message(
+                session_id=session_id,
+                content=user_message,
+            )
+        except Exception:
+            # 保存失败不阻断聊天流程，仅记录日志
+            try:
+                logger.warning("保存用户消息失败，但继续执行聊天流程", exc_info=False)
+            except Exception:
+                pass
+
+        # 构建消息列表并追加当前用户消息
+        messages = conversation_history or []
         messages.append({"role": "user", "content": user_message})
 
         return self.run(messages=messages, session_id=session_id, **kwargs)

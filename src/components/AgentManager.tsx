@@ -81,14 +81,12 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
     description: string;
     ai_model_config_id: string;
     mcp_config_ids: string[];
-    callable_agent_ids: string[];
     system_context_id?: string;
   }>({
     name: '',
     description: '',
     ai_model_config_id: '',
     mcp_config_ids: [],
-    callable_agent_ids: [],
     system_context_id: undefined,
   });
 
@@ -121,7 +119,6 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
       description: '',
       ai_model_config_id: '',
       mcp_config_ids: [],
-      callable_agent_ids: [],
       system_context_id: undefined,
     });
     setShowAddForm(false);
@@ -137,7 +134,6 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
         description: formData.description?.trim() || undefined,
         ai_model_config_id: formData.ai_model_config_id,
         mcp_config_ids: formData.mcp_config_ids,
-        callable_agent_ids: formData.callable_agent_ids,
         system_context_id: formData.system_context_id,
         user_id: effectiveUserId,
         enabled: true,
@@ -159,7 +155,6 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
         description: formData.description,
         ai_model_config_id: formData.ai_model_config_id,
         mcp_config_ids: formData.mcp_config_ids,
-        callable_agent_ids: formData.callable_agent_ids,
         system_context_id: formData.system_context_id,
         enabled: true,
       });
@@ -190,7 +185,6 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
       description: agent.description || '',
       ai_model_config_id: agent.ai_model_config_id,
       mcp_config_ids: Array.isArray(agent.mcp_config_ids) ? agent.mcp_config_ids : [],
-      callable_agent_ids: Array.isArray(agent.callable_agent_ids) ? agent.callable_agent_ids : [],
       system_context_id: agent.system_context_id,
     });
   };
@@ -306,33 +300,7 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
                   ))}
                 </div>
               </div>
-              {/* 选择可调用智能体（多选），不可选择自己 */}
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">选择可调用的智能体（多选）</label>
-                <div className="space-y-2 max-h-40 overflow-y-auto p-2 border rounded-md">
-                  {(agents || [])
-                    .filter((a) => !editingAgent || a.id !== editingAgent.id)
-                    .map((a) => (
-                      <label key={a.id} className="flex items-center space-x-2">
-                        <input
-                          type="checkbox"
-                          checked={formData.callable_agent_ids.includes(a.id)}
-                          onChange={(e) => {
-                            const checked = e.target.checked;
-                            setFormData((prev) => ({
-                              ...prev,
-                              callable_agent_ids: checked
-                                ? [...prev.callable_agent_ids, a.id]
-                                : prev.callable_agent_ids.filter((id) => id !== a.id),
-                            }));
-                          }}
-                        />
-                        <span>{a.name}</span>
-                      </label>
-                    ))}
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">提示：不可选择当前正在编辑的智能体自身</p>
-              </div>
+              
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">选择系统上下文</label>
                 <select
@@ -378,10 +346,6 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
                       <p className="mt-2 text-xs text-muted-foreground">模型：{getModelName(a.ai_model_config_id)}</p>
                       <p className="mt-1 text-xs text-muted-foreground">系统上下文：{getSystemContextName(a.system_context_id)}</p>
                       <p className="mt-1 text-xs text-muted-foreground">MCP配置：{getMcpNames(a.mcp_config_ids || [])}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">可调用智能体：{(a.callable_agent_ids || []).map(id => {
-                        const other = agents.find(x => x.id === id);
-                        return other ? other.name : id;
-                      }).join('，') || '未选择'}</p>
                     </div>
                     <div className="flex items-center space-x-2 ml-4">
                       <button onClick={() => setDetailAgent(a)} className="px-3 py-1 text-sm bg-muted text-foreground rounded hover:bg-accent transition-colors">详情</button>
@@ -419,10 +383,6 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
                 <p><span className="text-muted-foreground">模型：</span>{getModelName(detailAgent.ai_model_config_id)}</p>
                 <p><span className="text-muted-foreground">系统上下文：</span>{getSystemContextName(detailAgent.system_context_id)}</p>
                 <p><span className="text-muted-foreground">MCP配置：</span>{getMcpNames(detailAgent.mcp_config_ids || [])}</p>
-                <p><span className="text-muted-foreground">可调用智能体：</span>{(detailAgent.callable_agent_ids || []).map(id => {
-                  const other = agents.find(x => x.id === id);
-                  return other ? other.name : id;
-                }).join('，') || '未选择'}</p>
                 <p className="text-xs text-muted-foreground">创建时间：{detailAgent.created_at ? new Date(detailAgent.created_at).toLocaleString() : '-'}</p>
               </div>
               <div className="mt-4 flex justify-end space-x-2">
