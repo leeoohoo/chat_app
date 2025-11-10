@@ -31,7 +31,7 @@ export class DatabaseService {
   // 会话相关操作
   async createSession(data: Omit<Session, 'id'>): Promise<Session> {
     const sessionData = { id: crypto.randomUUID(), title: data.title, user_id: this.userId, project_id: this.projectId };
-    const session = await apiClient.createSession(sessionData);
+    const session = await this.client.createSession(sessionData);
     return {
       id: session.id,
       title: session.title,
@@ -48,7 +48,7 @@ export class DatabaseService {
 
   async getSession(id: string): Promise<Session | null> {
     try {
-      const session = await apiClient.getSession(id);
+      const session = await this.client.getSession(id);
       if (!session) return null;
       return {
         id: session.id,
@@ -70,7 +70,7 @@ export class DatabaseService {
   async getAllSessions(): Promise<Session[]> {
     console.log('🔍 DatabaseService.getAllSessions 调用:', { userId: this.userId, projectId: this.projectId });
     
-    const sessions = await apiClient.getSessions(this.userId, this.projectId);
+    const sessions = await this.client.getSessions(this.userId, this.projectId);
     console.log('🔍 API返回的会话数据:', sessions);
     
     // 转换字段名：数据库使用下划线命名，前端使用驼峰命名
@@ -99,7 +99,7 @@ export class DatabaseService {
 
   async deleteSession(id: string): Promise<boolean> {
     try {
-      await apiClient.deleteSession(id);
+      await this.client.deleteSession(id);
       return true;
     } catch (error) {
       return false;
@@ -127,7 +127,7 @@ export class DatabaseService {
       metadata: messageData.metadata ? (typeof messageData.metadata === 'string' ? JSON.parse(messageData.metadata) : messageData.metadata) : undefined,
       toolCalls: messageData.tool_calls ? (typeof messageData.tool_calls === 'string' ? JSON.parse(messageData.tool_calls) : messageData.tool_calls) : undefined
     };
-    const result = await apiClient.createMessage(messageRequestData);
+    const result = await this.client.createMessage(messageRequestData);
     return {
       id: result.id,
       sessionId: result.session_id,

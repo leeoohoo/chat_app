@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { useChatStoreFromContext, useChatRuntimeEnv } from '../lib/store/ChatStoreContext';
+import { useChatStoreFromContext, useChatRuntimeEnv, useChatApiClientFromContext } from '../lib/store/ChatStoreContext';
 import { useChatStore } from '../lib/store';
-import { apiClient } from '../lib/api/client';
+import { apiClient as globalApiClient } from '../lib/api/client';
+import type ApiClient from '../lib/api/client';
 
 interface AgentManagerProps {
   onClose?: () => void;
@@ -69,6 +70,8 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
   // 从上下文获取当前用户环境
   const { userId: contextUserId } = useChatRuntimeEnv();
   const effectiveUserId = contextUserId || 'custom_user_123';
+  const clientFromContext = useChatApiClientFromContext();
+  const client: ApiClient = clientFromContext || globalApiClient;
 
   const [agents, setAgents] = useState<AgentItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -100,12 +103,40 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
         // 刷新全局store中的智能体列表，供输入区选择
         (storeData.loadAgents ? storeData.loadAgents() : Promise.resolve()),
       ]);
-      const list = await apiClient.getAgents(effectiveUserId);
+      // 优先使用store加载的agents以保证与全局状态一致
+      const list = storeData.agents && Array.isArray(storeData.agents)
+        ? storeData.agents
+        : await client.getAgents(effectiveUserId);
       setAgents(Array.isArray(list) ? list : []);
     } catch (e) {
       console.error('加载智能体失败', e);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // 针对新增/更新后可能存在的读写延迟，增加一次轻量重试刷新
+  const refreshAgentsWithRetry = async (createdId?: string) => {
+    const maxTries = 3;
+    for (let i = 0; i < maxTries; i++) {
+      try {
+        if (storeData.loadAgents) {
+          await storeData.loadAgents();
+        }
+        // 始终通过客户端获取最新列表，避免在同一渲染周期读取到过期的store快照
+        const list = await client.getAgents(effectiveUserId);
+        setAgents(Array.isArray(list) ? list : []);
+        if (createdId && Array.isArray(list) && list.some(a => a.id === createdId)) {
+          break;
+        }
+        if (!createdId) {
+          break;
+        }
+        await new Promise<void>((resolve) => setTimeout(resolve, 250));
+      } catch (err) {
+        console.warn('刷新智能体列表失败，重试中…', err);
+        await new Promise<void>((resolve) => setTimeout(resolve, 250));
+      }
     }
   };
 
@@ -129,7 +160,7 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
     e.preventDefault();
     if (!formData.name.trim() || !formData.ai_model_config_id) return;
     try {
-      await apiClient.createAgent({
+      const created = await client.createAgent({
         name: formData.name.trim(),
         description: formData.description?.trim() || undefined,
         ai_model_config_id: formData.ai_model_config_id,
@@ -138,7 +169,14 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
         user_id: effectiveUserId,
         enabled: true,
       });
-      await loadAll();
+      // 乐观更新本地列表，避免等待后端读写一致性
+      if (created && created.id) {
+        setAgents(prev => {
+          const exists = prev.some(a => a.id === created.id);
+          return exists ? prev.map(a => (a.id === created.id ? { ...a, ...created } : a)) : [created, ...prev];
+        });
+      }
+      await refreshAgentsWithRetry(created?.id);
       resetForm();
     } catch (e) {
       console.error('创建智能体失败', e);
@@ -150,7 +188,7 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
     e.preventDefault();
     if (!editingAgent) return;
     try {
-      await apiClient.updateAgent(editingAgent.id, {
+      const updated = await client.updateAgent(editingAgent.id, {
         name: formData.name,
         description: formData.description,
         ai_model_config_id: formData.ai_model_config_id,
@@ -158,7 +196,11 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
         system_context_id: formData.system_context_id,
         enabled: true,
       });
-      await loadAll();
+      // 乐观更新本地列表
+      setAgents(prev => prev.map(a => (
+        a.id === editingAgent.id ? { ...a, ...updated, name: formData.name, description: formData.description, ai_model_config_id: formData.ai_model_config_id, mcp_config_ids: formData.mcp_config_ids, system_context_id: formData.system_context_id, enabled: true } : a
+      )));
+      await refreshAgentsWithRetry(editingAgent.id);
       resetForm();
     } catch (e) {
       console.error('更新智能体失败', e);
@@ -168,8 +210,10 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
 
   const handleDelete = async (agentId: string) => {
     try {
-      await apiClient.deleteAgent(agentId);
-      await loadAll();
+      await client.deleteAgent(agentId);
+      // 本地先删除，随后刷新确保一致
+      setAgents(prev => prev.filter(a => a.id !== agentId));
+      await refreshAgentsWithRetry();
     } catch (e) {
       console.error('删除智能体失败', e);
       alert('删除失败，请重试');

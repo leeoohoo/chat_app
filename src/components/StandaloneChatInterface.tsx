@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useChatStore } from '../lib/store';
+import { ChatStoreProvider } from '../lib/store/ChatStoreContext';
 import { createChatStoreWithBackend } from '../lib/store/createChatStoreWithBackend';
 import { MessageList } from './MessageList';
 import { InputArea } from './InputArea';
@@ -125,10 +126,11 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
   };
 
   return (
-    <div className={cn(
-      'flex flex-col h-screen bg-background text-foreground',
-      className
-    )}>
+    <ChatStoreProvider userId={userId} projectId={projectId} customApiClient={customApiClient}>
+      <div className={cn(
+        'flex flex-col h-screen bg-background text-foreground',
+        className
+      )}>
       {/* 头部 - 包含会话按钮和主题切换 */}
       <div className="flex items-center justify-between p-4 bg-card border-b border-border">
         <div className="flex items-center space-x-3">
@@ -294,7 +296,8 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
           store={store}
         />
       )}
-    </div>
+      </div>
+    </ChatStoreProvider>
   );
 };
 

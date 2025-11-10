@@ -19,10 +19,13 @@ async def get_sessions(
 ):
     """获取会话列表"""
     try:
-        # 目前忽略 user_id 和 project_id 参数，返回所有会话
-        # 后续可以根据需要添加过滤逻辑
-        sessions = SessionService.get_all()
-        logger.info(f"获取到 {len(sessions)} 个会话")
+        # 支持按 user_id / project_id 过滤
+        if user_id or project_id:
+            sessions = SessionService.get_by_user_project(user_id=user_id, project_id=project_id)
+            logger.info(f"按过滤条件获取到 {len(sessions)} 个会话 user_id={user_id}, project_id={project_id}")
+        else:
+            sessions = SessionService.get_all()
+            logger.info(f"获取到 {len(sessions)} 个会话（未过滤）")
         return sessions
         
     except Exception as e:

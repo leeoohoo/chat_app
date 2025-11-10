@@ -10,6 +10,7 @@ interface ChatStoreContextType {
   store: ChatStore;
   userId?: string;
   projectId?: string;
+  apiClient?: ApiClient;
 }
 
 // 创建Context
@@ -46,7 +47,7 @@ export const ChatStoreProvider: React.FC<ChatStoreProviderProps> = ({
   }, [userId, projectId, customApiClient]);
 
   return (
-    <ChatStoreContext.Provider value={{ store, userId, projectId }}>
+    <ChatStoreContext.Provider value={{ store, userId, projectId, apiClient: customApiClient }}>
       {children}
     </ChatStoreContext.Provider>
   );
@@ -74,4 +75,10 @@ export const useChatRuntimeEnv = () => {
     return { userId: undefined, projectId: undefined } as const;
   }
   return { userId: context.userId, projectId: context.projectId } as const;
+};
+
+// 新增：从Context中获取自定义ApiClient（如果存在）
+export const useChatApiClientFromContext = () => {
+  const context = useContext(ChatStoreContext);
+  return context?.apiClient;
 };

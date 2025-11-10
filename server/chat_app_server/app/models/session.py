@@ -15,6 +15,9 @@ class SessionCreate(BaseModel):
     title: str
     description: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
+    # 新增：按用户和项目隔离会话
+    user_id: Optional[str] = None
+    project_id: Optional[str] = None
 
 
 class SessionMcpServerCreate(BaseModel):
@@ -35,11 +38,12 @@ class SessionService:
         db = get_database()
         db.execute_sync(
             """
-            INSERT INTO sessions (id, title, description, metadata, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO sessions (id, title, description, metadata, user_id, project_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (session_id, session_data.title, session_data.description, 
-             str(session_data.metadata) if session_data.metadata else None, 
+             str(session_data.metadata) if session_data.metadata else None,
+             session_data.user_id, session_data.project_id,
              datetime.now(), datetime.now())
         )
         return session_id
@@ -49,6 +53,25 @@ class SessionService:
         """获取所有会话"""
         db = get_database()
         rows = db.fetchall_sync("SELECT * FROM sessions ORDER BY updated_at DESC")
+        return [dict(row) for row in rows]
+
+    @classmethod
+    def get_by_user_project(cls, user_id: Optional[str] = None, project_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """按用户和项目过滤会话"""
+        db = get_database()
+        base_query = "SELECT * FROM sessions"
+        where_clauses = []
+        params: list[Any] = []
+        if user_id:
+            where_clauses.append("user_id = ?")
+            params.append(user_id)
+        if project_id:
+            where_clauses.append("project_id = ?")
+            params.append(project_id)
+        if where_clauses:
+            base_query += " WHERE " + " AND ".join(where_clauses)
+        base_query += " ORDER BY updated_at DESC"
+        rows = db.fetchall_sync(base_query, tuple(params) if params else None)
         return [dict(row) for row in rows]
     
     @classmethod

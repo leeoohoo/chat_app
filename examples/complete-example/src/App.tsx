@@ -22,14 +22,14 @@ function App() {
 
       // 创建 AiChat 实例 - 完整功能版本
       const aiChat = new AiChat(
-        'custom_user_125',            // 自定义用户ID
+        'custom_user_127',            // 自定义用户ID
         'custom_project_456',         // 自定义项目ID
         apiBase,                      // 自定义API基础URL
         'h-full w-full',              // CSS类名
         true,                         // showMcpManager - 显示MCP服务管理
         true,                         // showAiModelManager - 显示AI配置管理
         true,                         // showSystemContextEditor - 显示System Prompt编辑器
-        false                          // showAgentManager - 显示智能体管理
+        true                          // showAgentManager - 显示智能体管理
       );
 
       // 其他配置示例：
