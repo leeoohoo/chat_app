@@ -26,3 +26,6 @@ ai-chat-react-component-1.0.0.tgz
 /server/chat_app_server/app/services/v2/__pycache__
 /server/chat_app_server/app/services/v2/__pycache__
 /examples/complete-example/dist
+/examples/complete-example/bin
+/server/chat_app_server/app/services/v2/__pycache__
+/server/chat_app_server/data

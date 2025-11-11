@@ -101,8 +101,15 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
 
 
 
-  // 组件初始化时加载MCP配置
+  // 组件初始化时加载MCP配置（StrictMode 下防止重复触发）
   React.useEffect(() => {
+    const key = '__mcpManagerInitAt__';
+    const last = (window as any)[key] || 0;
+    const now = Date.now();
+    if (typeof last === 'number' && now - last < 1000) {
+      return;
+    }
+    (window as any)[key] = now;
     loadMcpConfigs();
   }, [loadMcpConfigs]);
 

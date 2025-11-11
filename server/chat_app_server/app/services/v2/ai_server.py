@@ -163,13 +163,19 @@ class AiServer:
         """
         try:
             chunks = []
-            tool_results = []
+            tool_stream_events: List[Dict[str, Any]] = []
+            tool_results: List[Dict[str, Any]] = []
             
             def on_chunk(chunk: str):
                 chunks.append(chunk)
             
-            def on_tool_result(result: Dict[str, Any]):
-                tool_results.append(result)
+            def on_tools_stream(result: Dict[str, Any]):
+                tool_stream_events.append(result)
+                # 也将最终结果收集到 tool_results，便于汇总
+                if isinstance(result, dict) and (
+                    result.get("success") is not None or result.get("is_error") is not None
+                ):
+                    tool_results.append(result)
             
             # 处理聊天
             result = self.chat(
@@ -180,11 +186,12 @@ class AiServer:
                 max_tokens=max_tokens,
                 use_tools=use_tools,
                 on_chunk=on_chunk,
-                on_tool_result=on_tool_result
+                on_tools_stream=on_tools_stream
             )
             
             # 返回收集的数据
             result["stream_chunks"] = chunks
+            result["tool_stream_events"] = tool_stream_events
             result["tool_results"] = tool_results
             
             return result

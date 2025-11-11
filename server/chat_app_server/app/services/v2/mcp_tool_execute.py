@@ -255,14 +255,24 @@ class McpToolExecute:
         async def _once():
             text = await self._call_mcp_tool_once(tool_name, arguments)
             if on_tool_stream:
-                on_tool_stream({
-                    "tool_call_id": tool_call_id,
-                    "name": tool_name,
-                    "success": True,
-                    "is_error": False,
-                    "content": text,
-                    "is_stream": False,
-                })
+                try:
+                    print(f"[MCP_TOOL] on_tool_stream 调用: {tool_name} (tool_call_id={tool_call_id}) 成功, 内容长度={len(str(text))}")
+                except Exception:
+                    pass
+                try:
+                    on_tool_stream({
+                        "tool_call_id": tool_call_id,
+                        "name": tool_name,
+                        "success": True,
+                        "is_error": False,
+                        "content": text,
+                        "is_stream": False,
+                    })
+                except Exception as e:
+                    try:
+                        print(f"[MCP_TOOL] on_tool_stream 回调错误: {e}")
+                    except Exception:
+                        pass
             return text
         return _run(_once())
 
@@ -400,7 +410,17 @@ class McpToolExecute:
                 "content": final_text,
             }
             if on_tool_stream:
-                on_tool_stream(result)
+                try:
+                    print(f"[MCP_TOOL] on_tool_stream 完成: {tool_name} (tool_call_id={tool_call_id}) 成功, 内容长度={len(str(final_text))}")
+                except Exception:
+                    pass
+                try:
+                    on_tool_stream(result)
+                except Exception as e:
+                    try:
+                        print(f"[MCP_TOOL] on_tool_stream 回调错误: {e}")
+                    except Exception:
+                        pass
             return result
 
         except Exception as e:
@@ -412,7 +432,17 @@ class McpToolExecute:
                 "content": f"工具执行失败: {str(e)}",
             }
             if on_tool_stream:
-                on_tool_stream(error_result)
+                try:
+                    print(f"[MCP_TOOL] on_tool_stream 错误: {error_result.get('name')} (tool_call_id={error_result.get('tool_call_id')}) 错误信息={error_result.get('content')}")
+                except Exception:
+                    pass
+                try:
+                    on_tool_stream(error_result)
+                except Exception as e:
+                    try:
+                        print(f"[MCP_TOOL] on_tool_stream 回调错误: {e}")
+                    except Exception:
+                        pass
             return error_result
 
     def get_available_tools(self) -> List[Dict[str, Any]]:
@@ -450,7 +480,17 @@ class McpToolExecute:
                 }
                 results.append(err)
                 if on_tool_stream:
-                    on_tool_stream(err)
+                    try:
+                        print(f"[MCP_TOOL] on_tool_stream 验证失败: {err.get('name')} (tool_call_id={err.get('tool_call_id')}) 错误信息={err.get('content')}")
+                    except Exception:
+                        pass
+                    try:
+                        on_tool_stream(err)
+                    except Exception as e:
+                        try:
+                            print(f"[MCP_TOOL] on_tool_stream 回调错误: {e}")
+                        except Exception:
+                            pass
                 continue
 
             try:
@@ -466,7 +506,17 @@ class McpToolExecute:
                 }
                 results.append(err)
                 if on_tool_stream:
-                    on_tool_stream(err)
+                    try:
+                        print(f"[MCP_TOOL] on_tool_stream 执行失败: {err.get('name')} (tool_call_id={err.get('tool_call_id')}) 错误信息={err.get('content')}")
+                    except Exception:
+                        pass
+                    try:
+                        on_tool_stream(err)
+                    except Exception as e:
+                        try:
+                            print(f"[MCP_TOOL] on_tool_stream 回调错误: {e}")
+                        except Exception:
+                            pass
         return results
 
     def get_tool_execution_stats(self, results: List[Dict[str, Any]]) -> Dict[str, Any]:

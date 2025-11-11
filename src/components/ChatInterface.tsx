@@ -46,6 +46,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
 
   // 初始化加载会话、AI模型和智能体配置
   useEffect(() => {
+    // React 18 在开发模式下会双调用副作用，这里加一次性保护
+    const didInit = (window as any).__chatInterfaceDidInit__ ?? false;
+    if (didInit) return;
+    (window as any).__chatInterfaceDidInit__ = true;
+
     loadSessions();
     loadAiModelConfigs();
     loadAgents();

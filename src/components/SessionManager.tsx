@@ -43,6 +43,11 @@ export const SessionManager: React.FC<SessionManagerProps> = ({ children }) => {
 
   // 加载会话列表
   useEffect(() => {
+    // React 18 开发模式副作用双执行，使用一次性保护避免重复请求
+    const didInit = (window as any).__sessionManagerDidInit__ ?? false;
+    if (didInit) return;
+    (window as any).__sessionManagerDidInit__ = true;
+
     loadSessions();
   }, [loadSessions]);
 

@@ -90,8 +90,15 @@ const SystemContextEditor: React.FC<SystemContextEditorProps> = ({ onClose, stor
   
   const { dialogState, showConfirmDialog, handleConfirm, handleCancel } = useConfirmDialog();
 
-  // 组件初始化时加载系统上下文列表
+  // 组件初始化时加载系统上下文列表（StrictMode 下防止重复触发）
   useEffect(() => {
+    const key = '__systemContextEditorInitAt__';
+    const last = (window as any)[key] || 0;
+    const now = Date.now();
+    if (typeof last === 'number' && now - last < 1000) {
+      return;
+    }
+    (window as any)[key] = now;
     const loadContexts = async () => {
       setIsLoading(true);
       try {

@@ -104,6 +104,11 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
 
   // 初始化加载会话、AI模型与智能体配置
   useEffect(() => {
+    // React 18 开发模式副作用双执行，使用一次性保护避免重复请求
+    const didInit = (window as any).__standaloneChatInterfaceDidInit__ ?? false;
+    if (didInit) return;
+    (window as any).__standaloneChatInterfaceDidInit__ = true;
+
     loadSessions();
     loadAiModelConfigs();
     loadAgents();

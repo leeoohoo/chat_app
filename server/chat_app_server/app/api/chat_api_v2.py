@@ -225,7 +225,7 @@ def get_ai_server_v2() -> AiServer:
             stdio_mcp_servers=stdio_mcp_servers,
             config_dir=config_dir
         )
-        mcp_tool_execute.init()  # 初始化工具列表
+        mcp_tool_execute.init()  # 在同步上下文中进行同步初始化
         
         # 创建 v2 AI 服务器
         ai_server = AiServer(
@@ -283,7 +283,7 @@ def get_ai_server_with_mcp_configs_v2(api_key: Optional[str] = None, base_url: O
         stdio_mcp_servers=stdio_mcp_servers,
         config_dir=config_dir
     )
-    mcp_tool_execute.init()  # 初始化工具列表
+    mcp_tool_execute.init()  # 同步上下文保留同步初始化
     
     # 创建 v2 AI 服务器
     server = AiServer(

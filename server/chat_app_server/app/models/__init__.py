@@ -13,7 +13,12 @@ class DatabaseManager:
     
     def __init__(self, db_path: str = "data/chat_app.db"):
         """初始化数据库管理器"""
-        self.db_path = db_path
+        # 将相对路径规范化为项目根目录下的绝对路径
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        if not os.path.isabs(db_path):
+            self.db_path = os.path.join(project_root, db_path)
+        else:
+            self.db_path = db_path
         self.ensure_data_directory()
         self.initialize_database()
     

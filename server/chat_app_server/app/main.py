@@ -54,6 +54,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 简单性能监控中间件：记录每次请求耗时
+@app.middleware("http")
+async def timing_middleware(request, call_next):
+    start = asyncio.get_event_loop().time()
+    response = await call_next(request)
+    duration_ms = (asyncio.get_event_loop().time() - start) * 1000
+    try:
+        logger.info(f"[perf] {request.method} {request.url.path} -> {duration_ms:.1f} ms")
+    except Exception:
+        pass
+    return response
+
 # 注册路由
 app.include_router(sessions.router, prefix="/api", tags=["sessions"])
 app.include_router(messages.router, prefix="/api", tags=["messages"])
@@ -90,10 +102,16 @@ async def serve_frontend(full_path: str):
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 3001))
+    # 在打包环境中避免字符串导入，直接传递 app 对象
+    # 强制启用 uvloop 与 httptools 以提高性能
     uvicorn.run(
-        "app.main:app",
+        app,
         host="0.0.0.0",
         port=port,
         log_level="info",
-        reload=False
+        reload=False,
+        loop="uvloop",
+        http="httptools",
+        # 可通过环境变量 WORKERS 配置多进程 worker（默认1）
+        workers=int(os.environ.get("WORKERS", "1"))
     )

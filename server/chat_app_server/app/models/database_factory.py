@@ -55,13 +55,25 @@ class DatabaseFactory:
             
             # 检查是否有数据库配置
             if 'database' not in config_data:
-                # 如果没有数据库配置，使用默认SQLite配置
+                # 如果没有数据库配置，使用默认SQLite配置（使用 db_path 字段）
                 config_data['database'] = {
                     'type': 'sqlite',
                     'sqlite': {
-                        'database_path': 'data/chat_app.db'
+                        'db_path': 'data/chat_app.db'
                     }
                 }
+
+            # 兼容旧字段名：database_path -> db_path
+            try:
+                sqlite_cfg = config_data.get('database', {}).get('sqlite', {})
+                if 'database_path' in sqlite_cfg and 'db_path' not in sqlite_cfg:
+                    sqlite_cfg['db_path'] = sqlite_cfg['database_path']
+                    # 清理旧字段避免混淆
+                    del sqlite_cfg['database_path']
+                    config_data['database']['sqlite'] = sqlite_cfg
+            except Exception:
+                # 容错：无需抛错
+                pass
             
             self._config = DatabaseConfig(**config_data['database'])
             return self._config

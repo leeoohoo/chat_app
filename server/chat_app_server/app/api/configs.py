@@ -7,6 +7,7 @@ import os
 import json
 
 from fastmcp import Client
+from fastmcp.client.transports import StdioTransport
 
 from app.models.config import (
     McpConfigCreate, McpConfigUpdate,
@@ -220,21 +221,16 @@ async def get_mcp_resource_config(config_id: str):
         if not cwd:
             cwd = os.getcwd()
 
-        # 构建 fastmcp 客户端配置
-        config = {
-            "mcpServers": {
-                alias: {
-                    "transport": "stdio",
-                    "command": actual_command,
-                    "args": args,
-                    "cwd": cwd,
-                    "env": env,
-                }
-            }
-        }
+        # 构建 fastmcp STDIO 传输（兼容 fastmcp==2.1.0 的 Client 初始化）
+        transport = StdioTransport(
+            command=actual_command,
+            args=args or None,
+            cwd=cwd or None,
+            env=env or None,
+        )
 
         async def _read():
-            async with Client(config) as client:
+            async with Client(transport) as client:
                 # 直接读取指定资源（与 by_command 路由一致使用 config://server）
                 result = await client.read_resource("config://server")
                 return _extract_text_from_resource(result)
@@ -309,23 +305,17 @@ async def get_mcp_resource_config_by_command(data: Dict[str, Any]):
         actual_command = command
         alias = data.get("alias") or "mcp_server"
 
-        # 构建 fastmcp 客户端配置
-        config = {
-            "mcpServers": {
-                alias: {
-                    "transport": "stdio",
-                    "command": actual_command,
-                    "args": args,
-                    "cwd": cwd,
-                    "env": env,
-                }
-            }
-        }
+        # 构建 fastmcp STDIO 传输（兼容 fastmcp==2.1.0 的 Client 初始化）
+        transport = StdioTransport(
+            command=actual_command,
+            args=args or None,
+            cwd=cwd or None,
+            env=env or None,
+        )
 
         async def _read():
-            async with Client(config) as client:
+            async with Client(transport) as client:
                 result = await client.read_resource("config://server")
-                logger.debug("read_resource result: %r", result)
                 return _extract_text_from_resource(result)
 
         text = await _read()

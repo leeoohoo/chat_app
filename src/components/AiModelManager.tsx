@@ -79,8 +79,15 @@ const AiModelManager: React.FC<AiModelManagerProps> = ({ onClose, store: externa
   
   const { dialogState, showConfirmDialog, handleConfirm, handleCancel } = useConfirmDialog();
 
-  // 加载AI模型配置
+  // 加载AI模型配置（StrictMode 下防止重复触发）
   useEffect(() => {
+    const key = '__aiModelManagerInitAt__';
+    const last = (window as any)[key] || 0;
+    const now = Date.now();
+    if (typeof last === 'number' && now - last < 1000) {
+      return;
+    }
+    (window as any)[key] = now;
     loadAiModelConfigs();
   }, [loadAiModelConfigs]);
 

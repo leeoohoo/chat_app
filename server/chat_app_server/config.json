@@ -3,7 +3,7 @@
   "database": {
     "type": "sqlite",
     "sqlite": {
-      "database_path": "data/chat_app.db"
+      "db_path": "data/chat_app.db"
     },
     "mongodb": {
       "host": "localhost",

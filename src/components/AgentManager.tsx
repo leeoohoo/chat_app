@@ -140,7 +140,15 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
     }
   };
 
+  // 初始化批量加载（StrictMode 下防止重复触发）
   useEffect(() => {
+    const key = '__agentManagerInitAt__';
+    const last = (window as any)[key] || 0;
+    const now = Date.now();
+    if (typeof last === 'number' && now - last < 1000) {
+      return;
+    }
+    (window as any)[key] = now;
     loadAll();
   }, []);
 

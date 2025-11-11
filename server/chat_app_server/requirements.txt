@@ -5,14 +5,14 @@ aiosqlite==0.19.0
 openai==2.6.1
 httpx==0.25.2
 python-multipart==0.0.6
-pydantic==2.5.0
+# 与 fastmcp / pydantic-settings 兼容的版本（包含 _internal._signature）
+pydantic==2.8.2
 python-dotenv==1.0.0
 aiofiles==23.2.1
 
 # 跨平台打包依赖
 pyinstaller==6.2.0
-mcp-framework>=0.1.23
 
-mcp>=0.1.0
+mcp==1.20.0
 # HTTP 与客户端支持（FastMCP v2）
-fastmcp>=2.1.0
+fastmcp==2.13.0.2

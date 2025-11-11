@@ -3,6 +3,7 @@
 会话相关的数据模型
 """
 from pydantic import BaseModel
+import json
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from .database_factory import get_database
@@ -47,12 +48,40 @@ class SessionService:
              datetime.now(), datetime.now())
         )
         return session_id
+
+    @classmethod
+    async def create_async(cls, session_data: SessionCreate) -> str:
+        """创建会话（异步）"""
+        session_id = str(uuid.uuid4())
+        db = get_database()
+        await db.execute_query_async(
+            """
+            INSERT INTO sessions (id, title, description, metadata, user_id, project_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            """,
+            (
+                session_id,
+                session_data.title,
+                session_data.description,
+                json.dumps(session_data.metadata) if session_data.metadata else None,
+                session_data.user_id,
+                session_data.project_id,
+            )
+        )
+        return session_id
     
     @classmethod
     def get_all(cls) -> List[Dict[str, Any]]:
         """获取所有会话"""
         db = get_database()
         rows = db.fetchall_sync("SELECT * FROM sessions ORDER BY updated_at DESC")
+        return [dict(row) for row in rows]
+
+    @classmethod
+    async def get_all_async(cls) -> List[Dict[str, Any]]:
+        """获取所有会话（异步）"""
+        db = get_database()
+        rows = await db.fetch_all_async("SELECT * FROM sessions ORDER BY updated_at DESC")
         return [dict(row) for row in rows]
 
     @classmethod
@@ -73,12 +102,38 @@ class SessionService:
         base_query += " ORDER BY updated_at DESC"
         rows = db.fetchall_sync(base_query, tuple(params) if params else None)
         return [dict(row) for row in rows]
+
+    @classmethod
+    async def get_by_user_project_async(cls, user_id: Optional[str] = None, project_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """按用户和项目过滤会话（异步）"""
+        db = get_database()
+        base_query = "SELECT * FROM sessions"
+        where_clauses = []
+        params: list[Any] = []
+        if user_id:
+            where_clauses.append("user_id = ?")
+            params.append(user_id)
+        if project_id:
+            where_clauses.append("project_id = ?")
+            params.append(project_id)
+        if where_clauses:
+            base_query += " WHERE " + " AND ".join(where_clauses)
+        base_query += " ORDER BY updated_at DESC"
+        rows = await db.fetch_all_async(base_query, tuple(params) if params else None)
+        return [dict(row) for row in rows]
     
     @classmethod
     def get_by_id(cls, session_id: str) -> Optional[Dict[str, Any]]:
         """根据ID获取会话"""
         db = get_database()
         row = db.fetchone_sync("SELECT * FROM sessions WHERE id = ?", (session_id,))
+        return dict(row) if row else None
+
+    @classmethod
+    async def get_by_id_async(cls, session_id: str) -> Optional[Dict[str, Any]]:
+        """根据ID获取会话（异步）"""
+        db = get_database()
+        row = await db.fetch_one_async("SELECT * FROM sessions WHERE id = ?", (session_id,))
         return dict(row) if row else None
     
     @classmethod
@@ -110,12 +165,38 @@ class SessionMcpServerService:
              str(server_data.config) if server_data.config else None, datetime.now())
         )
         return cursor.lastrowid
+
+    @classmethod
+    async def create_async(cls, server_data: SessionMcpServerCreate) -> str:
+        """创建会话MCP服务器关联（异步）"""
+        db = get_database()
+        server_id = str(uuid.uuid4())
+        await db.execute_query_async(
+            """
+            INSERT INTO session_mcp_servers (id, session_id, mcp_server_name, config, created_at)
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """,
+            (
+                server_id,
+                server_data.session_id,
+                server_data.mcp_server_name,
+                json.dumps(server_data.config) if server_data.config else None,
+            )
+        )
+        return server_id
     
     @classmethod
     def get_by_session(cls, session_id: str) -> List[Dict[str, Any]]:
         """根据会话ID获取MCP服务器关联"""
         db = get_database()
         rows = db.fetchall_sync("SELECT * FROM session_mcp_servers WHERE session_id = ?", (session_id,))
+        return [dict(row) for row in rows]
+
+    @classmethod
+    async def get_by_session_async(cls, session_id: str) -> List[Dict[str, Any]]:
+        """根据会话ID获取MCP服务器关联（异步）"""
+        db = get_database()
+        rows = await db.fetch_all_async("SELECT * FROM session_mcp_servers WHERE session_id = ?", (session_id,))
         return [dict(row) for row in rows]
     
     @classmethod

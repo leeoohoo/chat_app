@@ -17,7 +17,7 @@ def setup_environment():
     
     # 设置默认端口
     if 'PORT' not in os.environ:
-        os.environ['PORT'] = '8000'
+        os.environ['PORT'] = '3001'
     
     # 检查数据库目录
     db_path = Path('chat_app.db')
@@ -41,7 +41,7 @@ def main():
         print("✗ 未找到 app/main.py 文件")
         return False
     
-    port = int(os.environ.get('PORT', 8000))
+    port = int(os.environ.get('PORT', 3001))
     
     print(f"\n启动服务器...")
     print(f"地址: http://localhost:{port}")

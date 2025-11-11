@@ -29,8 +29,14 @@ def install_dependencies():
     """安装依赖"""
     print("正在安装依赖...")
     try:
-        subprocess.run([sys.executable, '-m', 'pip', 'install', '-r', 'requirements.txt'], 
-                      check=True, capture_output=True, text=True)
+        # 增加网络超时与降级选项，提高安装稳定性
+        base_cmd = [sys.executable, '-m', 'pip', 'install', '-r', 'requirements.txt', '--default-timeout', '120']
+        try:
+            subprocess.run(base_cmd, check=True, capture_output=True, text=True)
+        except subprocess.CalledProcessError:
+            # 失败后尝试不使用缓存再次安装，并使用旧解析器以绕过冲突
+            fallback_cmd = base_cmd + ['--no-cache-dir', '--use-deprecated=legacy-resolver']
+            subprocess.run(fallback_cmd, check=True, capture_output=True, text=True)
         print("✓ 依赖安装完成")
         return True
     except subprocess.CalledProcessError as e:
@@ -45,14 +51,14 @@ def build_executable():
     system, arch = get_platform_info()
     
     try:
-        # 使用PyInstaller构建
-        cmd = [
-            sys.executable, '-m', 'PyInstaller',
-            '--clean',
-            '--onefile',
-            '--specpath', '.',
-            'build.spec'
-        ]
+        # 清理可能存在的上次输出目录（onedir 目标目录）
+        dist_root = Path('dist')
+        target_dir = dist_root / ('chat_app_server.exe' if system == 'windows' else 'chat_app_server')
+        if target_dir.exists() and target_dir.is_dir():
+            shutil.rmtree(target_dir)
+        
+        # 使用 PyInstaller 构建（指定 .spec 文件时不再传递 makespec 相关参数）
+        cmd = [sys.executable, '-m', 'PyInstaller', 'build.spec']
         
         result = subprocess.run(cmd, check=True, capture_output=True, text=True)
         print("✓ 构建完成")
@@ -63,24 +69,39 @@ def build_executable():
             exe_name = 'chat_app_server.exe'
         else:
             exe_name = 'chat_app_server'
-        
-        exe_path = dist_dir / exe_name
-        
-        if exe_path.exists():
-            # 重命名为包含平台信息的文件名
+
+        # 支持 onedir：目录中包含可执行文件及依赖
+        exe_file_path = dist_dir / exe_name
+        exe_dir_path = dist_dir / exe_name
+
+        if exe_file_path.exists() and exe_file_path.is_file():
+            # onefile 情况（保留兼容）
             new_name = f'chat_app_server_{system}_{arch}'
             if system == 'windows':
                 new_name += '.exe'
-            
             new_path = dist_dir / new_name
-            shutil.move(str(exe_path), str(new_path))
-            
+            shutil.move(str(exe_file_path), str(new_path))
             print(f"✓ 可执行文件已生成: {new_path}")
             print(f"文件大小: {new_path.stat().st_size / 1024 / 1024:.1f} MB")
-            
+            return True
+        elif exe_dir_path.exists() and exe_dir_path.is_dir():
+            # onedir 情况：将目录重命名为带平台后缀
+            new_dir_name = f'chat_app_server_{system}_{arch}'
+            new_dir_path = dist_dir / new_dir_name
+            if new_dir_path.exists():
+                shutil.rmtree(new_dir_path)
+            shutil.move(str(exe_dir_path), str(new_dir_path))
+            # 统计主可执行文件大小
+            main_binary = 'chat_app_server.exe' if system == 'windows' else 'chat_app_server'
+            main_binary_path = new_dir_path / main_binary
+            if main_binary_path.exists():
+                print(f"✓ 可执行目录已生成: {new_dir_path}")
+                print(f"主程序大小: {main_binary_path.stat().st_size / 1024 / 1024:.1f} MB")
+            else:
+                print(f"✓ 可执行目录已生成: {new_dir_path}")
             return True
         else:
-            print("✗ 未找到生成的可执行文件")
+            print("✗ 未找到生成的产物 (既非文件也非目录)")
             return False
             
     except subprocess.CalledProcessError as e:
@@ -156,7 +177,7 @@ def main():
     print()
     
     # 检查必要文件
-    required_files = ['main.py', 'requirements.txt', 'build.spec']
+    required_files = ['app/main.py', 'requirements.txt', 'build.spec']
     for file in required_files:
         if not os.path.exists(file):
             print(f"✗ 缺少必要文件: {file}")
