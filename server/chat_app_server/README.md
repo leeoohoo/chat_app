@@ -27,3 +27,22 @@
 - Windows (x64, x86)
 - macOS (x64, arm64)
 - Linux (x64, arm64)
+
+## 跨平台打包
+
+本项目使用 Nuitka 生成目录型产物，支持 macOS 与 Windows 平台按架构打包。
+
+### macOS（在 macOS 机器上执行）
+- 仅构建 arm64（Apple Silicon）：`make build_macos_arm64`
+- 仅构建 x64（Intel 芯片）：`make build_macos_x64`
+- 同时构建 arm64 + x64：`make build_macos_both`
+
+提示：在 Apple Silicon 上构建 x64 需要安装 Rosetta 并确保 Python 为 universal2 或包含 x86_64 切片。
+
+### Windows（在 Windows 机器上执行）
+- 命令提示符运行：`scripts\build_windows.bat`
+
+构建成功后，产物位于：`dist/chat_app_server_nuitka_<system>_<arch>`，例如：
+- macOS arm64: `dist/chat_app_server_nuitka_darwin_arm64`
+- macOS x64: `dist/chat_app_server_nuitka_darwin_x64`
+- Windows x64: `dist/chat_app_server_nuitka_windows_x64`

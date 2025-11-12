@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, session } = require('electron');
 const net = require('net');
 const { spawn } = require('child_process');
 const path = require('path');
@@ -6,6 +6,7 @@ const fs = require('fs');
 
 let mainWindow;
 let backendProcess = null;
+let selectedBackendPort = null;
 
 function terminateBackendProcess() {
     if (backendProcess && !backendProcess.killed) {
@@ -27,7 +28,9 @@ function terminateBackendProcess() {
 function getBackendHostPort() {
     const host = '127.0.0.1';
     const isDev = !!process.env.VITE_DEV_SERVER_URL;
-    const port = parseInt(process.env.BACKEND_PORT || (isDev ? '3001' : '8000'), 10);
+    const port = selectedBackendPort != null
+        ? selectedBackendPort
+        : parseInt(process.env.BACKEND_PORT || (isDev ? '3001' : '8000'), 10);
     return { host, port, isDev };
 }
 
@@ -125,16 +128,12 @@ function findBinaryExecutable() {
 }
 
 async function ensureBackendStarted() {
-    const { host, port } = getBackendHostPort();
+    const { host } = getBackendHostPort();
 
-    // 检查是否已经在运行
-    const isUp = await checkPort(host, port);
-    if (isUp) {
-        console.log(`[Electron] Backend already running at http://${host}:${port}`);
-        return true;
-    }
-
-    console.log('[Electron] Starting backend server on port', port);
+    // 选择可用端口
+    const port = await findAvailablePort(host);
+    selectedBackendPort = port;
+    console.log('[Electron] Starting backend server on selected port', port);
 
     // 查找二进制文件
     const binaryInfo = findBinaryExecutable();
@@ -220,6 +219,64 @@ async function waitForBackendReady(maxRetries = 50, intervalMs = 300) {
     return false;
 }
 
+function findAvailablePort(host, preferred = []) {
+    return new Promise(async (resolve) => {
+        const candidates = [];
+        if (process.env.BACKEND_PORT) {
+            const p = parseInt(process.env.BACKEND_PORT, 10);
+            if (!Number.isNaN(p)) candidates.push(p);
+        }
+        const { isDev } = getBackendHostPort();
+        candidates.push(isDev ? 3001 : 8000);
+        candidates.push(...preferred);
+
+        for (const p of candidates) {
+            // true => port occupied; we want free
+            const inUse = await checkPort(host, p);
+            if (!inUse) {
+                return resolve(p);
+            }
+        }
+
+        const server = net.createServer();
+        server.listen(0, host, () => {
+            const addr = server.address();
+            const freePort = typeof addr === 'object' && addr ? addr.port : (isDev ? 3001 : 8000);
+            server.close(() => resolve(freePort));
+        });
+        server.on('error', () => resolve(isDev ? 3001 : 8000));
+    });
+}
+
+function setupApiRewrite() {
+    const { host, port } = getBackendHostPort();
+    const targetBase = `http://${host}:${port}`;
+    const filter = { urls: ['*://*/*'] };
+
+    session.defaultSession.webRequest.onBeforeRequest(filter, (details, callback) => {
+        const url = details.url || '';
+        let redirectURL = null;
+        try {
+            const u = new URL(url);
+            const isLocal = (u.hostname === 'localhost' || u.hostname === '127.0.0.1');
+            const isApiPath = u.pathname.startsWith('/api');
+
+            if (isApiPath) {
+                // 重写任何 /api 前缀请求到当前后端端口
+                redirectURL = `${targetBase}${u.pathname}${u.search}`;
+            } else if (isLocal && (u.port === '3001' || u.port === '8000') && u.pathname.startsWith('/api')) {
+                redirectURL = `${targetBase}${u.pathname}${u.search}`;
+            }
+        } catch (_) {}
+
+        if (redirectURL && redirectURL !== url) {
+            callback({ redirectURL });
+        } else {
+            callback({});
+        }
+    });
+}
+
 function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1200,
@@ -291,6 +348,7 @@ app.whenReady().then(async () => {
         }
 
         console.log('[Electron] ✓ Backend ready, creating window...');
+        setupApiRewrite();
         createWindow();
 
     } catch (error) {

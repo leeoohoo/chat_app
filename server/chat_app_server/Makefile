@@ -24,12 +24,31 @@ dev:
 # 构建可执行文件
 build:
 	@echo "构建可执行文件..."
-	python scripts/build.py
+	python scripts/build_nuitka.py
 
 # 使用 Nuitka 构建可执行文件
 build_nuitka:
 	@echo "使用 Nuitka 构建可执行文件..."
 	python scripts/build_nuitka.py
+
+# macOS: 仅 arm64 构建
+build_macos_arm64:
+	@echo "构建 macOS arm64 产物..."
+	python scripts/build_macos.py --targets arm64
+
+# macOS: 仅 x64 构建
+build_macos_x64:
+	@echo "构建 macOS x64 产物..."
+	python scripts/build_macos.py --targets x64
+
+# macOS: 双构建（arm64 + x64）
+build_macos_both:
+	@echo "构建 macOS arm64 + x64 产物..."
+	python scripts/build_macos.py --targets both
+
+# Windows: 提示使用批处理脚本
+build_windows:
+	@echo "请在 Windows 环境运行 scripts\\build_windows.bat 进行打包"
 
 # 清理构建文件
 clean:
