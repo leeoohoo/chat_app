@@ -26,6 +26,11 @@ build:
 	@echo "构建可执行文件..."
 	python scripts/build.py
 
+# 使用 Nuitka 构建可执行文件
+build_nuitka:
+	@echo "使用 Nuitka 构建可执行文件..."
+	python scripts/build_nuitka.py
+
 # 清理构建文件
 clean:
 	@echo "清理构建文件..."
