@@ -373,6 +373,7 @@
     border-radius: 4px;
     background: rgba(148, 163, 184, 0.05);
     overflow: hidden;
+    table-layout: fixed; /* 保证列宽均分，便于自动换行 */
 }
 
 /* 深色模式表格背景 */
@@ -391,6 +392,9 @@
     font-size: 13px;
     color: var(--md-text);
     text-align: left;
+    white-space: normal;
+    word-break: break-word;
+    overflow-wrap: anywhere;
 }
 
 /* 统一单元格样式 */
@@ -401,6 +405,9 @@
     background: var(--md-bg);
     font-size: 13px;
     color: var(--md-text);
+    white-space: normal; /* 自动换行 */
+    word-break: break-word; /* 长单词或连续字符也换行 */
+    overflow-wrap: anywhere; /* 过长内容强制换行 */
 }
 
 /* 统一斑马纹样式 */
