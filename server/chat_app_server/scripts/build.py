@@ -174,6 +174,21 @@ def main():
     
     system, arch = get_platform_info()
     print(f"当前平台: {system} {arch}")
+    # 打包所用解释器信息（PyInstaller会使用当前解释器作为嵌入运行时）
+    print(f"当前 Python: {platform.python_version()}")
+    print(f"解释器路径: {sys.executable}")
+    # 针对 MCP 依赖的版本提示
+    try:
+        with open('requirements.txt', 'r', encoding='utf-8') as rf:
+            req_text = rf.read()
+        has_mcp = ('mcp' in req_text) or ('fastmcp' in req_text)
+    except Exception:
+        has_mcp = False
+    if has_mcp and sys.version_info < (3, 12):
+        print("⚠️ 警告：检测到 MCP 相关依赖，但当前 Python 版本 < 3.12。")
+        print("   为避免运行时错误，请使用 python3.12 执行本构建脚本：")
+        print("   python3.12 -m pip install -r requirements.txt")
+        print("   python3.12 scripts/build.py")
     print()
     
     # 检查必要文件

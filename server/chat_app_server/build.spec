@@ -2,45 +2,109 @@
 
 import os
 import sys
-# 增加递归深度以避免 PyInstaller 导入递归过深导致的 RecursionError
-sys.setrecursionlimit(sys.getrecursionlimit() * 5)
+import platform
+
+# 设置合理的递归深度
+sys.setrecursionlimit(5000)
+
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules, copy_metadata
 
-# 收集数据文件
+# 收集数据文件和元数据
 datas = []
-datas += copy_metadata('fastmcp')
+metadata_packages = [
+    'fastmcp', 'pydantic', 'pydantic_core', 'fastapi',
+    'uvicorn', 'openai', 'httpx', 'mcp', 'anyio', 'sniffio'
+]
 
-# 收集隐藏导入
+for package in metadata_packages:
+    try:
+        datas += copy_metadata(package)
+    except Exception as e:
+        print(f"Warning: Failed to collect metadata for {package}: {e}")
+
+# 基础隐藏导入
 hiddenimports = [
+    # === ANYIO 相关（重点） ===
+    'anyio',
+    'anyio._core',
+    'anyio._backends',
+    'anyio._backends._asyncio',
+    'anyio._backends._trio',
+    'anyio.abc',
+    'anyio.lowlevel',
+    'anyio.streams',
+    'anyio.streams.buffered',
+    'anyio.streams.file',
+    'anyio.streams.memory',
+    'anyio.streams.stapled',
+    'anyio.streams.text',
+    'anyio.streams.tls',
+    'anyio.from_thread',
+    'anyio.to_thread',
+    'anyio.to_process',
+    'anyio.pytest_plugin',
+    'sniffio',
+    
+    # === 核心 Web 框架 ===
     'uvicorn',
     'uvicorn.lifespan',
     'uvicorn.lifespan.on',
+    'uvicorn.lifespan.off',
     'uvicorn.protocols',
     'uvicorn.protocols.http',
+    'uvicorn.protocols.http.auto',
+    'uvicorn.protocols.http.h11_impl',
+    'uvicorn.protocols.http.httptools_impl',
     'uvicorn.protocols.websockets',
+    'uvicorn.protocols.websockets.auto',
+    'uvicorn.protocols.websockets.websockets_impl',
     'uvicorn.loops',
     'uvicorn.loops.auto',
+    
+    # === FastAPI ===
     'fastapi',
     'fastapi.responses',
     'fastapi.middleware',
     'fastapi.middleware.cors',
+    'fastapi.routing',
+    'fastapi.dependencies',
+    'fastapi.security',
+    
+    # === Pydantic ===
     'pydantic',
     'pydantic.v1',
     'pydantic._internal',
     'pydantic._internal._signature',
+    'pydantic._internal._config',
+    'pydantic._internal._decorators',
+    'pydantic._internal._fields',
+    'pydantic._internal._generate_schema',
+    'pydantic._internal._model_construction',
+    'pydantic._internal._typing_extra',
+    'pydantic._internal._utils',
+    'pydantic._internal._validators',
     'pydantic_settings',
     'pydantic_settings.main',
+    'pydantic_core',
+    'pydantic_core._pydantic_core',
+    
+    # === MCP 相关 ===
+    'mcp',
+    'mcp.server',
+    'mcp.types',
+    'fastmcp',
+    'fastmcp.server',
+    'fastmcp.utilities',
+    
+    # === 其他核心模块 ===
     'aiosqlite',
+    'sqlite3',
     'openai',
     'openai.types',
     'openai.types.chat',
     'httpx',
     'httpx._transports',
     'httpx._transports.default',
-    'anyio',
-    'anyio._backends',
-    'anyio._backends._asyncio',
-    'sniffio',
     'h11',
     'h11._util',
     'click',
@@ -52,23 +116,41 @@ hiddenimports = [
     'typing_extensions',
     'email_validator',
     'python_multipart',
-    # 高性能事件循环与HTTP解析器
-    'uvloop',
-    'httptools',
+    
+    # === 标准库模块 ===
+    'json',
+    'logging',
+    'asyncio',
+    'concurrent.futures',
+    'multiprocessing',
+    'threading',
+    'queue',
+    'collections',
+    'functools',
+    'itertools',
+    'datetime',
+    'uuid',
+    'hashlib',
+    'base64',
+    'urllib',
+    'urllib.parse',
+    'urllib.request',
 ]
 
-# 额外收集子模块，避免运行时缺失（pydantic v2 / pydantic_settings / fastmcp）
-hiddenimports += [
-    'pydantic_core',
-    'pydantic_core._pydantic_core'
-]
-hiddenimports += collect_submodules('pydantic')
-hiddenimports += collect_submodules('pydantic._internal')
-hiddenimports += collect_submodules('pydantic_settings')
-hiddenimports += collect_submodules('fastmcp')
-hiddenimports += collect_submodules('pydantic_core')
-hiddenimports += collect_submodules('uvloop')
-hiddenimports += collect_submodules('httptools')
+# 强制收集关键模块的所有子模块
+critical_modules = ['anyio', 'sniffio', 'fastmcp', 'mcp', 'pydantic', 'pydantic_core']
+
+for module in critical_modules:
+    try:
+        submodules = collect_submodules(module)
+        hiddenimports += submodules
+        print(f"Collected {len(submodules)} submodules for {module}")
+    except Exception as e:
+        print(f"Warning: Failed to collect submodules for {module}: {e}")
+
+# 去重
+hiddenimports = list(set(hiddenimports))
+print(f"Total hiddenimports: {len(hiddenimports)}")
 
 # 分析主程序
 a = Analysis(
@@ -80,7 +162,17 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=[
+        'tkinter',
+        'matplotlib',
+        'numpy',
+        'pandas',
+        'scipy',
+        'PIL',
+        'cv2',
+        'torch',
+        'tensorflow',
+    ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=None,
@@ -94,7 +186,7 @@ pyz = PYZ(a.pure, a.zipped_data, cipher=None)
 exe = EXE(
     pyz,
     a.scripts,
-    [],  # 在 onedir 模式下，EXE 不直接包含二进制和数据
+    [],
     [],
     [],
     [],
@@ -115,7 +207,7 @@ exe = EXE(
     exclude_binaries=True,
 )
 
-# 生成目录型产物（onedir），避免 onefile 启动时的自解压开销
+# 生成目录型产物
 coll = COLLECT(
     exe,
     a.binaries,

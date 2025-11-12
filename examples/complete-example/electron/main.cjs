@@ -8,211 +8,277 @@ let mainWindow;
 let backendProcess = null;
 
 function getBackendHostPort() {
-  const host = '127.0.0.1';
-  const isDev = !!process.env.VITE_DEV_SERVER_URL;
-  const port = parseInt(process.env.BACKEND_PORT || (isDev ? '3001' : '8000'), 10);
-  return { host, port, isDev };
+    const host = '127.0.0.1';
+    const isDev = !!process.env.VITE_DEV_SERVER_URL;
+    const port = parseInt(process.env.BACKEND_PORT || (isDev ? '3001' : '8000'), 10);
+    return { host, port, isDev };
 }
 
 function checkPort(host, port, timeoutMs = 800) {
-  return new Promise((resolve) => {
-    const socket = new net.Socket();
-    const onError = () => {
-      socket.destroy();
-      resolve(false);
-    };
-    socket.setTimeout(timeoutMs);
-    socket.once('error', onError);
-    socket.once('timeout', onError);
-    socket.connect(port, host, () => {
-      socket.end();
-      resolve(true);
+    return new Promise((resolve) => {
+        const socket = new net.Socket();
+        const onError = () => {
+            socket.destroy();
+            resolve(false);
+        };
+        socket.setTimeout(timeoutMs);
+        socket.once('error', onError);
+        socket.once('timeout', onError);
+        socket.connect(port, host, () => {
+            socket.end();
+            resolve(true);
+        });
     });
-  });
+}
+
+function findBinaryExecutable() {
+    const isWin = process.platform === 'win32';
+    const binaryName = isWin ? 'chat_app_server.exe' : 'chat_app_server';
+
+    const repoRoot = path.join(__dirname, '..', '..', '..');
+
+    // 按优先级查找二进制文件
+    const binaryPaths = [
+        // 1. 服务器 dist 目录（PyInstaller 输出）
+        path.join(repoRoot, 'server', 'chat_app_server', 'dist', 'chat_app_server_darwin_arm64', binaryName),
+        path.join(repoRoot, 'server', 'chat_app_server', 'dist', binaryName),
+
+        // 2. Electron 应用的 resources 目录（打包后）
+        path.join(process.resourcesPath || path.join(__dirname, '..'), 'bin', binaryName),
+
+        // 3. 应用目录下的 bin 目录
+        path.join(__dirname, '..', 'bin', binaryName),
+    ];
+
+    console.log('[Electron] Searching for binary executable...');
+    console.log(`[Electron] Target binary: ${binaryName}`);
+
+    for (const binaryPath of binaryPaths) {
+        console.log(`[Electron] Checking: ${binaryPath}`);
+
+        if (fs.existsSync(binaryPath)) {
+            try {
+                const stats = fs.statSync(binaryPath);
+                console.log(`[Electron] ✓ Found binary: ${binaryPath}`);
+                console.log(`[Electron]   Size: ${stats.size} bytes`);
+
+                // 确保可执行权限
+                if (!isWin && !(stats.mode & parseInt('111', 8))) {
+                    console.log(`[Electron]   Setting executable permissions...`);
+                    fs.chmodSync(binaryPath, 0o755);
+                }
+
+                return {
+                    path: binaryPath,
+                    workingDir: path.dirname(binaryPath),
+                    size: stats.size
+                };
+            } catch (err) {
+                console.warn(`[Electron] Error checking binary ${binaryPath}: ${err.message}`);
+            }
+        }
+    }
+
+    return null;
 }
 
 async function ensureBackendStarted() {
-  const { host, port, isDev } = getBackendHostPort();
-  const isUp = await checkPort(host, port);
-  if (isUp) {
-    console.log(`[Electron] Backend already running at http://${host}:${port}`);
-    return;
-  }
-  console.log('[Electron] Starting backend server on port', port);
-  // Prefer Python dev script during development; use bundled binary in production
-  const isWin = process.platform === 'win32';
-  const binaryName = isWin ? 'chat_app_server.exe' : 'chat_app_server';
-  const devBinaryPath = path.join(__dirname, '..', 'bin', binaryName);
-  const prodBinaryPath = path.join(process.resourcesPath || path.join(__dirname, '..'), 'bin', binaryName);
-  const repoRoot = path.join(__dirname, '..', '..', '..');
-  const serverDistDarwinArm64 = path.join(repoRoot, 'server', 'chat_app_server', 'dist', 'chat_app_server_darwin_arm64', binaryName);
+    const { host, port } = getBackendHostPort();
 
-  let usedPath = null;
-  let cwd = path.join(__dirname, '..');
-  // Try server dist binary first (user-confirmed working), then app resources, then example bin.
-  if (fs.existsSync(serverDistDarwinArm64)) {
-    usedPath = serverDistDarwinArm64;
-  } else if (fs.existsSync(prodBinaryPath)) {
-    usedPath = prodBinaryPath;
-  } else if (fs.existsSync(devBinaryPath)) {
-    usedPath = devBinaryPath;
-  }
-  // In packaged app, __dirname points inside app.asar; ensure cwd is a real directory
-  if (usedPath) {
-    try {
-      cwd = path.dirname(usedPath);
-    } catch (_) {
-      cwd = process.resourcesPath || path.join(__dirname, '..');
+    // 检查是否已经在运行
+    const isUp = await checkPort(host, port);
+    if (isUp) {
+        console.log(`[Electron] Backend already running at http://${host}:${port}`);
+        return true;
     }
-  }
 
-  if (usedPath) {
-    console.log('[Electron] Launching bundled server binary:', usedPath);
-    backendProcess = spawn(usedPath, [], {
-      cwd,
-      env: {
-        ...process.env,
-        PORT: String(port),
-      },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-  } else {
-    // Use Python dev server when in development, or if binary missing
-    startPythonBackend(port);
-  }
-  backendProcess.stdout.on('data', (data) => {
-    process.stdout.write(`[Backend] ${data}`);
-  });
-  backendProcess.stderr.on('data', (data) => {
-    process.stderr.write(`[Backend] ${data}`);
-  });
-  backendProcess.on('error', (err) => {
-    console.error('[Electron] Failed to start backend process:', err);
-  });
-  backendProcess.on('exit', (code, signal) => {
-    console.log(`[Electron] Backend process exited: code=${code} signal=${signal}`);
-    backendProcess = null;
-  });
-}
+    console.log('[Electron] Starting backend server on port', port);
 
-function startPythonBackend(port) {
-  const repoRoot = path.join(__dirname, '..', '..', '..');
-  const scriptPath = path.join(repoRoot, 'server', 'chat_app_server', 'scripts', 'start.py');
-  console.log('[Electron] Using Python dev server:', scriptPath);
-  const venvPython = path.join(repoRoot, '.venv', 'bin', 'python');
-  const pythonCmd = fs.existsSync(venvPython) ? venvPython : 'python3';
-  backendProcess = spawn(pythonCmd, [scriptPath], {
-    cwd: repoRoot,
-    env: {
-      ...process.env,
-      PORT: String(port),
-      PYTHONUNBUFFERED: '1',
-    },
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
+    // 查找二进制文件
+    const binaryInfo = findBinaryExecutable();
+
+    if (!binaryInfo) {
+        console.error('[Electron] ❌ Binary executable not found!');
+        console.error('[Electron] Please ensure the server binary is built and available.');
+        console.error('[Electron] Expected locations:');
+        console.error('[Electron]   - server/chat_app_server/dist/chat_app_server_darwin_arm64/');
+        console.error('[Electron]   - server/chat_app_server/dist/');
+        console.error('[Electron]   - app/bin/');
+        throw new Error('Binary executable not found');
+    }
+
+    console.log(`[Electron] Launching binary: ${binaryInfo.path}`);
+    console.log(`[Electron] Working directory: ${binaryInfo.workingDir}`);
+
+    try {
+        backendProcess = spawn(binaryInfo.path, [], {
+            cwd: binaryInfo.workingDir,
+            env: {
+                ...process.env,
+                PORT: String(port),
+                // 确保二进制文件有正确的环境
+                PYTHONUNBUFFERED: '1',
+            },
+            stdio: ['ignore', 'pipe', 'pipe'],
+        });
+
+        console.log(`[Electron] ✓ Binary process started with PID: ${backendProcess.pid}`);
+
+        // 监听输出
+        backendProcess.stdout.on('data', (data) => {
+            process.stdout.write(`[Backend] ${data}`);
+        });
+
+        backendProcess.stderr.on('data', (data) => {
+            process.stderr.write(`[Backend] ${data}`);
+        });
+
+        backendProcess.on('error', (err) => {
+            console.error('[Electron] Binary process error:', err);
+            throw err;
+        });
+
+        backendProcess.on('exit', (code, signal) => {
+            console.log(`[Electron] Binary process exited: code=${code} signal=${signal}`);
+            backendProcess = null;
+        });
+
+        return true;
+
+    } catch (err) {
+        console.error('[Electron] Failed to start binary process:', err);
+        throw err;
+    }
 }
 
 async function waitForBackendReady(maxRetries = 50, intervalMs = 300) {
-  const { host, port } = getBackendHostPort();
-  for (let i = 0; i < maxRetries; i++) {
-    const ok = await checkPort(host, port);
-    if (ok) {
-      console.log(`[Electron] Backend is ready at http://${host}:${port}`);
-      return true;
+    const { host, port } = getBackendHostPort();
+
+    console.log(`[Electron] Waiting for backend at http://${host}:${port}...`);
+
+    for (let i = 0; i < maxRetries; i++) {
+        const ok = await checkPort(host, port);
+        if (ok) {
+            console.log(`[Electron] ✓ Backend is ready at http://${host}:${port}`);
+            return true;
+        }
+
+        if (i === 0) {
+            console.log('[Electron] Backend starting...');
+        } else if (i % 10 === 0) {
+            console.log(`[Electron] Still waiting... (${i}/${maxRetries})`);
+        }
+
+        await new Promise((r) => setTimeout(r, intervalMs));
     }
-    if (i === 0) {
-      console.log('[Electron] Waiting for backend to be ready...');
-    }
-    await new Promise((r) => setTimeout(r, intervalMs));
-  }
-  console.error(`[Electron] Backend did not become ready within ${maxRetries * intervalMs}ms`);
-  return false;
+
+    console.error(`[Electron] ❌ Backend did not start within ${maxRetries * intervalMs}ms`);
+    return false;
 }
 
 function createWindow() {
-  mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    minWidth: 960,
-    minHeight: 600,
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true,
-      // Relax security for dev server to avoid blank due to blocked resources
-      webSecurity: false,
-    },
-    title: 'AI Chat Example',
-  });
+    mainWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        minWidth: 960,
+        minHeight: 600,
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            webSecurity: false,
+        },
+        title: 'AI Chat Example',
+    });
 
-  const devServerUrl = process.env.VITE_DEV_SERVER_URL;
-  console.log('[Electron] VITE_DEV_SERVER_URL =', devServerUrl);
-  if (devServerUrl) {
-    mainWindow.loadURL(devServerUrl + `?ts=${Date.now()}`);
-    mainWindow.webContents.openDevTools({ mode: 'detach' });
-  } else {
-    const indexPath = path.join(__dirname, '..', 'dist', 'index.html');
-    mainWindow.loadFile(indexPath);
-  }
+    const devServerUrl = process.env.VITE_DEV_SERVER_URL;
+    console.log('[Electron] VITE_DEV_SERVER_URL =', devServerUrl);
 
-  // Debug load lifecycle
-  mainWindow.webContents.on('did-finish-load', () => {
-    console.log('[Electron] Page loaded:', mainWindow.webContents.getURL());
-  });
-  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
-    console.error('[Electron] did-fail-load', { errorCode, errorDescription, validatedURL, isMainFrame });
-    // If dev server is unavailable, fallback to local dist build
-    if (isMainFrame && devServerUrl) {
-      const indexPath = path.join(__dirname, '..', 'dist', 'index.html');
-      console.log('[Electron] Falling back to local file:', indexPath);
-      mainWindow.loadFile(indexPath);
+    if (devServerUrl) {
+        mainWindow.loadURL(devServerUrl + `?ts=${Date.now()}`);
+        mainWindow.webContents.openDevTools({ mode: 'detach' });
+    } else {
+        const indexPath = path.join(__dirname, '..', 'dist', 'index.html');
+        mainWindow.loadFile(indexPath);
     }
-  });
 
-  mainWindow.on('closed', () => {
-    mainWindow = null;
-  });
+    mainWindow.webContents.on('did-finish-load', () => {
+        console.log('[Electron] Page loaded:', mainWindow.webContents.getURL());
+    });
+
+    mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+        console.error('[Electron] did-fail-load', { errorCode, errorDescription, validatedURL, isMainFrame });
+        if (isMainFrame && devServerUrl) {
+            const indexPath = path.join(__dirname, '..', 'dist', 'index.html');
+            console.log('[Electron] Falling back to local file:', indexPath);
+            mainWindow.loadFile(indexPath);
+        }
+    });
+
+    mainWindow.on('closed', () => {
+        mainWindow = null;
+    });
 }
 
-// Try disabling hardware acceleration to avoid potential blank screen issues
 app.disableHardwareAcceleration();
 
 app.whenReady().then(async () => {
-  // Ensure backend is started, prefer binary; if not ready, fall back to Python
-  try {
-    await ensureBackendStarted();
-  } catch (e) {
-    console.error('[Electron] ensureBackendStarted error:', e);
-  }
-  let ready = await waitForBackendReady();
-  if (!ready) {
-    console.warn('[Electron] Backend not ready after binary launch. Trying Python fallback...');
-    try {
-      const { port } = getBackendHostPort();
-      startPythonBackend(port);
-      ready = await waitForBackendReady();
-    } catch (e) {
-      console.error('[Electron] Python fallback failed:', e);
-    }
-  }
-  createWindow();
+    console.log('[Electron] App ready, starting binary backend...');
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
+    try {
+        await ensureBackendStarted();
+        const ready = await waitForBackendReady();
+
+        if (!ready) {
+            console.error('[Electron] ❌ Backend failed to start');
+            // 显示错误对话框
+            const { dialog } = require('electron');
+            await dialog.showErrorBox(
+                'Backend Error',
+                'Failed to start the backend server. Please check the console for details.'
+            );
+            app.quit();
+            return;
+        }
+
+        console.log('[Electron] ✓ Backend ready, creating window...');
+        createWindow();
+
+    } catch (error) {
+        console.error('[Electron] Startup error:', error);
+        const { dialog } = require('electron');
+        await dialog.showErrorBox(
+            'Startup Error',
+            `Failed to start application: ${error.message}`
+        );
+        app.quit();
     }
-  });
+
+    app.on('activate', () => {
+        if (BrowserWindow.getAllWindows().length === 0) {
+            createWindow();
+        }
+    });
 });
 
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+    if (process.platform !== 'darwin') {
+        app.quit();
+    }
 });
 
 app.on('will-quit', () => {
-  if (backendProcess && !backendProcess.killed) {
-    try {
-      backendProcess.kill();
-    } catch (_) {}
-  }
+    if (backendProcess && !backendProcess.killed) {
+        console.log('[Electron] Terminating backend process...');
+        try {
+            backendProcess.kill('SIGTERM');
+            // 给进程一些时间优雅退出
+            setTimeout(() => {
+                if (backendProcess && !backendProcess.killed) {
+                    backendProcess.kill('SIGKILL');
+                }
+            }, 3000);
+        } catch (err) {
+            console.warn('[Electron] Error terminating backend:', err.message);
+        }
+    }
 });
