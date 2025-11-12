@@ -7,6 +7,23 @@ const fs = require('fs');
 let mainWindow;
 let backendProcess = null;
 
+function terminateBackendProcess() {
+    if (backendProcess && !backendProcess.killed) {
+        console.log('[Electron] Terminating backend process...');
+        try {
+            backendProcess.kill('SIGTERM');
+            setTimeout(() => {
+                if (backendProcess && !backendProcess.killed) {
+                    console.log('[Electron] Forcing backend process kill...');
+                    backendProcess.kill('SIGKILL');
+                }
+            }, 3000);
+        } catch (err) {
+            console.warn('[Electron] Error terminating backend:', err.message);
+        }
+    }
+}
+
 function getBackendHostPort() {
     const host = '127.0.0.1';
     const isDev = !!process.env.VITE_DEV_SERVER_URL;
@@ -37,46 +54,71 @@ function findBinaryExecutable() {
 
     const repoRoot = path.join(__dirname, '..', '..', '..');
 
-    // 按优先级查找二进制文件
-    const binaryPaths = [
-        // 1. 服务器 dist 目录（PyInstaller 输出）
-        path.join(repoRoot, 'server', 'chat_app_server', 'dist', 'chat_app_server_darwin_arm64', binaryName),
-        path.join(repoRoot, 'server', 'chat_app_server', 'dist', binaryName),
-
-        // 2. Electron 应用的 resources 目录（打包后）
-        path.join(process.resourcesPath || path.join(__dirname, '..'), 'bin', binaryName),
-
-        // 3. 应用目录下的 bin 目录
-        path.join(__dirname, '..', 'bin', binaryName),
-    ];
-
-    console.log('[Electron] Searching for binary executable...');
-    console.log(`[Electron] Target binary: ${binaryName}`);
-
-    for (const binaryPath of binaryPaths) {
-        console.log(`[Electron] Checking: ${binaryPath}`);
-
-        if (fs.existsSync(binaryPath)) {
+    // 支持环境变量覆盖（绝对路径或相对 repoRoot 的路径）
+    const envOverride = process.env.BACKEND_BIN_PATH;
+    if (envOverride) {
+        const overridePath = path.isAbsolute(envOverride)
+            ? envOverride
+            : path.join(repoRoot, envOverride);
+        console.log('[Electron] Using BACKEND_BIN_PATH override:', overridePath);
+        if (fs.existsSync(overridePath)) {
             try {
-                const stats = fs.statSync(binaryPath);
-                console.log(`[Electron] ✓ Found binary: ${binaryPath}`);
-                console.log(`[Electron]   Size: ${stats.size} bytes`);
-
-                // 确保可执行权限
+                const stats = fs.statSync(overridePath);
                 if (!isWin && !(stats.mode & parseInt('111', 8))) {
-                    console.log(`[Electron]   Setting executable permissions...`);
-                    fs.chmodSync(binaryPath, 0o755);
+                    fs.chmodSync(overridePath, 0o755);
                 }
-
                 return {
-                    path: binaryPath,
-                    workingDir: path.dirname(binaryPath),
-                    size: stats.size
+                    path: overridePath,
+                    workingDir: path.dirname(overridePath),
+                    size: stats.size,
                 };
             } catch (err) {
-                console.warn(`[Electron] Error checking binary ${binaryPath}: ${err.message}`);
+                console.warn(`[Electron] Error checking override path ${overridePath}: ${err.message}`);
             }
+        } else {
+            console.warn('[Electron] BACKEND_BIN_PATH not found:', overridePath);
         }
+    }
+
+    // 根据平台与架构构建 Nuitka 目录名
+    const platform = process.platform; // 'darwin' | 'win32' | 'linux'
+    const arch = process.arch; // 'arm64' | 'x64' | ...
+    const nuitkaDirName = `chat_app_server_nuitka_${platform}_${arch}`;
+    const targetBinaryPath = path.join(
+        repoRoot,
+        'server',
+        'chat_app_server',
+        'dist',
+        nuitkaDirName,
+        binaryName
+    );
+
+    console.log('[Electron] Resolving backend binary (Nuitka):', targetBinaryPath);
+
+    if (fs.existsSync(targetBinaryPath)) {
+        try {
+            const stats = fs.statSync(targetBinaryPath);
+            console.log(`[Electron] ✓ Found binary: ${targetBinaryPath}`);
+            console.log(`[Electron]   Size: ${stats.size} bytes`);
+
+            if (!isWin && !(stats.mode & parseInt('111', 8))) {
+                console.log(`[Electron]   Setting executable permissions...`);
+                fs.chmodSync(targetBinaryPath, 0o755);
+            }
+
+            return {
+                path: targetBinaryPath,
+                workingDir: path.dirname(targetBinaryPath),
+                size: stats.size,
+            };
+        } catch (err) {
+            console.warn(`[Electron] Error checking binary ${targetBinaryPath}: ${err.message}`);
+        }
+    } else {
+        console.error('[Electron] ❌ Backend binary not found at:', targetBinaryPath);
+        console.error('[Electron] Platform/Arch:', { platform, arch });
+        console.error('[Electron] Hint: Ensure Nuitka build output exists at directory:', nuitkaDirName);
+        console.error('[Electron] Or set BACKEND_BIN_PATH to the absolute path of the binary');
     }
 
     return null;
@@ -100,10 +142,12 @@ async function ensureBackendStarted() {
     if (!binaryInfo) {
         console.error('[Electron] ❌ Binary executable not found!');
         console.error('[Electron] Please ensure the server binary is built and available.');
-        console.error('[Electron] Expected locations:');
-        console.error('[Electron]   - server/chat_app_server/dist/chat_app_server_darwin_arm64/');
-        console.error('[Electron]   - server/chat_app_server/dist/');
-        console.error('[Electron]   - app/bin/');
+        const platform = process.platform;
+        const arch = process.arch;
+        const expectedDir = `chat_app_server_nuitka_${platform}_${arch}`;
+        console.error('[Electron] Expected location:');
+        console.error('[Electron]   - server/chat_app_server/dist/' + expectedDir + '/');
+        console.error('[Electron] Or set BACKEND_BIN_PATH to point directly to the binary');
         throw new Error('Binary executable not found');
     }
 
@@ -214,6 +258,12 @@ function createWindow() {
         }
     });
 
+    // 在窗口关闭时终止后端进程
+    mainWindow.on('close', () => {
+        console.log('[Electron] Window closing. Shutting down backend...');
+        terminateBackendProcess();
+    });
+
     mainWindow.on('closed', () => {
         mainWindow = null;
     });
@@ -261,24 +311,11 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') {
-        app.quit();
-    }
+    // 关闭所有窗口后，退出应用（包括 macOS），并确保终止后端进程
+    terminateBackendProcess();
+    app.quit();
 });
 
 app.on('will-quit', () => {
-    if (backendProcess && !backendProcess.killed) {
-        console.log('[Electron] Terminating backend process...');
-        try {
-            backendProcess.kill('SIGTERM');
-            // 给进程一些时间优雅退出
-            setTimeout(() => {
-                if (backendProcess && !backendProcess.killed) {
-                    backendProcess.kill('SIGKILL');
-                }
-            }, 3000);
-        } catch (err) {
-            console.warn('[Electron] Error terminating backend:', err.message);
-        }
-    }
+    terminateBackendProcess();
 });

@@ -414,13 +414,6 @@ class McpToolExecute:
                     print(f"[MCP_TOOL] on_tool_stream 完成: {tool_name} (tool_call_id={tool_call_id}) 成功, 内容长度={len(str(final_text))}")
                 except Exception:
                     pass
-                try:
-                    on_tool_stream(result)
-                except Exception as e:
-                    try:
-                        print(f"[MCP_TOOL] on_tool_stream 回调错误: {e}")
-                    except Exception:
-                        pass
             return result
 
         except Exception as e:
