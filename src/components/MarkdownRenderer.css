@@ -48,6 +48,39 @@
     color: var(--md-text);
 }
 
+/* 思考内容变体：通过覆盖主题变量让整块内容显著变灰 */
+.markdown-renderer.thinking {
+    --md-text: #6b7280; /* gray-500 */
+    --md-secondary-text: #6b7280;
+    --md-link-color: #6b7280; /* 链接不再突出为蓝色 */
+    --md-code-text: #6b7280; /* 代码文字压灰 */
+    --md-code-bg: #f3f4f6;  /* 代码块浅灰底 */
+    --md-quote-bg: #f3f4f6; /* 引用浅灰底 */
+    --md-quote-border: #e5e7eb; /* 引用浅灰边 */
+}
+
+/* 强制所有子元素继承压灰文本颜色，避免外部样式影响 */
+.markdown-renderer.thinking,
+.markdown-renderer.thinking * {
+    color: var(--md-text) !important;
+}
+
+/* 暗色主题下的思考内容变体：使用更柔和的灰度与深色背景 */
+.dark .markdown-renderer.thinking {
+    --md-text: #9ca3af;          /* gray-400 - 统一为中性灰 */
+    --md-secondary-text: #9ca3af;
+    --md-link-color: #9ca3af;
+    --md-code-text: #9ca3af;
+    --md-code-bg: #0f172a;       /* slate-900 */
+    --md-quote-bg: #0f172a;
+    --md-quote-border: #334155;  /* slate-700 */
+}
+
+.dark .markdown-renderer.thinking,
+.dark .markdown-renderer.thinking * {
+    color: var(--md-text) !important;
+}
+
 /* ===== 标题样式 ===== */
 .markdown-renderer h1,
 .markdown-renderer h2,

@@ -82,7 +82,7 @@ export interface ToolCall {
 // 内容分段接口
 export interface ContentSegment {
   content: string | ToolCall;
-  type: 'text' | 'tool_call';
+  type: 'text' | 'tool_call' | 'thinking';
   toolCallId?: string;
 }
 

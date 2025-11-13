@@ -225,6 +225,27 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                          } else {
                            console.log(`🎨 ❌ 未找到工具调用 ${segment.toolCallId}`);
                          }
+                       } else if (segment.type === 'thinking') {
+                         console.log(`🎨 渲染思考分段 ${index}:`, segment.content);
+                         // 思考内容默认折叠展示，灰色字体
+                         return (
+                          <details
+                            key={`thinking-${index}`}
+                            className="group border border-gray-200 dark:border-gray-700 rounded-md bg-muted px-3 py-2"
+                          >
+                             <summary className="cursor-pointer text-xs text-gray-500 dark:text-gray-400 select-none">
+                               思考过程
+                             </summary>
+                            <div className="mt-1">
+                              <MarkdownRenderer
+                                content={(segment.content as string) || ''}
+                                isStreaming={isCurrentlyStreaming && index === contentSegments.length - 1}
+                                onApplyCode={handleApplyCode}
+                                className="thinking not-prose"
+                              />
+                            </div>
+                           </details>
+                         );
                        }
                        return null;
                      })}

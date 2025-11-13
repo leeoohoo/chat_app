@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { MessageItem } from './MessageItem';
 import { LoadingSpinner } from './LoadingSpinner';
 // import { cn } from '../lib/utils';
@@ -12,6 +12,54 @@ export const MessageList: React.FC<MessageListProps> = ({
   onMessageDelete,
   customRenderer,
 }) => {
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const bottomRef = useRef<HTMLDivElement | null>(null);
+  const [autoScroll, setAutoScroll] = useState<boolean>(true);
+  const [isAtBottom, setIsAtBottom] = useState<boolean>(true);
+
+  const measureAtBottom = () => {
+    const el = scrollRef.current;
+    if (!el) return true;
+    const threshold = 40;
+    return el.scrollHeight - el.scrollTop - el.clientHeight <= threshold;
+  };
+
+  const scrollToBottom = (smooth = true) => {
+    bottomRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
+  };
+
+  useEffect(() => {
+    if (isStreaming && autoScroll) {
+      scrollToBottom(true);
+    }
+  }, [messages, isStreaming, autoScroll]);
+
+  useEffect(() => {
+    setIsAtBottom(measureAtBottom());
+  }, [messages, isStreaming]);
+
+  useEffect(() => {
+    if (isStreaming && isAtBottom) {
+      setAutoScroll(true);
+    }
+    if (!isStreaming) {
+      setAutoScroll(false);
+    }
+  }, [isStreaming, isAtBottom]);
+
+  const handleScroll = () => {
+    const atBottom = measureAtBottom();
+    setIsAtBottom(atBottom);
+    if (!atBottom) {
+      setAutoScroll(false);
+    }
+  };
+
+  const handleJumpToBottom = () => {
+    scrollToBottom(true);
+    setAutoScroll(true);
+  };
+
   if (messages.length === 0 && !isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -33,13 +81,14 @@ export const MessageList: React.FC<MessageListProps> = ({
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div 
+    <div className="flex flex-col h-full relative">
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
         className="flex-1 overflow-y-auto px-4 py-6 space-y-1"
         style={{
-          // 优化滚动性能
           willChange: 'scroll-position',
-          transform: 'translateZ(0)', // 启用硬件加速
+          transform: 'translateZ(0)',
         }}
       >
         {messages.map((message, index) => (
@@ -63,7 +112,25 @@ export const MessageList: React.FC<MessageListProps> = ({
             </div>
           </div>
         )}
+
+        <div ref={bottomRef} />
       </div>
+
+      {!isAtBottom && (
+        <button
+          type="button"
+          aria-label="回到底部"
+          title="回到底部"
+          onClick={handleJumpToBottom}
+          className="absolute bottom-4 right-4 z-10 flex items-center gap-2 rounded-full bg-primary text-primary-foreground px-4 py-2 shadow-md hover:bg-primary/90"
+        >
+          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 5v12" />
+            <path d="M19 12l-7 7-7-7" />
+          </svg>
+          <span className="text-sm">回到底部</span>
+        </button>
+      )}
     </div>
   );
 };

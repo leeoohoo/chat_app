@@ -222,6 +222,16 @@ export class DatabaseService {
         }).filter(Boolean);
       }
 
+      // 构建内容分段：优先将 reasoning 作为独立的 thinking 段，其次正文为 text 段
+      const contentSegments: any[] = [];
+      const hasReasoning = typeof msg.reasoning === 'string' && msg.reasoning.trim().length > 0;
+      if (msg.role === 'assistant' && hasReasoning) {
+        contentSegments.push({ type: 'thinking', content: msg.reasoning });
+      }
+      if (typeof msg.content === 'string' && msg.content.trim().length > 0) {
+        contentSegments.push({ type: 'text', content: msg.content });
+      }
+
        return {
          id: msg.id,
          sessionId: msg.sessionId,
@@ -235,7 +245,8 @@ export class DatabaseService {
          toolCallId: msg.toolCallId,
          metadata: {
            ...msg.metadata,
-           toolCalls: toolCalls
+           toolCalls: toolCalls,
+           contentSegments: contentSegments.length > 0 ? contentSegments : msg.metadata?.contentSegments
          }
        };
     });
