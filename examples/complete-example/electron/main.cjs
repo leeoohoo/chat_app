@@ -7,6 +7,7 @@ const fs = require('fs');
 let mainWindow;
 let backendProcess = null;
 let selectedBackendPort = null;
+let splashWindow = null;
 
 function terminateBackendProcess() {
     if (backendProcess && !backendProcess.killed) {
@@ -194,10 +195,18 @@ async function ensureBackendStarted() {
     }
 }
 
-async function waitForBackendReady(maxRetries = 50, intervalMs = 300) {
+async function waitForBackendReady(maxRetries = 200, intervalMs = 300) {
     const { host, port } = getBackendHostPort();
-
-    console.log(`[Electron] Waiting for backend at http://${host}:${port}...`);
+    // 支持通过环境变量覆盖等待时长（毫秒）
+    const overrideMsRaw = process.env.BACKEND_WAIT_MS || process.env.BACKEND_WAIT_TIMEOUT_MS;
+    if (overrideMsRaw) {
+        const overrideMs = parseInt(overrideMsRaw, 10);
+        if (!Number.isNaN(overrideMs) && overrideMs > 0) {
+            maxRetries = Math.ceil(overrideMs / intervalMs);
+        }
+    }
+    const totalMs = maxRetries * intervalMs;
+    console.log(`[Electron] Waiting for backend at http://${host}:${port} (timeout ~${totalMs}ms)...`);
 
     for (let i = 0; i < maxRetries; i++) {
         const ok = await checkPort(host, port);
@@ -326,14 +335,57 @@ function createWindow() {
     });
 }
 
+function createSplashWindow() {
+    try {
+        const splashPath = path.join(__dirname, 'splash.html');
+        console.log('[Electron] Creating splash window. Path =', splashPath);
+        splashWindow = new BrowserWindow({
+            width: 420,
+            height: 300,
+            frame: false,
+            transparent: true,
+            backgroundColor: '#00000000',
+            resizable: false,
+            alwaysOnTop: true,
+            skipTaskbar: true,
+            show: false,
+            useContentSize: true,
+        });
+        splashWindow.setAlwaysOnTop(true, 'screen-saver');
+        splashWindow.center();
+        splashWindow.loadFile(splashPath);
+        splashWindow.once('ready-to-show', () => {
+            try {
+                console.log('[Electron] Splash window ready-to-show');
+                splashWindow.show();
+            } catch (e) {
+                console.warn('[Electron] Failed to show splash window:', e.message);
+            }
+        });
+        splashWindow.webContents.on('did-finish-load', () => {
+            console.log('[Electron] Splash window content loaded');
+        });
+        splashWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+            console.warn('[Electron] Splash did-fail-load', { errorCode, errorDescription });
+        });
+        splashWindow.on('closed', () => {
+            splashWindow = null;
+        });
+    } catch (err) {
+        console.warn('[Electron] Failed to create splash window:', err.message);
+    }
+}
+
 app.disableHardwareAcceleration();
 
 app.whenReady().then(async () => {
     console.log('[Electron] App ready, starting binary backend...');
+    // 显示启动过场动画
+    createSplashWindow();
 
     try {
         await ensureBackendStarted();
-        const ready = await waitForBackendReady();
+        const ready = await waitForBackendReady(); // 默认约60秒，可用 BACKEND_WAIT_MS 覆盖
 
         if (!ready) {
             console.error('[Electron] ❌ Backend failed to start');
@@ -343,12 +395,20 @@ app.whenReady().then(async () => {
                 'Backend Error',
                 'Failed to start the backend server. Please check the console for details.'
             );
+            if (splashWindow) {
+                try { splashWindow.close(); } catch (_) {}
+                splashWindow = null;
+            }
             app.quit();
             return;
         }
 
         console.log('[Electron] ✓ Backend ready, creating window...');
         setupApiRewrite();
+        if (splashWindow) {
+            try { splashWindow.close(); } catch (_) {}
+            splashWindow = null;
+        }
         createWindow();
 
     } catch (error) {
@@ -358,6 +418,10 @@ app.whenReady().then(async () => {
             'Startup Error',
             `Failed to start application: ${error.message}`
         );
+        if (splashWindow) {
+            try { splashWindow.close(); } catch (_) {}
+            splashWindow = null;
+        }
         app.quit();
     }
 
@@ -370,10 +434,18 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => {
     // 关闭所有窗口后，退出应用（包括 macOS），并确保终止后端进程
+    if (splashWindow) {
+        try { splashWindow.close(); } catch (_) {}
+        splashWindow = null;
+    }
     terminateBackendProcess();
     app.quit();
 });
 
 app.on('will-quit', () => {
+    if (splashWindow) {
+        try { splashWindow.close(); } catch (_) {}
+        splashWindow = null;
+    }
     terminateBackendProcess();
 });
