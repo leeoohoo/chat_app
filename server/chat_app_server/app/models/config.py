@@ -25,6 +25,8 @@ class McpConfigCreate(BaseModel):
     cwd: Optional[str] = None
     user_id: Optional[str] = None
     enabled: bool = True
+    # 关联的应用ID列表（可选）
+    app_ids: Optional[List[str]] = None
 
     @classmethod
     async def create(cls, config_data: "McpConfigCreate") -> Dict[str, Any]:
@@ -52,8 +54,23 @@ class McpConfigCreate(BaseModel):
             config_data.user_id,
             config_data.enabled
         ))
-        
-        return await cls.get_by_id(config_id)
+        # 写入应用关联（如果提供）
+        if config_data.app_ids:
+            for app_id in config_data.app_ids:
+                try:
+                    await db.execute_query_async(
+                        "INSERT INTO mcp_config_applications (id, mcp_config_id, application_id, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
+                        (str(uuid.uuid4()), config_id, app_id)
+                    )
+                except Exception:
+                    # 关联插入失败不影响主流程
+                    pass
+
+        # 返回含 app_ids 的完整对象
+        obj = await cls.get_by_id(config_id)
+        if obj is not None:
+            obj["app_ids"] = config_data.app_ids or []
+        return obj
 
     @classmethod
     async def get_all(cls, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -83,6 +100,16 @@ class McpConfigCreate(BaseModel):
                     except (json.JSONDecodeError, TypeError):
                         config['env'] = None
                 # 保留cwd为字符串（可为空）
+
+                # 读取关联的应用ID
+                try:
+                    assoc_rows = await db.fetch_all_async(
+                        "SELECT application_id FROM mcp_config_applications WHERE mcp_config_id = ?",
+                        (config['id'],)
+                    )
+                    config['app_ids'] = [r['application_id'] for r in assoc_rows]
+                except Exception:
+                    config['app_ids'] = []
                 
                 configs.append(config)
         
@@ -110,6 +137,16 @@ class McpConfigCreate(BaseModel):
                 except (json.JSONDecodeError, TypeError):
                     config['env'] = None
             # 保留cwd原样
+
+            # 读取关联的应用ID
+            try:
+                assoc_rows = await db.fetch_all_async(
+                    "SELECT application_id FROM mcp_config_applications WHERE mcp_config_id = ?",
+                    (config_id,)
+                )
+                config['app_ids'] = [r['application_id'] for r in assoc_rows]
+            except Exception:
+                config['app_ids'] = []
             
             return config
         return None
@@ -130,6 +167,8 @@ class McpConfigUpdate(BaseModel):
     env: Optional[Dict[str, str]] = None
     cwd: Optional[str] = None
     enabled: Optional[bool] = None
+    # 更新时可覆盖关联应用ID列表（如提供）
+    app_ids: Optional[List[str]] = None
 
     @classmethod
     async def update(cls, config_id: str, update_data: "McpConfigUpdate") -> Optional[Dict[str, Any]]:
@@ -179,6 +218,23 @@ class McpConfigUpdate(BaseModel):
         
         query = f"UPDATE mcp_configs SET {', '.join(update_fields)} WHERE id = ?"
         await db.execute_query_async(query, tuple(update_values))
+        # 处理应用关联更新（如提供）
+        if update_data.app_ids is not None:
+            try:
+                # 清理旧关联
+                await db.execute_query_async(
+                    "DELETE FROM mcp_config_applications WHERE mcp_config_id = ?",
+                    (config_id,)
+                )
+                # 写入新关联
+                for app_id in update_data.app_ids:
+                    await db.execute_query_async(
+                        "INSERT INTO mcp_config_applications (id, mcp_config_id, application_id, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
+                        (str(uuid.uuid4()), config_id, app_id)
+                    )
+            except Exception:
+                # 关联更新失败不阻塞主流程
+                pass
         
         return await McpConfigCreate.get_by_id(config_id)
 

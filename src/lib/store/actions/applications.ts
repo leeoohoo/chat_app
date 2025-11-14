@@ -76,34 +76,22 @@ export function createApplicationActions({ set, get, client, getUserIdParam }: D
     deleteApplication: async (id: string) => {
       try {
         await client.deleteApplication(id);
-        // 清理关联映射（仍在前端维护）
-        const mcpRaw = localStorage.getItem('mcp_app_map');
-        const sysRaw = localStorage.getItem('sysctx_app_map');
-        const agentRaw = localStorage.getItem('agent_app_map');
-        const mcpMap = mcpRaw ? (JSON.parse(mcpRaw) as Record<string, string[]>) : {};
-        const sysMap = sysRaw ? (JSON.parse(sysRaw) as Record<string, string[]>) : {};
-        const agentMap = agentRaw ? (JSON.parse(agentRaw) as Record<string, string[]>) : {};
-        Object.keys(mcpMap).forEach((k) => {
-          const arr = Array.isArray(mcpMap[k]) ? mcpMap[k] : [];
-          mcpMap[k] = arr.filter((aid) => aid !== id);
-        });
-        Object.keys(sysMap).forEach((k) => {
-          const arr = Array.isArray(sysMap[k]) ? sysMap[k] : [];
-          sysMap[k] = arr.filter((aid) => aid !== id);
-        });
-        Object.keys(agentMap).forEach((k) => {
-          const arr = Array.isArray(agentMap[k]) ? agentMap[k] : [];
-          agentMap[k] = arr.filter((aid) => aid !== id);
-        });
-        localStorage.setItem('mcp_app_map', JSON.stringify(mcpMap));
-        localStorage.setItem('sysctx_app_map', JSON.stringify(sysMap));
-        localStorage.setItem('agent_app_map', JSON.stringify(agentMap));
         set((state: any) => {
           state.applications = state.applications.filter((a: Application) => a.id !== id);
-          // 同步内存中的 appId 字段
-          state.mcpConfigs = state.mcpConfigs.map((c: any) => ({ ...c, appIds: mcpMap[c.id] ?? [] }));
-          state.systemContexts = state.systemContexts.map((c: any) => ({ ...c, appIds: sysMap[c.id] ?? [] }));
-          state.agents = state.agents.map((a: any) => ({ ...a, appIds: agentMap[a.id] ?? [] }));
+          // 仅更新内存中的关联，不再使用本地映射；MCP 关联由后端持久化
+          state.mcpConfigs = state.mcpConfigs.map((c: any) => ({
+            ...c,
+            appIds: Array.isArray(c.appIds) ? c.appIds.filter((aid: string) => aid !== id) : []
+          }));
+          // 其他类型（SystemContext/Agent）暂保持现状，待后端支持后统一切换
+          state.systemContexts = state.systemContexts.map((c: any) => ({
+            ...c,
+            appIds: Array.isArray(c.appIds) ? c.appIds.filter((aid: string) => aid !== id) : []
+          }));
+          state.agents = state.agents.map((a: any) => ({
+            ...a,
+            appIds: Array.isArray(a.appIds) ? a.appIds.filter((aid: string) => aid !== id) : []
+          }));
         });
       } catch (error) {
         console.error('Failed to delete application:', error);
@@ -118,12 +106,11 @@ export function createApplicationActions({ set, get, client, getUserIdParam }: D
       });
     },
     setMcpAppAssociation: (mcpId: string, appIds: string[]) => {
-      const raw = localStorage.getItem('mcp_app_map');
-      const map = raw ? (JSON.parse(raw) as Record<string, string[]>) : {};
-      map[mcpId] = Array.isArray(appIds) ? appIds : [];
-      localStorage.setItem('mcp_app_map', JSON.stringify(map));
+      // 仅更新内存中的选择，持久化通过保存 MCP 配置时由后端处理
       set((state: any) => {
-        state.mcpConfigs = state.mcpConfigs.map((c: any) => (c.id === mcpId ? { ...c, appIds: map[mcpId] } : c));
+        state.mcpConfigs = state.mcpConfigs.map((c: any) => (
+          c.id === mcpId ? { ...c, appIds: Array.isArray(appIds) ? appIds : [] } : c
+        ));
       });
     },
     setSystemContextAppAssociation: (contextId: string, appIds: string[]) => {

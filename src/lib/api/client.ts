@@ -118,6 +118,7 @@ class ApiClient {
     cwd?: string | null;
     enabled: boolean;
     user_id?: string;
+    app_ids?: string[];
   }) {
     console.log('🔍 API client createMcpConfig 调用:', data);
     return this.request('/mcp-configs', {
@@ -136,6 +137,7 @@ class ApiClient {
     cwd?: string | null;
     enabled?: boolean;
     userId?: string;
+    app_ids?: string[];
   }) {
     console.log('🔍 API client updateMcpConfig 调用:', { id, data });
     return this.request(`/mcp-configs/${id}`, {

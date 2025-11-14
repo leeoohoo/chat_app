@@ -15,9 +15,11 @@ export function createMcpActions({ set, get, client, getUserIdParam }: Deps) {
         const userId = getUserIdParam();
         const configs = await client.getMcpConfigs(userId);
 
-        const assocRaw = localStorage.getItem('mcp_app_map');
-        const assoc = assocRaw ? (JSON.parse(assocRaw) as Record<string, string[]>) : {};
-        const merged = (configs as McpConfig[]).map((c: any) => ({ ...c, appIds: assoc[c.id] ?? [] }));
+        const merged = (configs as any[]).map((c: any) => ({
+          ...c,
+          // 仅使用后端返回的关联应用
+          appIds: Array.isArray(c.app_ids) ? c.app_ids : []
+        }));
 
         set((state: any) => {
           state.mcpConfigs = merged as McpConfig[];
@@ -51,9 +53,11 @@ export function createMcpActions({ set, get, client, getUserIdParam }: Deps) {
             cwd: (config as any).cwd ?? undefined,
             enabled: (config as any).enabled,
             userId,
+            // 发送关联应用到后端
+            app_ids: Array.isArray((config as any).appIds) ? (config as any).appIds : undefined,
           };
           console.log('🔍 updateMcpConfig 更新数据:', updateData);
-          saved = await (client as any).updateMcpConfig(updateData);
+          saved = await (client as any).updateMcpConfig((config as any).id, updateData);
         } else {
           // 如果没有 id，视为创建
           const createData: any = {
@@ -64,22 +68,23 @@ export function createMcpActions({ set, get, client, getUserIdParam }: Deps) {
             env: (config as any).env ?? undefined,
             cwd: (config as any).cwd ?? undefined,
             enabled: (config as any).enabled,
-            userId,
+            user_id: userId,
+            app_ids: Array.isArray((config as any).appIds) ? (config as any).appIds : undefined,
           };
           saved = await (client as any).createMcpConfig(createData);
         }
 
         // 前端持久化 MCP 与应用的关联（数组）
-        const assocRaw = localStorage.getItem('mcp_app_map');
-        const assoc = assocRaw ? (JSON.parse(assocRaw) as Record<string, string[]>) : {};
+        // 不再使用本地映射，直接以服务端返回更新内存状态
         const targetId = (saved as any)?.id ?? (config as any).id;
-        if (targetId) {
-          const nextIds: string[] = Array.isArray((config as any).appIds)
-            ? (config as any).appIds
-            : (assoc[targetId] ?? []);
-          assoc[targetId] = nextIds;
-          localStorage.setItem('mcp_app_map', JSON.stringify(assoc));
-        }
+        const returnedIds: string[] = Array.isArray((saved as any)?.app_ids)
+          ? (saved as any).app_ids
+          : (Array.isArray((config as any).appIds) ? (config as any).appIds : []);
+        set((state: any) => {
+          state.mcpConfigs = state.mcpConfigs.map((c: any) => (
+            c.id === targetId ? { ...c, appIds: returnedIds } : c
+          ));
+        });
 
         // 重新加载配置
         await get().loadMcpConfigs();

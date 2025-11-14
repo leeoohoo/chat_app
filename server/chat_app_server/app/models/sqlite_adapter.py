@@ -552,6 +552,19 @@ class SQLiteAdapter(AbstractDatabaseAdapter):
             FOREIGN KEY (system_context_id) REFERENCES system_contexts (id) ON DELETE SET NULL
         );
 
+        -- MCP 与应用的关联表
+        CREATE TABLE IF NOT EXISTS mcp_config_applications (
+            id TEXT PRIMARY KEY,
+            mcp_config_id TEXT NOT NULL,
+            application_id TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (mcp_config_id) REFERENCES mcp_configs (id) ON DELETE CASCADE,
+            FOREIGN KEY (application_id) REFERENCES applications (id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_mcp_config_app_mcp ON mcp_config_applications(mcp_config_id);
+        CREATE INDEX IF NOT EXISTS idx_mcp_config_app_app ON mcp_config_applications(application_id);
+
         -- 应用（Application）表
         CREATE TABLE IF NOT EXISTS applications (
             id TEXT PRIMARY KEY,
