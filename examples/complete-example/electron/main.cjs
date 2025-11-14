@@ -292,6 +292,8 @@ function createWindow() {
         height: 800,
         minWidth: 960,
         minHeight: 600,
+        show: false, // 先不显示，待页面准备好后再展示，避免空白
+        backgroundColor: '#111315', // 减少白屏闪烁
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
@@ -311,8 +313,28 @@ function createWindow() {
         mainWindow.loadFile(indexPath);
     }
 
+    const revealMain = () => {
+        try {
+            if (splashWindow) {
+                try { splashWindow.close(); } catch (_) {}
+                splashWindow = null;
+            }
+            if (mainWindow && !mainWindow.isVisible()) {
+                mainWindow.show();
+            }
+        } catch (e) {
+            console.warn('[Electron] revealMain error:', e.message);
+        }
+    };
+
+    mainWindow.once('ready-to-show', () => {
+        console.log('[Electron] Main window ready-to-show');
+        revealMain();
+    });
+
     mainWindow.webContents.on('did-finish-load', () => {
         console.log('[Electron] Page loaded:', mainWindow.webContents.getURL());
+        revealMain();
     });
 
     mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
@@ -340,8 +362,8 @@ function createSplashWindow() {
         const splashPath = path.join(__dirname, 'splash.html');
         console.log('[Electron] Creating splash window. Path =', splashPath);
         splashWindow = new BrowserWindow({
-            width: 420,
-            height: 300,
+            width: 1000,
+            height: 760,
             frame: false,
             transparent: true,
             backgroundColor: '#00000000',
@@ -405,10 +427,7 @@ app.whenReady().then(async () => {
 
         console.log('[Electron] ✓ Backend ready, creating window...');
         setupApiRewrite();
-        if (splashWindow) {
-            try { splashWindow.close(); } catch (_) {}
-            splashWindow = null;
-        }
+        // 保持过场窗口，直到主页面真正加载完成再关闭
         createWindow();
 
     } catch (error) {

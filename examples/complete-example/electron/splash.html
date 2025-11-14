@@ -13,7 +13,7 @@
       padding: 0;
       background: transparent;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
-      color: #222;
+      color: #e5e7eb;
     }
     .container {
       width: 100%;
@@ -21,46 +21,136 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      backdrop-filter: blur(2px);
+      backdrop-filter: blur(4px) saturate(1.1);
     }
     .card {
+      position: relative;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 14px;
-      background: rgba(255, 255, 255, 0.9);
-      border-radius: 16px;
-      box-shadow: 0 10px 30px rgba(0,0,0,0.12);
-      padding: 24px 28px;
-      min-width: 280px;
+      gap: 26px;
+      background: radial-gradient(1200px 800px at 20% -20%, rgba(59,130,246,0.18) 0%, rgba(59,130,246,0.06) 35%, rgba(17,24,39,0.90) 55%), rgba(17,24,39,0.92);
+      border: 1px solid rgba(59,130,246,0.25);
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.05);
+      padding: 56px 68px;
+      min-width: 780px;
+      max-width: 960px;
+      overflow: hidden;
     }
-    .spinner {
-      width: 42px;
-      height: 42px;
-      border: 3px solid #e5e7eb; /* 灰色边框 */
-      border-top-color: #3b82f6;  /* 蓝色顶边 */
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 20px;
+      background: linear-gradient(135deg, rgba(59,130,246,0.25), rgba(6,182,212,0.15) 40%, rgba(168,85,247,0.15) 70%);
+      opacity: 0.35;
+      filter: blur(18px);
+      pointer-events: none;
+    }
+    .card::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: 20px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.12) 2%, rgba(255,255,255,0.06) 4%);
+      background-size: 100% 12px;
+      mix-blend-mode: overlay;
+      opacity: 0.18;
+      pointer-events: none;
+      animation: scan 6s linear infinite;
+    }
+    @keyframes scan {
+      from { transform: translateY(-12px); }
+      to { transform: translateY(12px); }
+    }
+    .scene {
+      position: relative;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .orbital {
+      position: relative;
+      width: 260px;
+      height: 260px;
+    }
+    .rings { position: absolute; inset: 0; }
+    .ring {
+      position: absolute;
+      inset: 0;
       border-radius: 50%;
-      animation: spin 0.9s linear infinite;
+      border: 10px solid transparent;
+      border-image: conic-gradient(from 0deg, #3b82f6, #06b6d4, #a855f7, #3b82f6) 1;
+      filter: drop-shadow(0 0 18px rgba(59,130,246,0.55));
+      opacity: 0.9;
+      animation: ringSpin 16s linear infinite;
     }
-    @keyframes spin {
-      to { transform: rotate(360deg); }
+    .ring-2 { inset: 10%; animation-duration: 22s; animation-direction: reverse; opacity: 0.8; }
+    .ring-3 { inset: 20%; animation-duration: 28s; opacity: 0.75; }
+    @keyframes ringSpin { to { transform: rotate(360deg); } }
+
+    .orbit { position: absolute; inset: 0; animation: orbitSpin 9s linear infinite; }
+    .orbit-2 { animation-duration: 13s; animation-direction: reverse; }
+    .orbit-3 { animation-duration: 17s; }
+    @keyframes orbitSpin { to { transform: rotate(360deg); } }
+    .dot {
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 12px; height: 12px;
+      transform: translate(-50%, -50%) translateX(var(--radius, 90px));
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,255,255,0.95) 0%, rgba(59,130,246,0.75) 60%, rgba(59,130,246,0.05) 100%);
+      box-shadow: 0 0 16px rgba(59,130,246,0.75), 0 0 24px rgba(6,182,212,0.45);
     }
     .text {
-      font-size: 14px;
-      color: #374151;
-      letter-spacing: 0.2px;
+      font-size: 20px;
+      color: #e5e7eb;
+      letter-spacing: 0.3px;
+    }
+    .progress {
+      width: 68%;
+      height: 6px;
+      border-radius: 9999px;
+      background: rgba(255,255,255,0.08);
+      overflow: hidden;
+    }
+    .progress .bar {
+      width: 44%;
+      height: 100%;
+      border-radius: 9999px;
+      background: linear-gradient(90deg, #3b82f6, #06b6d4, #a855f7);
+      filter: drop-shadow(0 0 10px rgba(59,130,246,0.6));
+      animation: progressMove 1.8s ease-in-out infinite alternate;
+    }
+    @keyframes progressMove {
+      from { transform: translateX(-10%); opacity: 0.85; }
+      to { transform: translateX(120%); opacity: 1; }
     }
     .subtext {
-      font-size: 12px;
-      color: #6b7280;
+      font-size: 15px;
+      color: #93a3af;
     }
   </style>
   </head>
 <body>
   <div class="container">
     <div class="card">
-      <div class="spinner" aria-label="Loading"></div>
+      <div class="scene" aria-label="Loading visualization">
+        <div class="orbital">
+          <div class="rings">
+            <div class="ring ring-1"></div>
+            <div class="ring ring-2"></div>
+            <div class="ring ring-3"></div>
+          </div>
+          <div class="orbit orbit-1"><div class="dot" style="--radius: 96px"></div></div>
+          <div class="orbit orbit-2"><div class="dot" style="--radius: 72px"></div></div>
+          <div class="orbit orbit-3"><div class="dot" style="--radius: 52px"></div></div>
+        </div>
+      </div>
       <div class="text">正在启动，请稍候…</div>
+      <div class="progress"><div class="bar"></div></div>
       <div class="subtext">首次启动可能需要更久时间</div>
     </div>
   </div>
