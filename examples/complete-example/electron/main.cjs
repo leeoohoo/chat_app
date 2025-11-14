@@ -1,4 +1,4 @@
-const { app, BrowserWindow, session } = require('electron');
+const { app, BrowserWindow, session, ipcMain } = require('electron');
 const net = require('net');
 const { spawn } = require('child_process');
 const path = require('path');
@@ -153,6 +153,7 @@ async function ensureBackendStarted() {
 
     console.log(`[Electron] Launching binary: ${binaryInfo.path}`);
     console.log(`[Electron] Working directory: ${binaryInfo.workingDir}`);
+    try { sendSplashStatus({ text: '引擎点火…', progress: 10 }); } catch (_) {}
 
     try {
         backendProcess = spawn(binaryInfo.path, [], {
@@ -167,6 +168,7 @@ async function ensureBackendStarted() {
         });
 
         console.log(`[Electron] ✓ Binary process started with PID: ${backendProcess.pid}`);
+        try { sendSplashStatus({ text: '系统上线', progress: 25 }); } catch (_) {}
 
         // 监听输出
         backendProcess.stdout.on('data', (data) => {
@@ -207,11 +209,13 @@ async function waitForBackendReady(maxRetries = 200, intervalMs = 300) {
     }
     const totalMs = maxRetries * intervalMs;
     console.log(`[Electron] Waiting for backend at http://${host}:${port} (timeout ~${totalMs}ms)...`);
+    try { sendSplashStatus({ text: '链接通道…', progress: 30 }); } catch (_) {}
 
     for (let i = 0; i < maxRetries; i++) {
         const ok = await checkPort(host, port);
         if (ok) {
             console.log(`[Electron] ✓ Backend is ready at http://${host}:${port}`);
+            try { sendSplashStatus({ text: '界面预热…', progress: 85 }); } catch (_) {}
             return true;
         }
 
@@ -219,6 +223,8 @@ async function waitForBackendReady(maxRetries = 200, intervalMs = 300) {
             console.log('[Electron] Backend starting...');
         } else if (i % 10 === 0) {
             console.log(`[Electron] Still waiting... (${i}/${maxRetries})`);
+            const pct = Math.min(80, 30 + Math.round((i / maxRetries) * 50));
+            try { sendSplashStatus({ text: '模块自检…', progress: pct }); } catch (_) {}
         }
 
         await new Promise((r) => setTimeout(r, intervalMs));
@@ -286,6 +292,16 @@ function setupApiRewrite() {
     });
 }
 
+function sendSplashStatus(payload) {
+    try {
+        if (splashWindow && splashWindow.webContents && !splashWindow.isDestroyed()) {
+            splashWindow.webContents.send('splash:status', payload || {});
+        }
+    } catch (e) {
+        console.warn('[Electron] sendSplashStatus error:', e.message);
+    }
+}
+
 function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1200,
@@ -329,12 +345,14 @@ function createWindow() {
 
     mainWindow.once('ready-to-show', () => {
         console.log('[Electron] Main window ready-to-show');
-        revealMain();
+        try { sendSplashStatus({ text: '光栅就绪…', progress: 95 }); } catch (_) {}
+        // 不再自动进入主页面，等待用户点击按钮
     });
 
     mainWindow.webContents.on('did-finish-load', () => {
         console.log('[Electron] Page loaded:', mainWindow.webContents.getURL());
-        revealMain();
+        try { sendSplashStatus({ text: '全部就绪', progress: 100 }); } catch (_) {}
+        // 保持在过场页，等待用户点击按钮
     });
 
     mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL, isMainFrame) => {
@@ -372,6 +390,12 @@ function createSplashWindow() {
             skipTaskbar: true,
             show: false,
             useContentSize: true,
+            webPreferences: {
+                nodeIntegration: false,
+                contextIsolation: true,
+                preload: path.join(__dirname, 'splash_preload.cjs'),
+                sandbox: true,
+            },
         });
         splashWindow.setAlwaysOnTop(true, 'screen-saver');
         splashWindow.center();
@@ -380,6 +404,7 @@ function createSplashWindow() {
             try {
                 console.log('[Electron] Splash window ready-to-show');
                 splashWindow.show();
+                try { sendSplashStatus({ text: '唤醒引擎…', progress: 5 }); } catch (_) {}
             } catch (e) {
                 console.warn('[Electron] Failed to show splash window:', e.message);
             }
@@ -429,6 +454,45 @@ app.whenReady().then(async () => {
         setupApiRewrite();
         // 保持过场窗口，直到主页面真正加载完成再关闭
         createWindow();
+        // 监听过场页的“开始探索”按钮
+        try {
+            ipcMain.removeAllListeners('splash:proceed');
+            ipcMain.on('splash:proceed', () => {
+                try { sendSplashStatus({ text: '启程', progress: 100 }); } catch (_) {}
+                // 先让过场页淡出
+                try { splashWindow?.webContents?.send('splash:fadeout', {}); } catch (_) {}
+                // 交叉淡入主窗口
+                try {
+                    if (mainWindow) {
+                        const hasSetOpacity = typeof mainWindow.setOpacity === 'function';
+                        if (hasSetOpacity) mainWindow.setOpacity(0);
+                        if (!mainWindow.isVisible()) mainWindow.show();
+                        if (hasSetOpacity) {
+                            let opacity = 0;
+                            const steps = 18; // ~320ms @ 18ms
+                            const stepMs = 18;
+                            const inc = 1 / steps;
+                            const timer = setInterval(() => {
+                                opacity += inc;
+                                try { mainWindow.setOpacity(Math.min(1, opacity)); } catch (_) {}
+                                if (opacity >= 1) clearInterval(timer);
+                            }, stepMs);
+                        }
+                    }
+                    // 稍后关闭过场
+                    setTimeout(() => {
+                        try { if (splashWindow) { splashWindow.close(); splashWindow = null; } } catch (_) {}
+                    }, 360);
+                } catch (e) {
+                    console.warn('[Electron] proceed transition error:', e.message);
+                    // 回退：直接关闭过场并显示主窗口
+                    try { if (splashWindow) { splashWindow.close(); splashWindow = null; } } catch (_) {}
+                    try { if (mainWindow && !mainWindow.isVisible()) { mainWindow.show(); } } catch (_) {}
+                }
+            });
+        } catch (e) {
+            console.warn('[Electron] ipcMain splash:proceed binding error:', e.message);
+        }
 
     } catch (error) {
         console.error('[Electron] Startup error:', error);

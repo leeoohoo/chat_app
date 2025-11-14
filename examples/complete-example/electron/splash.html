@@ -37,6 +37,37 @@
       min-width: 780px;
       max-width: 960px;
       overflow: hidden;
+      transition: opacity 320ms ease, transform 320ms ease;
+    }
+    /* 背景层：星空canvas + 轻量网格矩阵 */
+    .bg {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+    }
+    #starfield {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0.35;
+    }
+    .grid {
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+      background-size: 28px 28px, 28px 28px;
+      mix-blend-mode: overlay;
+      opacity: 0.20;
+      transform: perspective(600px) rotateX(18deg) translateY(2%);
+      animation: gridShift 8s ease-in-out infinite alternate;
+    }
+    @keyframes gridShift {
+      from { transform: perspective(600px) rotateX(18deg) translateY(3%); }
+      to   { transform: perspective(600px) rotateX(22deg) translateY(-2%); }
     }
     .card::before {
       content: "";
@@ -75,6 +106,38 @@
       position: relative;
       width: 260px;
       height: 260px;
+    }
+    /* 中心徽标与呼吸光晕 */
+    .logo {
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 110px; height: 110px;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      background: radial-gradient(circle at 50% 45%, rgba(255,255,255,0.90) 0%, rgba(59,130,246,0.65) 45%, rgba(168,85,247,0.55) 70%, rgba(59,130,246,0.25) 100%);
+      box-shadow: 0 0 18px rgba(59,130,246,0.55), inset 0 0 22px rgba(255,255,255,0.6);
+      filter: drop-shadow(0 0 22px rgba(168,85,247,0.45));
+      opacity: 0.95;
+      animation: logoBreath 3.6s ease-in-out infinite;
+    }
+    .logo::after {
+      content: "";
+      position: absolute;
+      inset: -18px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(59,130,246,0.28), rgba(168,85,247,0.18) 60%, transparent 70%);
+      filter: blur(20px);
+      animation: haloPulse 5.2s ease-in-out infinite;
+    }
+    @keyframes logoBreath {
+      0%   { transform: translate(-50%, -50%) scale(0.98); opacity: 0.92; }
+      50%  { transform: translate(-50%, -50%) scale(1.04); opacity: 1; }
+      100% { transform: translate(-50%, -50%) scale(0.98); opacity: 0.92; }
+    }
+    @keyframes haloPulse {
+      0%   { opacity: 0.55; }
+      50%  { opacity: 0.85; }
+      100% { opacity: 0.55; }
     }
     .rings { position: absolute; inset: 0; }
     .ring {
@@ -132,13 +195,42 @@
       font-size: 15px;
       color: #93a3af;
     }
+    .cta {
+      margin-top: 8px;
+      display: none; /* 初始不显示 */
+      align-items: center;
+      gap: 10px;
+      padding: 12px 22px;
+      border-radius: 14px;
+      border: 1px solid rgba(59,130,246,0.35);
+      background:
+        linear-gradient(135deg, rgba(59,130,246,0.18), rgba(6,182,212,0.18)),
+        radial-gradient(120% 100% at 20% -20%, rgba(168,85,247,0.25), transparent 60%);
+      color: #e5e7eb;
+      font-size: 16px;
+      letter-spacing: 0.3px;
+      cursor: pointer;
+      box-shadow: 0 10px 24px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.06);
+      transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+      backdrop-filter: blur(6px) saturate(1.1);
+    }
+    .cta.show { display: inline-flex; animation: ctaAppear 320ms ease-out forwards, ctaPulse 3.2s ease-in-out infinite; }
+    .cta:hover { transform: translateY(-1px); box-shadow: 0 14px 32px rgba(0,0,0,0.34); }
+    .cta:active { transform: translateY(0); box-shadow: 0 10px 24px rgba(0,0,0,0.30); }
+    .cta:disabled { opacity: 0.55; cursor: not-allowed; }
+    .cta-icon { display: inline-flex; filter: drop-shadow(0 0 8px rgba(59,130,246,0.55)); }
+    @keyframes ctaAppear { from { opacity: 0; transform: translateY(6px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+    @keyframes ctaPulse { 0% { box-shadow: 0 10px 24px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.06); } 50% { box-shadow: 0 12px 28px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.08); } 100% { box-shadow: 0 10px 24px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.06); } }
+    .card.fade-out { opacity: 0; transform: scale(0.98); }
   </style>
   </head>
 <body>
   <div class="container">
     <div class="card">
+      <div class="bg"><canvas id="starfield"></canvas><div class="grid"></div></div>
       <div class="scene" aria-label="Loading visualization">
         <div class="orbital">
+          <div class="logo" aria-hidden="true"></div>
           <div class="rings">
             <div class="ring ring-1"></div>
             <div class="ring ring-2"></div>
@@ -149,10 +241,116 @@
           <div class="orbit orbit-3"><div class="dot" style="--radius: 52px"></div></div>
         </div>
       </div>
-      <div class="text">正在启动，请稍候…</div>
+      <div class="text" id="statusText">唤醒引擎…</div>
       <div class="progress"><div class="bar"></div></div>
-      <div class="subtext">首次启动可能需要更久时间</div>
+      <div class="subtext" id="subText">正在校准环境与通道</div>
+      <button id="enterBtn" class="cta" disabled>
+        <span class="cta-icon" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path d="M5 12h12M12 5l7 7-7 7" stroke="url(#g)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <defs>
+              <linearGradient id="g" x1="0" y1="0" x2="24" y2="24">
+                <stop offset="0%" stop-color="#3b82f6"/>
+                <stop offset="50%" stop-color="#06b6d4"/>
+                <stop offset="100%" stop-color="#a855f7"/>
+              </linearGradient>
+            </defs>
+          </svg>
+        </span>
+        <span class="cta-text">开始探索</span>
+      </button>
     </div>
   </div>
+  <script>
+    // 轻量星空粒子系统
+    (function initStarfield(){
+      const canvas = document.getElementById('starfield');
+      const ctx = canvas.getContext('2d');
+      let stars = [];
+      function resize(){
+        canvas.width = canvas.clientWidth;
+        canvas.height = canvas.clientHeight;
+        const count = Math.round((canvas.width * canvas.height) / 12000); // 密度
+        stars = Array.from({ length: count }, () => ({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          z: Math.random() * 0.6 + 0.4, // 亮度
+          vx: (Math.random() - 0.5) * 0.08,
+          vy: (Math.random() - 0.5) * 0.08,
+        }));
+      }
+      function tick(){
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        for (const s of stars){
+          s.x += s.vx; s.y += s.vy;
+          if (s.x < 0) s.x = canvas.width; if (s.x > canvas.width) s.x = 0;
+          if (s.y < 0) s.y = canvas.height; if (s.y > canvas.height) s.y = 0;
+          const size = s.z * 1.8;
+          ctx.fillStyle = `rgba(255,255,255,${0.35 * s.z})`;
+          ctx.beginPath(); ctx.arc(s.x, s.y, size, 0, Math.PI*2); ctx.fill();
+        }
+        requestAnimationFrame(tick);
+      }
+      resize();
+      tick();
+      window.addEventListener('resize', resize);
+    })();
+
+    // IPC: 动态更新文案与进度
+    (function initIPC(){
+      const statusText = document.getElementById('statusText');
+      const subText = document.getElementById('subText');
+      const bar = document.querySelector('.progress .bar');
+      const enterBtn = document.getElementById('enterBtn');
+      const cardEl = document.querySelector('.card');
+      enterBtn.style.display = 'none'; // 初始隐藏
+      const stepsHints = {
+        '唤醒引擎…': '初始化环境与参数',
+        '引擎点火…': '启动服务内核',
+        '系统上线': '通道接入与心跳',
+        '链接通道…': '等待联通与响应',
+        '模块自检…': '组件校验与热身',
+        '界面预热…': '渲染准备与素材挂载',
+        '光栅就绪…': '渲染器就位，静候启程',
+        '全部就绪': '万事俱备，只欠一键启程',
+      };
+      function update({ text, progress }){
+        if (typeof text === 'string') {
+          statusText.textContent = text;
+          const hint = stepsHints[text];
+          if (hint) subText.textContent = hint; else subText.textContent = '正在加载，请稍候';
+          if (text === '全部就绪') {
+            enterBtn.disabled = false;
+            enterBtn.classList.add('show');
+            enterBtn.style.display = 'inline-flex';
+          }
+        }
+        if (typeof progress === 'number') {
+          const clamped = Math.max(0, Math.min(100, Math.round(progress)));
+          bar.style.width = clamped + '%';
+          if (clamped >= 100) {
+            enterBtn.disabled = false;
+            enterBtn.classList.add('show');
+            enterBtn.style.display = 'inline-flex';
+          }
+        }
+      }
+      if (window.splashAPI && typeof window.splashAPI.onStatus === 'function') {
+        window.splashAPI.onStatus(update);
+      }
+      if (window.splashAPI && typeof window.splashAPI.onFadeout === 'function') {
+        window.splashAPI.onFadeout(() => {
+          try { cardEl.classList.add('fade-out'); } catch (_) {}
+        });
+      }
+      // 点击进入主页面
+      enterBtn.addEventListener('click', () => {
+        if (enterBtn.disabled) return;
+        if (window.splashAPI && typeof window.splashAPI.proceed === 'function') {
+          window.splashAPI.proceed();
+        }
+      });
+    })();
+  </script>
 </body>
 </html>
