@@ -4,7 +4,9 @@
 import time
 import asyncio
 import logging
+import logging.handlers
 import os
+import sys
 import signal
 from pathlib import Path
 from contextlib import asynccontextmanager
@@ -39,6 +41,8 @@ from app.api import chat_api_v2
 log_step("导入路由完成: chat_api_v2")
 from app.api import agents
 log_step("导入路由完成: agents")
+from app.api import applications
+log_step("导入路由完成: applications")
 
 log_step("导入数据库模块")
 from app.models import db_manager
@@ -54,6 +58,52 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
+def _get_runtime_root() -> Path:
+    # 在打包环境中，日志应写到可执行文件所在目录
+    if getattr(sys, 'frozen', False):
+        return Path(sys.executable).parent
+    return Path(__file__).parent.parent
+
+
+def setup_file_logging():
+    try:
+        log_dir = _get_runtime_root() / "logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = log_dir / "server.log"
+        file_handler = logging.handlers.RotatingFileHandler(
+            str(log_file), maxBytes=2_000_000, backupCount=3, encoding="utf-8"
+        )
+        file_handler.setLevel(logging.INFO)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        file_handler.setFormatter(formatter)
+        # 添加到根 logger，确保所有模块日志都写入文件
+        logging.getLogger().addHandler(file_handler)
+        logger.info("文件日志已启用: %s", log_file)
+    except Exception as e:
+        try:
+            logger.warning("启用文件日志失败: %s", e)
+        except Exception:
+            pass
+
+
+def install_excepthook():
+    import traceback
+
+    def _excepthook(exc_type, exc_value, exc_tb):
+        try:
+            logger.error("未处理异常: %s", exc_value)
+            logger.error("\n" + "".join(traceback.format_exception(exc_type, exc_value, exc_tb)))
+        finally:
+            # 继续默认行为，确保控制台也能看到
+            sys.__excepthook__(exc_type, exc_value, exc_tb)
+
+    sys.excepthook = _excepthook
+
+
+setup_file_logging()
+install_excepthook()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -105,6 +155,7 @@ app.include_router(configs.router, prefix="/api", tags=["configs"])
 app.include_router(mcp_initializers.router, prefix="/api/mcp-initializers", tags=["mcp-initializers"])
 app.include_router(chat_api_v2.router, prefix="/api", tags=["chat-v2"])
 app.include_router(agents.router, prefix="/api", tags=["agents"])
+app.include_router(applications.router, prefix="/api", tags=["applications"])
 log_step("路由注册完成")
 
 
@@ -135,18 +186,40 @@ async def serve_frontend(full_path: str):
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 3001))
-    # 在打包环境中避免字符串导入，直接传递 app 对象
-    # 强制启用 uvloop 与 httptools 以提高性能
     log_step("开始执行主程序")
+
+    # 在不同平台上选择最优或兼容的事件循环与HTTP实现
+    # 允许通过环境变量覆盖：UVICORN_LOOP、UVICORN_HTTP
+    loop_choice = os.environ.get("UVICORN_LOOP")
+    http_choice = os.environ.get("UVICORN_HTTP")
+
+    # 检测可用性并设置合理的默认值
+    if not loop_choice:
+        try:
+            import uvloop  # noqa: F401
+            # uvloop 不支持 Windows，避免在 Windows 上启用
+            if os.name != "nt":
+                loop_choice = "uvloop"
+            else:
+                loop_choice = "asyncio"
+        except Exception:
+            loop_choice = "asyncio"
+
+    if not http_choice:
+        try:
+            import httptools  # noqa: F401
+            http_choice = "httptools"
+        except Exception:
+            http_choice = "h11"
+
     uvicorn.run(
         app,
         host="0.0.0.0",
         port=port,
         log_level="info",
         reload=False,
-        loop="uvloop",
-        http="httptools",
-        # 可通过环境变量 WORKERS 配置多进程 worker（默认1）
+        loop=loop_choice,
+        http=http_choice,
         workers=int(os.environ.get("WORKERS", "1"))
     )
     log_step("程序启动完成")

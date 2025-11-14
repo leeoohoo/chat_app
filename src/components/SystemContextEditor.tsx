@@ -79,7 +79,10 @@ const SystemContextEditor: React.FC<SystemContextEditorProps> = ({ onClose, stor
     createSystemContext,
     updateSystemContext, 
     deleteSystemContext,
-    activateSystemContext
+    activateSystemContext,
+    applications,
+    setSystemContextAppAssociation,
+    loadApplications
   } = storeData;
   
   const [viewMode, setViewMode] = useState<ViewMode>('list');
@@ -87,6 +90,7 @@ const SystemContextEditor: React.FC<SystemContextEditorProps> = ({ onClose, stor
   const [formData, setFormData] = useState({ name: '', content: '' });
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [selectedAppIds, setSelectedAppIds] = useState<string[]>([]);
   
   const { dialogState, showConfirmDialog, handleConfirm, handleCancel } = useConfirmDialog();
 
@@ -103,6 +107,7 @@ const SystemContextEditor: React.FC<SystemContextEditorProps> = ({ onClose, stor
       setIsLoading(true);
       try {
         await loadSystemContexts();
+        try { await (loadApplications?.()); } catch {}
       } catch (error) {
         console.error('Failed to load system contexts:', error);
       } finally {
@@ -123,6 +128,7 @@ const SystemContextEditor: React.FC<SystemContextEditorProps> = ({ onClose, stor
   const handleEdit = (context: SystemContext) => {
     setFormData({ name: context.name, content: context.content });
     setEditingContext(context);
+    setSelectedAppIds(Array.isArray((context as any).appIds) ? (context as any).appIds : []);
     setViewMode('edit');
   };
 
@@ -136,9 +142,16 @@ const SystemContextEditor: React.FC<SystemContextEditorProps> = ({ onClose, stor
     setIsSaving(true);
     try {
       if (viewMode === 'create') {
-        await createSystemContext(formData.name, formData.content);
+        const created = await createSystemContext(formData.name, formData.content);
+        if (created?.id) {
+          setSystemContextAppAssociation?.(created.id, selectedAppIds);
+        }
       } else if (viewMode === 'edit' && editingContext) {
-        await updateSystemContext(editingContext.id, formData.name, formData.content);
+        const updated = await updateSystemContext(editingContext.id, formData.name, formData.content);
+        const targetId = updated?.id ?? editingContext.id;
+        if (targetId) {
+          setSystemContextAppAssociation?.(targetId, selectedAppIds);
+        }
       }
       setViewMode('list');
     } catch (error) {
@@ -303,6 +316,31 @@ const SystemContextEditor: React.FC<SystemContextEditorProps> = ({ onClose, stor
             className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
             placeholder="例如：编程助手、翻译专家、创意写作等"
           />
+        </div>
+
+        {/* 关联应用（多选） */}
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-2">关联应用（多选）</label>
+          <div className="space-y-2 max-h-32 overflow-y-auto p-2 border rounded-md">
+            {(applications || []).map((app: any) => (
+              <label key={app.id} className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={selectedAppIds.includes(app.id)}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setSelectedAppIds((prev) => (
+                      checked ? [...prev, app.id] : prev.filter(id => id !== app.id)
+                    ));
+                  }}
+                />
+                <span>{app.name}</span>
+              </label>
+            ))}
+            {(applications || []).length === 0 && (
+              <div className="text-xs text-muted-foreground">暂无应用，可在“应用管理”中创建。</div>
+            )}
+          </div>
         </div>
 
         {/* 内容编辑 */}

@@ -29,7 +29,8 @@ class AiRequestHandler:
                       temperature: float = 0.7,
                       max_tokens: Optional[int] = None,
                       session_id: Optional[str] = None,
-                      on_chunk: Optional[Callable[[str], None]] = None) -> Dict[str, Any]:
+                      on_chunk: Optional[Callable[[str], None]] = None,
+                      on_thinking_chunk: Optional[Callable[[str], None]] = None) -> Dict[str, Any]:
         """
         处理AI请求
         
@@ -62,7 +63,7 @@ class AiRequestHandler:
             
             # 如果有流式回调，使用流式请求
             if on_chunk:
-                return self._handle_stream_request(request_params, session_id, on_chunk)
+                return self._handle_stream_request(request_params, session_id, on_chunk, on_thinking_chunk)
             else:
                 return self._handle_normal_request(request_params, session_id)
                 
@@ -92,6 +93,17 @@ class AiRequestHandler:
             message = choice.message
             
             # 构建响应数据
+            # 提取可能存在的推理内容（不同模型字段可能不同）
+            reasoning_text = None
+            try:
+                if hasattr(message, "reasoning_content") and message.reasoning_content:
+                    reasoning_text = message.reasoning_content
+                elif hasattr(message, "reasoning") and message.reasoning:
+                    # 某些 SDK 将其命名为 reasoning
+                    reasoning_text = message.reasoning
+            except Exception:
+                reasoning_text = None
+
             response_data = {
                 "id": response.id,
                 "model": response.model,
@@ -105,7 +117,9 @@ class AiRequestHandler:
                     "index": choice.index,
                     "message": {
                         "role": message.role,
-                        "content": message.content
+                        "content": message.content,
+                        # 将推理内容一并返回（接口统一为 reasoning）
+                        "reasoning": reasoning_text or ""
                     },
                     "finish_reason": choice.finish_reason
                 }],
@@ -134,6 +148,7 @@ class AiRequestHandler:
                 self.message_manager.save_assistant_message(
                     session_id=session_id,
                     content=message.content or "",
+                    reasoning=reasoning_text or None,
                     metadata=metadata if metadata else None
                 )
             
@@ -150,7 +165,8 @@ class AiRequestHandler:
     def _handle_stream_request(self, 
                               request_params: Dict[str, Any], 
                               session_id: Optional[str],
-                              on_chunk: Callable[[str], None]) -> Dict[str, Any]:
+                              on_chunk: Callable[[str], None],
+                              on_thinking_chunk: Optional[Callable[[str], None]] = None) -> Dict[str, Any]:
         """
         处理流式AI请求
         
@@ -170,6 +186,7 @@ class AiRequestHandler:
             # 收集流式响应数据
             collected_content = ""
             collected_tool_calls = []
+            collected_reasoning_content = ""
             response_id = None
             model = None
             created = None
@@ -198,6 +215,16 @@ class AiRequestHandler:
                         collected_content += delta.content
                         # 调用流式回调
                         on_chunk(delta.content)
+
+                    # 处理推理内容（仅部分模型返回）
+                    if hasattr(delta, "reasoning_content") and delta.reasoning_content:
+                        collected_reasoning_content += delta.reasoning_content
+                        if on_thinking_chunk:
+                            try:
+                                on_thinking_chunk(delta.reasoning_content)
+                            except Exception:
+                                # 回调失败不影响主流程
+                                pass
                     
                     # 处理工具调用
                     if delta.tool_calls:
@@ -232,7 +259,8 @@ class AiRequestHandler:
                     "index": 0,
                     "message": {
                         "role": "assistant",
-                        "content": collected_content
+                        "content": collected_content,
+                        "reasoning": collected_reasoning_content
                     },
                     "finish_reason": finish_reason
                 }],
@@ -252,6 +280,7 @@ class AiRequestHandler:
                 self.message_manager.save_assistant_message(
                     session_id=session_id,
                     content=collected_content,
+                    reasoning=collected_reasoning_content or None,
                     metadata=metadata if metadata else None
                 )
             

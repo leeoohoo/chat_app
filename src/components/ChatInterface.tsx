@@ -8,6 +8,8 @@ import McpManager from './McpManager';
 import AiModelManager from './AiModelManager';
 import SystemContextEditor from './SystemContextEditor';
 import AgentManager from './AgentManager';
+import ApplicationManager from './ApplicationManager';
+import ApplicationsPanel from './ApplicationsPanel';
 import { cn } from '../lib/utils';
 import type { ChatInterfaceProps } from '../types';
 
@@ -43,6 +45,10 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [showAiModelManager, setShowAiModelManager] = useState(false);
   const [showSystemContextEditor, setShowSystemContextEditor] = useState(false);
   const [showAgentManager, setShowAgentManager] = useState(false);
+  const [showApplicationManager, setShowApplicationManager] = useState(false);
+  const [showApplicationsPanel, setShowApplicationsPanel] = useState(false);
+  const [applicationsPanelWidth, setApplicationsPanelWidth] = useState(260);
+  const [isResizingAppsPanel, setIsResizingAppsPanel] = useState(false);
 
   // 初始化加载会话、AI模型和智能体配置
   useEffect(() => {
@@ -79,6 +85,25 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     }
   };
 
+  const startResizeAppsPanel = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsResizingAppsPanel(true);
+    const startX = e.clientX;
+    const startWidth = applicationsPanelWidth;
+    const onMouseMove = (ev: MouseEvent) => {
+      const delta = ev.clientX - startX;
+      const next = Math.min(420, Math.max(200, startWidth + delta));
+      setApplicationsPanelWidth(next);
+    };
+    const onMouseUp = () => {
+      setIsResizingAppsPanel(false);
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+    };
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  };
+
   return (
     <div className={cn(
       'flex flex-col h-screen bg-background text-foreground',
@@ -107,6 +132,28 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         </div>
         
         <div className="flex items-center space-x-2">
+          <button
+            onClick={() => setShowApplicationManager(true)}
+            className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
+            title="应用管理"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <rect x="3" y="3" width="7" height="7" rx="1.5" strokeWidth="2" />
+              <rect x="14" y="3" width="7" height="7" rx="1.5" strokeWidth="2" />
+              <rect x="3" y="14" width="7" height="7" rx="1.5" strokeWidth="2" />
+              <rect x="14" y="14" width="7" height="7" rx="1.5" strokeWidth="2" />
+            </svg>
+          </button>
+          <button
+            onClick={() => setShowApplicationsPanel(v => !v)}
+            className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
+            title="切换左侧应用面板"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M4 5h6v14H4z" strokeWidth="2" />
+              <path d="M12 5h8v14h-8z" strokeWidth="2" />
+            </svg>
+          </button>
           <button
             onClick={() => setShowMcpManager(true)}
             className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
@@ -164,8 +211,24 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             </div>
           )}
 
-        {/* 消息列表 */}
-        <div className="flex-1 overflow-hidden">
+        {/* 消息列表 + 左侧应用面板 */}
+        <div className="flex flex-1 overflow-hidden">
+          {showApplicationsPanel && (
+            <div
+              className="shrink-0 border-r border-border bg-card/50"
+              style={{ width: applicationsPanelWidth }}
+            >
+              <ApplicationsPanel />
+            </div>
+          )}
+          {showApplicationsPanel && (
+            <div
+              onMouseDown={startResizeAppsPanel}
+              className="w-1 cursor-col-resize bg-border hover:bg-primary transition-colors"
+              title="拖动调整面板宽度"
+            />
+          )}
+          <div className="flex-1 overflow-hidden">
           {currentSession ? (
             <MessageList
               messages={messages}
@@ -192,6 +255,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
             </div>
           )}
           <div ref={messagesEndRef} />
+          </div>
         </div>
 
         {/* 输入区域 */}
@@ -238,6 +302,16 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         {/* 系统上下文编辑器 */}
         {showSystemContextEditor && (
           <SystemContextEditor onClose={() => setShowSystemContextEditor(false)} />
+        )}
+
+        {/* 应用管理器 */}
+        {showApplicationManager && (
+          <ApplicationManager onClose={() => setShowApplicationManager(false)} />
+        )}
+
+        {/* 拖动时的覆盖层，避免选中文本 */}
+        {isResizingAppsPanel && (
+          <div className="fixed inset-0 cursor-col-resize" style={{ zIndex: 50 }} />
         )}
     </div>
   );

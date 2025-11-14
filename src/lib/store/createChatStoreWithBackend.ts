@@ -2,12 +2,16 @@ import {create} from 'zustand';
 import {subscribeWithSelector} from 'zustand/middleware';
 import {immer} from 'zustand/middleware/immer';
 import {persist} from 'zustand/middleware';
-import type {Message, Session, ChatConfig, Theme, McpConfig, AiModelConfig, SystemContext, AgentConfig} from '../../types';
+import type {Message, Session, ChatConfig, Theme, McpConfig, AiModelConfig, SystemContext, AgentConfig, Application} from '../../types';
 import {DatabaseService} from '../database';
 import {apiClient} from '../api/client';
 import {ChatService, MessageManager} from '../services';
 import type ApiClient from '../api/client';
 import {createSendMessageHandler} from './actions/sendMessage';
+import { createApplicationActions } from './actions/applications';
+import { createAiModelActions } from './actions/aiModels';
+import { createMcpActions } from './actions/mcp';
+import { createChatConfigActions } from './actions/chatConfig';
 
 // 聊天状态接口
 interface ChatState {
@@ -35,6 +39,9 @@ interface ChatState {
     selectedAgentId: string | null;
     systemContexts: SystemContext[];
     activeSystemContext: SystemContext | null;
+    // 应用相关
+    applications: Application[];
+    selectedApplicationId: string | null;
 
     // 错误处理
     error: string | null;
@@ -82,6 +89,16 @@ interface ChatActions {
     updateSystemContext: (id: string, name: string, content: string) => Promise<void>;
     deleteSystemContext: (id: string) => Promise<void>;
     activateSystemContext: (id: string) => Promise<void>;
+    // 应用管理
+    loadApplications: () => Promise<void>;
+    createApplication: (name: string, url: string, iconUrl?: string) => Promise<void>;
+    updateApplication: (id: string, updates: Partial<Application>) => Promise<void>;
+    deleteApplication: (id: string) => Promise<void>;
+    setSelectedApplication: (appId: string | null) => void;
+    // 关联映射（仅前端持久化，支持多应用）
+    setMcpAppAssociation: (mcpId: string, appIds: string[]) => void;
+    setSystemContextAppAssociation: (contextId: string, appIds: string[]) => void;
+    setAgentAppAssociation: (agentId: string, appIds: string[]) => void;
 
     // 错误处理
     setError: (error: string | null) => void;
@@ -157,6 +174,8 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                     selectedAgentId: null,
                     systemContexts: [],
                     activeSystemContext: null,
+                    applications: [],
+                    selectedApplicationId: null,
                     error: null,
 
                     // 会话操作
@@ -473,183 +492,26 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                         });
                     },
 
-                    // 配置操作
-                    updateChatConfig: async (config: Partial<ChatConfig>) => {
-                        set((state) => {
-                            state.chatConfig = { ...state.chatConfig, ...config };
-                        });
-                    },
+                    // 配置操作（拆分到独立模块）
+                    ...createChatConfigActions({ set, get }),
 
-                    loadMcpConfigs: async () => {
-                        try {
-                            const userId = getUserIdParam();
-                            const configs = await client.getMcpConfigs(userId);
-                            set((state) => {
-                                state.mcpConfigs = configs as McpConfig[];
-                            });
-                        } catch (error) {
-                            console.error('Failed to load MCP configs:', error);
-                            set((state) => {
-                                state.error = error instanceof Error ? error.message : 'Failed to load MCP configs';
-                            });
-                        }
-                    },
+                    // MCP 管理（拆分到独立模块）
+                    ...createMcpActions({ set, get, client, getUserIdParam }),
 
-                    updateMcpConfig: async (config: McpConfig) => {
-                        try {
-                            const userId = getUserIdParam();
-                            console.log('🔍 updateMcpConfig 调用:', { 
-                                userId, 
-                                customUserId, 
-                                configId: config.id,
-                                configName: config.name 
-                            });
-                            
-                            if (config.id) {
-                                const updateData = {
-                                    id: config.id,
-                                    name: config.name,
-                                    command: config.command,
-                                    type: config.type, // 更新时传递协议类型
-                                    args: config.args ?? undefined,
-                                    env: config.env ?? undefined,
-                                    cwd: (config as any).cwd ?? undefined,
-                                    enabled: config.enabled,
-                                    userId,
-                                };
-                                console.log('🔍 updateMcpConfig 更新数据:', updateData);
-                                await client.updateMcpConfig(config.id, updateData);
-                            } else {
-                                const createData = {
-                                    id: crypto.randomUUID(),
-                                    name: config.name,
-                                    command: config.command,
-                                    type: (config.type ?? 'stdio') as 'http' | 'stdio', // 使用表单选择的类型
-                                    args: config.args ?? undefined,
-                                    env: config.env ?? undefined,
-                                    cwd: (config as any).cwd ?? undefined,
-                                    enabled: config.enabled,
-                                    user_id: userId,
-                                };
-                                console.log('🔍 updateMcpConfig 创建数据:', createData);
-                                await client.createMcpConfig(createData);
-                            }
-                            
-                            // 重新加载配置
-                            await get().loadMcpConfigs();
-                        } catch (error) {
-                            console.error('Failed to update MCP config:', error);
-                            set((state) => {
-                                state.error = error instanceof Error ? error.message : 'Failed to update MCP config';
-                            });
-                        }
-                    },
+                    // 应用管理（拆分到独立模块）
+                    ...createApplicationActions({ set, get, client, getUserIdParam }),
 
-                    deleteMcpConfig: async (id: string) => {
-                        try {
-                            await client.deleteMcpConfig(id);
-                            set((state) => {
-                                state.mcpConfigs = state.mcpConfigs.filter(config => config.id !== id);
-                            });
-                        } catch (error) {
-                            console.error('Failed to delete MCP config:', error);
-                            set((state) => {
-                                state.error = error instanceof Error ? error.message : 'Failed to delete MCP config';
-                            });
-                        }
-                    },
-
-                    loadAiModelConfigs: async () => {
-                        try {
-                            const userId = getUserIdParam();
-                            const apiConfigs = await client.getAiModelConfigs(userId) as any[];
-                            
-                            // 转换后端数据格式为前端格式
-                            const configs = apiConfigs.map((config: any) => ({
-                                id: config.id,
-                                name: config.name,
-                                base_url: config.base_url,
-                                api_key: config.api_key,
-                                model_name: config.model,
-                                enabled: config.enabled,
-                                createdAt: new Date(config.created_at),
-                                updatedAt: new Date(config.created_at) // 使用created_at作为默认值
-                            }));
-                            
-                            set((state) => {
-                                state.aiModelConfigs = configs;
-                            });
-                        } catch (error) {
-                            console.error('Failed to load AI model configs:', error);
-                            set((state) => {
-                                state.error = error instanceof Error ? error.message : 'Failed to load AI model configs';
-                            });
-                        }
-                    },
-
-                    updateAiModelConfig: async (config: AiModelConfig) => {
-                        try {
-                            const userId = getUserIdParam();
-                            const existingConfig = get().aiModelConfigs.find(c => c.id === config.id);
-                            const method = existingConfig ? 'update' : 'create';
-                            
-                            // 统一使用下划线格式的字段名称
-                            const apiData = {
-                                id: config.id || crypto.randomUUID(),
-                                name: config.name,
-                                provider: 'openai', // 默认provider
-                                model: config.model_name,
-                                api_key: config.api_key,
-                                base_url: config.base_url,
-                                enabled: config.enabled,
-                                user_id: userId
-                            };
-                            
-                            if (method === 'update') {
-                                await client.updateAiModelConfig(config.id!, apiData);
-                            } else {
-                                await client.createAiModelConfig(apiData);
-                            }
-                            
-                            // 重新加载配置
-                            await get().loadAiModelConfigs();
-                        } catch (error) {
-                            console.error('Failed to update AI model config:', error);
-                            set((state) => {
-                                state.error = error instanceof Error ? error.message : 'Failed to update AI model config';
-                            });
-                        }
-                    },
-
-                    deleteAiModelConfig: async (id: string) => {
-                        try {
-                            await client.deleteAiModelConfig(id);
-                            set((state) => {
-                                state.aiModelConfigs = state.aiModelConfigs.filter(c => c.id !== id);
-                            });
-                        } catch (error) {
-                            console.error('Failed to delete AI model config:', error);
-                            set((state) => {
-                                state.error = error instanceof Error ? error.message : 'Failed to delete AI model config';
-                            });
-                        }
-                    },
-
-                    setSelectedModel: (modelId: string | null) => {
-                        set((state) => {
-                            state.selectedModelId = modelId;
-                            // 选择模型时清空已选智能体
-                            if (modelId) {
-                                state.selectedAgentId = null;
-                            }
-                        });
-                    },
+                    // AI模型管理（拆分到独立模块）
+                    ...createAiModelActions({ set, get, client, getUserIdParam }),
 
                     loadAgents: async () => {
                         try {
                             const agents = await client.getAgents(getUserIdParam());
+                            const assocRaw = localStorage.getItem('agent_app_map');
+                            const assoc = assocRaw ? JSON.parse(assocRaw) as Record<string, string[]> : {};
+                            const merged = (agents || []).map((a: any) => ({ ...a, appIds: assoc[a.id] ?? [] }));
                             set((state) => {
-                                state.agents = agents || [];
+                                state.agents = merged || [];
                             });
                         } catch (error) {
                             console.error('Failed to load agents:', error);
@@ -674,11 +536,14 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                         try {
                             const contexts = await client.getSystemContexts(getUserIdParam());
                             const activeContextResponse = await client.getActiveSystemContext(getUserIdParam());
+                            const assocRaw = localStorage.getItem('sysctx_app_map');
+                            const assoc = assocRaw ? JSON.parse(assocRaw) as Record<string, string[]> : {};
                             set((state) => {
                                 // 先将所有上下文的isActive设为false
-                                const updatedContexts = contexts.map(ctx => ({
+                                const updatedContexts = contexts.map((ctx: any) => ({
                                     ...ctx,
-                                    isActive: false
+                                    isActive: false,
+                                    appIds: assoc[ctx.id] ?? [],
                                 }));
                                 
                                 // 处理激活的上下文
@@ -717,11 +582,13 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                             set((state) => {
                                 state.systemContexts.push(context);
                             });
+                            return context;
                         } catch (error) {
                             console.error('Failed to create system context:', error);
                             set((state) => {
                                 state.error = error instanceof Error ? error.message : 'Failed to create system context';
                             });
+                            return null;
                         }
                     },
 
@@ -734,11 +601,13 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                                     state.systemContexts[index] = updatedContext;
                                 }
                             });
+                            return updatedContext;
                         } catch (error) {
                             console.error('Failed to update system context:', error);
                             set((state) => {
                                 state.error = error instanceof Error ? error.message : 'Failed to update system context';
                             });
+                            return null;
                         }
                     },
 

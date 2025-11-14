@@ -229,6 +229,41 @@ class ApiClient {
     });
   }
 
+  // 应用（Application）相关API
+  async getApplications(userId?: string): Promise<any[]> {
+    const params = userId ? `?user_id=${encodeURIComponent(userId)}` : '';
+    return this.request<any[]>(`/applications${params}`);
+  }
+
+  async createApplication(data: {
+    name: string;
+    url: string;
+    icon_url?: string | null;
+    user_id?: string;
+  }): Promise<any> {
+    return this.request<any>('/applications', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateApplication(id: string, data: {
+    name?: string;
+    url?: string;
+    icon_url?: string | null;
+  }): Promise<any> {
+    return this.request<any>(`/applications/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteApplication(id: string): Promise<any> {
+    return this.request<any>(`/applications/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
   // 智能体（Agent）相关API
   async getAgents(userId?: string): Promise<any[]> {
     const params = userId ? `?user_id=${encodeURIComponent(userId)}` : '';

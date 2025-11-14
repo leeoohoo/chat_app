@@ -65,6 +65,9 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
     loadMcpConfigs,
     systemContexts,
     loadSystemContexts,
+    applications,
+    loadApplications,
+    setAgentAppAssociation,
   } = storeData;
 
   // 从上下文获取当前用户环境
@@ -92,6 +95,7 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
     mcp_config_ids: [],
     system_context_id: undefined,
   });
+  const [selectedAppIds, setSelectedAppIds] = useState<string[]>([]);
 
   const loadAll = async () => {
     setIsLoading(true);
@@ -100,6 +104,7 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
         loadAiModelConfigs(),
         loadMcpConfigs(),
         loadSystemContexts(),
+        (loadApplications ? loadApplications() : Promise.resolve()),
         // 刷新全局store中的智能体列表，供输入区选择
         (storeData.loadAgents ? storeData.loadAgents() : Promise.resolve()),
       ]);
@@ -162,6 +167,7 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
     });
     setShowAddForm(false);
     setEditingAgent(null);
+    setSelectedAppIds([]);
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -183,6 +189,8 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
           const exists = prev.some(a => a.id === created.id);
           return exists ? prev.map(a => (a.id === created.id ? { ...a, ...created } : a)) : [created, ...prev];
         });
+        // 保存 agent 与应用关联
+        try { setAgentAppAssociation?.(created.id, selectedAppIds); } catch {}
       }
       await refreshAgentsWithRetry(created?.id);
       resetForm();
@@ -208,6 +216,7 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
       setAgents(prev => prev.map(a => (
         a.id === editingAgent.id ? { ...a, ...updated, name: formData.name, description: formData.description, ai_model_config_id: formData.ai_model_config_id, mcp_config_ids: formData.mcp_config_ids, system_context_id: formData.system_context_id, enabled: true } : a
       )));
+      try { setAgentAppAssociation?.(editingAgent.id, selectedAppIds); } catch {}
       await refreshAgentsWithRetry(editingAgent.id);
       resetForm();
     } catch (e) {
@@ -239,6 +248,8 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
       mcp_config_ids: Array.isArray(agent.mcp_config_ids) ? agent.mcp_config_ids : [],
       system_context_id: agent.system_context_id,
     });
+    // 初始化应用多选（若 agent 对象包含 appIds 则使用，否则默认空）
+    setSelectedAppIds(Array.isArray((agent as any).appIds) ? (agent as any).appIds : []);
   };
 
   const getModelName = (id: string) => {
@@ -293,6 +304,29 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
           {showAddForm && (
             <form onSubmit={editingAgent ? handleUpdate : handleCreate} className="p-4 bg-muted rounded-lg space-y-4">
               <div>
+                <label className="block text-sm font-medium text-foreground mb-2">关联应用（多选）</label>
+                <div className="space-y-2 max-h-32 overflow-y-auto p-2 border rounded-md">
+                  {(applications || []).map((app: any) => (
+                    <label key={app.id} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedAppIds.includes(app.id)}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setSelectedAppIds(prev => (
+                            checked ? [...prev, app.id] : prev.filter(id => id !== app.id)
+                          ));
+                        }}
+                      />
+                      <span>{app.name}</span>
+                    </label>
+                  ))}
+                  {(applications || []).length === 0 && (
+                    <div className="text-xs text-muted-foreground">暂无应用，可在“应用管理”中创建。</div>
+                  )}
+                </div>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-foreground mb-2">名称</label>
                 <input
                   type="text"
@@ -332,7 +366,7 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">选择 MCP 配置（多选）</label>
                 <div className="space-y-2 max-h-40 overflow-y-auto p-2 border rounded-md">
-                  {mcpConfigs.map((c: any) => (
+                  {(selectedAppIds.length ? mcpConfigs.filter((c: any) => Array.isArray((c as any).appIds) && (c as any).appIds.some((id: string) => selectedAppIds.includes(id))) : mcpConfigs).map((c: any) => (
                     <label key={c.id} className="flex items-center space-x-2">
                       <input
                         type="checkbox"
@@ -350,6 +384,9 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
                       <span>{c.name}</span>
                     </label>
                   ))}
+                  {selectedAppIds.length > 0 && mcpConfigs.filter((c: any) => Array.isArray((c as any).appIds) && (c as any).appIds.some((id: string) => selectedAppIds.includes(id))).length === 0 && (
+                    <div className="text-xs text-muted-foreground">所选应用下暂无 MCP 配置</div>
+                  )}
                 </div>
               </div>
               
@@ -361,11 +398,14 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
                   className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
                 >
                   <option value="">不使用</option>
-                  {systemContexts.map((sc: any) => (
+                  {(selectedAppIds.length ? systemContexts.filter((sc: any) => Array.isArray((sc as any).appIds) && (sc as any).appIds.some((id: string) => selectedAppIds.includes(id))) : systemContexts).map((sc: any) => (
                     <option key={sc.id} value={sc.id}>
                       {sc.name}
                     </option>
                   ))}
+                  {selectedAppIds.length > 0 && systemContexts.filter((sc: any) => Array.isArray((sc as any).appIds) && (sc as any).appIds.some((id: string) => selectedAppIds.includes(id))).length === 0 && (
+                    <option value="" disabled>所选应用下暂无系统上下文</option>
+                  )}
                 </select>
               </div>
               <div className="flex items-center justify-end space-x-2">

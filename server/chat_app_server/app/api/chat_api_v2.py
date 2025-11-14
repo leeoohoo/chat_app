@@ -350,6 +350,17 @@ def create_stream_response_v2(
                         logger.warning("Event queue is full, dropping chunk")
             except Exception as e:
                 logger.error(f"Error in chunk callback: {e}")
+
+        def on_thinking_chunk(thinking_text: str):
+            try:
+                with queue_lock:
+                    if not event_queue.full():
+                        event_queue.put(("thinking", thinking_text), block=False)
+                        logger.debug(f"Added thinking to queue: {thinking_text[:50]}...")
+                    else:
+                        logger.warning("Event queue is full, dropping thinking")
+            except Exception as e:
+                logger.error(f"Error in thinking callback: {e}")
         
         def on_tools_start(tool_calls: List[Dict[str, Any]]):
             try:
@@ -412,6 +423,7 @@ def create_stream_response_v2(
                     max_tokens=max_tokens,
                     use_tools=use_tools,
                     on_chunk=on_chunk,
+                    on_thinking_chunk=on_thinking_chunk,
                     on_tools_start=on_tools_start,
                     on_tools_stream=on_tools_stream,
                     on_tools_end=on_tools_end
@@ -458,6 +470,13 @@ def create_stream_response_v2(
                     if event_type == "chunk":
                         event_data = {
                             "type": "chunk",
+                            "content": data,
+                            "timestamp": datetime.now().isoformat()
+                        }
+                        yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                    elif event_type == "thinking":
+                        event_data = {
+                            "type": "thinking",
                             "content": data,
                             "timestamp": datetime.now().isoformat()
                         }

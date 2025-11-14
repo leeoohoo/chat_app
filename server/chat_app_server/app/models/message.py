@@ -26,6 +26,7 @@ class MessageCreate(BaseModel):
     summary: Optional[str] = None
     toolCalls: Optional[List[Dict[str, Any]]] = None
     tool_call_id: Optional[str] = None
+    # 用于持久化的推理字段（内部统一使用该字段）
     reasoning: Optional[str] = None
     metadata: Optional[Dict[str, Any]] = None
     createdAt: Optional[str] = None
@@ -53,6 +54,8 @@ class MessageCreate(BaseModel):
         if self.metadata:
             return json.dumps(self.metadata)
         return None
+
+    # 已不再需要统一属性，直接使用 reasoning 字段
 
     @classmethod
     async def create(cls, message_data: "MessageCreate") -> Dict[str, Any]:

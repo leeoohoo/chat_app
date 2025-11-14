@@ -240,6 +240,7 @@ class Agent:
         tools: Optional[List[Dict[str, Any]]] = None,
         use_tools: bool = True,
         on_chunk: Optional[Callable[[str], None]] = None,
+        on_thinking_chunk: Optional[Callable[[str], None]] = None,
         on_tools_start: Optional[Callable[[List[Dict[str, Any]]], None]] = None,
         on_tools_stream: Optional[Callable[[Dict[str, Any]], None]] = None,
         on_tools_end: Optional[Callable[[List[Dict[str, Any]]], None]] = None,
@@ -306,6 +307,7 @@ class Agent:
                     temperature=actual_temperature,
                     max_tokens=actual_max_tokens,
                     on_chunk=on_chunk,
+                    on_thinking_chunk=on_thinking_chunk,
                 )
 
             # 使用工具执行
@@ -316,6 +318,7 @@ class Agent:
                 temperature=actual_temperature,
                 max_tokens=actual_max_tokens,
                 on_chunk=on_chunk,
+                on_thinking_chunk=on_thinking_chunk,
                 on_tools_start=on_tools_start,
                 on_tools_stream=on_tools_stream,
                 on_tools_end=on_tools_end,
@@ -408,6 +411,7 @@ class Agent:
         temperature: float,
         max_tokens: Optional[int],
         on_chunk: Optional[Callable[[str], None]],
+        on_thinking_chunk: Optional[Callable[[str], None]],
     ) -> Dict[str, Any]:
         """
         不使用工具的简单执行
@@ -434,6 +438,7 @@ class Agent:
                 max_tokens=max_tokens,
                 session_id=session_id,
                 on_chunk=on_chunk,
+                on_thinking_chunk=on_thinking_chunk,
             )
 
             if response.get("success"):
@@ -608,6 +613,14 @@ def build_sse_stream(
             except Exception as e:
                 logger.error(f"Error in tools_end callback: {e}")
 
+        def on_thinking_chunk(thinking_text: str):
+            try:
+                with queue_lock:
+                    if not event_queue.full():
+                        event_queue.put(("thinking", thinking_text), block=False)
+            except Exception as e:
+                logger.error(f"Error in thinking callback: {e}")
+
         ai_completed = threading.Event()
         ai_error: Optional[Exception] = None
         ai_result: Optional[Dict[str, Any]] = None
@@ -628,6 +641,7 @@ def build_sse_stream(
                     max_tokens=max_tokens,
                     use_tools=use_tools,
                     on_chunk=on_chunk,
+                    on_thinking_chunk=on_thinking_chunk,
                     on_tools_start=on_tools_start,
                     on_tools_stream=on_tools_stream,
                     on_tools_end=on_tools_end,
@@ -662,6 +676,9 @@ def build_sse_stream(
 
                     if event_type == "chunk":
                         event_data = {"type": "chunk", "content": data, "timestamp": datetime.now().isoformat()}
+                        yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
+                    elif event_type == "thinking":
+                        event_data = {"type": "thinking", "content": data, "timestamp": datetime.now().isoformat()}
                         yield f"data: {json.dumps(event_data, ensure_ascii=False)}\n\n"
                     elif event_type == "tools_start":
                         event_data = {"type": "tools_start", "data": data, "timestamp": datetime.now().isoformat()}

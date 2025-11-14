@@ -69,6 +69,7 @@ class AiClient:
                        temperature: float = 0.7,
                        max_tokens: Optional[int] = None,
                        on_chunk: Optional[Callable[[str], None]] = None,
+                       on_thinking_chunk: Optional[Callable[[str], None]] = None,
                        system_prompt: Optional[str] = None,
                        history_limit: Optional[int] = None,
                        on_tools_start: Optional[Callable[[List[Dict[str, Any]]], None]] = None,
@@ -164,6 +165,7 @@ class AiClient:
                 temperature=temperature,
                 max_tokens=max_tokens,
                 on_chunk=on_chunk,
+                on_thinking_chunk=on_thinking_chunk,
                 system_prompt=eff_system_prompt,
                 on_tools_start=on_tools_start,
                 on_tools_stream=on_tools_stream,
@@ -190,6 +192,7 @@ class AiClient:
                            temperature: float,
                            max_tokens: Optional[int],
                            on_chunk: Optional[Callable[[str], None]],
+                           on_thinking_chunk: Optional[Callable[[str], None]],
                            system_prompt: Optional[str],
                            on_tools_start: Optional[Callable[[List[Dict[str, Any]]], None]],
                            on_tools_stream: Optional[Callable[[Dict[str, Any]], None]],
@@ -295,7 +298,8 @@ class AiClient:
                 temperature=temperature,
                 max_tokens=max_tokens,
                 session_id=session_id,
-                on_chunk=on_chunk
+                on_chunk=on_chunk,
+                on_thinking_chunk=on_thinking_chunk
             )
             
             print(f"[AI_CLIENT] AI请求完成 - 会话ID: {session_id}, 迭代: {iteration}, 成功: {ai_response.get('success', False)}")
@@ -429,6 +433,7 @@ class AiClient:
                 temperature=temperature,
                 max_tokens=max_tokens,
                 on_chunk=on_chunk,
+                on_thinking_chunk=on_thinking_chunk,
                 system_prompt=system_prompt,
                 on_tools_start=on_tools_start,
                 on_tools_stream=on_tools_stream,
@@ -453,7 +458,9 @@ class AiClient:
                               temperature: float = 0.7,
                               max_tokens: Optional[int] = None,
                               system_prompt: Optional[str] = None,
-                              history_limit: Optional[int] = None) -> Dict[str, Any]:
+                              history_limit: Optional[int] = None,
+                              on_chunk: Optional[Callable[[str], None]] = None,
+                              on_thinking_chunk: Optional[Callable[[str], None]] = None) -> Dict[str, Any]:
         """
         处理简单AI请求（不使用工具）
         
@@ -530,7 +537,9 @@ class AiClient:
                 model=model,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                session_id=session_id
+                session_id=session_id,
+                on_chunk=on_chunk,
+                on_thinking_chunk=on_thinking_chunk
             )
             
             return response

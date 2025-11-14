@@ -64,6 +64,7 @@ class AiServer:
              max_tokens: Optional[int] = None,
              use_tools: bool = True,
              on_chunk: Optional[Callable[[str], None]] = None,
+              on_thinking_chunk: Optional[Callable[[str], None]] = None,
              on_tools_start: Optional[Callable[[List[Dict[str, Any]]], None]] = None,
              on_tools_stream: Optional[Callable[[Dict[str, Any]], None]] = None,
              on_tools_end: Optional[Callable[[List[Dict[str, Any]]], None]] = None) -> Dict[str, Any]:
@@ -114,6 +115,7 @@ class AiServer:
                     temperature=actual_temperature,
                     max_tokens=max_tokens,
                     on_chunk=on_chunk,
+                    on_thinking_chunk=on_thinking_chunk,
                     on_tools_start=on_tools_start,
                     on_tools_stream=on_tools_stream,
                     on_tools_end=on_tools_end
@@ -124,7 +126,8 @@ class AiServer:
                     session_id=session_id,
                     model=actual_model,
                     temperature=actual_temperature,
-                    max_tokens=max_tokens
+                    max_tokens=max_tokens,
+                    on_thinking_chunk=on_thinking_chunk
                 )
             
             # 添加用户消息信息到结果

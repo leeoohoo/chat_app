@@ -674,3 +674,85 @@ class AgentUpdate(BaseModel):
         query = f"UPDATE agents SET {', '.join(fields)} WHERE id = ?"
         await db.execute_query_async(query, tuple(values))
         return await AgentCreate.get_by_id(agent_id)
+
+
+# ========== 应用（Application）模型 ==========
+class ApplicationCreate(BaseModel):
+    name: str
+    url: str
+    icon_url: Optional[str] = None
+    user_id: Optional[str] = None
+
+    @classmethod
+    async def create(cls, data: "ApplicationCreate") -> Dict[str, Any]:
+        db = get_database()
+        app_id = str(uuid.uuid4())
+        query = (
+            "INSERT INTO applications (id, name, url, icon_url, user_id, created_at) "
+            "VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)"
+        )
+        await db.execute_query_async(
+            query,
+            (app_id, data.name, data.url, data.icon_url, data.user_id),
+        )
+        return await ApplicationCreate.get_by_id(app_id)
+
+    @classmethod
+    async def get_by_id(cls, application_id: str) -> Optional[Dict[str, Any]]:
+        db = get_database()
+        row = await db.fetch_one_async(
+            "SELECT * FROM applications WHERE id = ?",
+            (application_id,),
+        )
+        return row_to_dict(row) if row else None
+
+    @classmethod
+    async def get_all(cls, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        db = get_database()
+        if user_id and user_id.strip():
+            rows = await db.fetch_all_async(
+                "SELECT * FROM applications WHERE user_id = ? ORDER BY created_at DESC",
+                (user_id,),
+            )
+        else:
+            rows = await db.fetch_all_async(
+                "SELECT * FROM applications ORDER BY created_at DESC"
+            )
+        return [row_to_dict(row) for row in rows if row]
+
+    @classmethod
+    async def delete(cls, application_id: str) -> bool:
+        db = get_database()
+        await db.execute_query_async(
+            "DELETE FROM applications WHERE id = ?",
+            (application_id,),
+        )
+        return True
+
+
+class ApplicationUpdate(BaseModel):
+    name: Optional[str] = None
+    url: Optional[str] = None
+    icon_url: Optional[str] = None
+
+    @classmethod
+    async def update(cls, application_id: str, data: "ApplicationUpdate") -> Optional[Dict[str, Any]]:
+        db = get_database()
+        fields = []
+        values: List[Any] = []
+        if data.name is not None:
+            fields.append("name = ?")
+            values.append(data.name)
+        if data.url is not None:
+            fields.append("url = ?")
+            values.append(data.url)
+        if data.icon_url is not None:
+            fields.append("icon_url = ?")
+            values.append(data.icon_url)
+        if not fields:
+            return await ApplicationCreate.get_by_id(application_id)
+        fields.append("updated_at = CURRENT_TIMESTAMP")
+        values.append(application_id)
+        query = f"UPDATE applications SET {', '.join(fields)} WHERE id = ?"
+        await db.execute_query_async(query, tuple(values))
+        return await ApplicationCreate.get_by_id(application_id)

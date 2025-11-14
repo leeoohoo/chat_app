@@ -54,6 +54,8 @@ export interface SystemContext {
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
+  // 关联的应用（不选择表示通用）
+  appIds?: string[];
 }
 
 // 附件接口
@@ -108,6 +110,8 @@ export interface McpConfig {
   config?: any;
   createdAt: Date;
   updatedAt: Date;
+  // 关联的应用（不选择表示通用）
+  appIds?: string[];
 }
 
 // AI模型配置接口
@@ -131,6 +135,8 @@ export interface AgentConfig {
   enabled: boolean;
   createdAt: Date;
   updatedAt: Date;
+  // 关联的应用（不选择表示通用）
+  appIds?: string[];
 }
 
 // AI客户端配置
@@ -182,6 +188,16 @@ export interface SearchResult<T> {
   items: T[];
   total: number;
   hasMore: boolean;
+}
+
+// 应用类型
+export interface Application {
+  id: string;
+  name: string;
+  url: string; // 浏览器访问地址
+  iconUrl?: string; // 图标地址
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 // 组件Props类型

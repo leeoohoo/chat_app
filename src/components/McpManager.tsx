@@ -73,7 +73,7 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
     }
   }
 
-  const { mcpConfigs, updateMcpConfig, deleteMcpConfig, loadMcpConfigs } = storeData;
+  const { mcpConfigs, updateMcpConfig, deleteMcpConfig, loadMcpConfigs, applications, setMcpAppAssociation } = storeData;
   const { dialogState, showConfirmDialog, handleConfirm, handleCancel } = useConfirmDialog();
 
   const [showAddForm, setShowAddForm] = useState(false);
@@ -98,6 +98,7 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
   const [profilesModalConfig, setProfilesModalConfig] = useState<McpConfig | null>(null);
   const [profilesLoading, setProfilesLoading] = useState<boolean>(false);
   const [profilesError, setProfilesError] = useState<string | null>(null);
+  const [selectedAppIds, setSelectedAppIds] = useState<string[]>([]);
 
 
 
@@ -111,6 +112,8 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
     }
     (window as any)[key] = now;
     loadMcpConfigs();
+    // 确保应用列表可用于多选
+    try { (storeData.loadApplications ?? (()=>{}))(); } catch {}
   }, [loadMcpConfigs]);
 
   // 仅在弹窗打开时加载配置档案列表
@@ -144,6 +147,7 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
     setDynamicConfig({});
     setProfiles([]);
     setProfileName('');
+    setSelectedAppIds([]);
   };
 
   // 处理添加服务器
@@ -161,10 +165,14 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
       cwd: formData.cwd?.trim() ? formData.cwd.trim() : undefined,
       args: formData.argsInput?.trim() ? formData.argsInput.split(',').map(s => s.trim()).filter(Boolean) : undefined,
       createdAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
+      appIds: selectedAppIds,
     };
 
-    await updateMcpConfig(newConfig as McpConfig);
+    const saved = await updateMcpConfig(newConfig as McpConfig);
+    if (saved?.id) {
+      setMcpAppAssociation?.(saved.id, selectedAppIds);
+    }
     resetForm();
   };
 
@@ -183,10 +191,13 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
       enabled: formData.enabled,
       cwd: formData.cwd?.trim() ? formData.cwd.trim() : undefined,
       args: formData.argsInput?.trim() ? formData.argsInput.split(',').map(s => s.trim()).filter(Boolean) : undefined,
-      updatedAt: new Date()
+      updatedAt: new Date(),
+      appIds: selectedAppIds,
     };
-
-    await updateMcpConfig(updatedConfig);
+    const saved = await updateMcpConfig(updatedConfig);
+    if (saved?.id) {
+      setMcpAppAssociation?.(saved.id, selectedAppIds);
+    }
     resetForm();
   };
 
@@ -206,6 +217,7 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
     setDynamicConfig({});
     setConfigError(null);
     setConfigLoading(false);
+    setSelectedAppIds(Array.isArray((config as any).appIds) ? (config as any).appIds : []);
   };
 
   // 删除服务器
@@ -291,6 +303,31 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
                   />
                 </div>
                 
+                <div>
+                  <label className="block text-sm font-medium text-foreground mb-2">
+                    关联应用（多选）
+                  </label>
+                  <div className="space-y-2 max-h-32 overflow-y-auto p-2 border rounded-md">
+                    {(applications || []).map((app: any) => (
+                      <label key={app.id} className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedAppIds.includes(app.id)}
+                          onChange={(e) => {
+                            const checked = e.target.checked;
+                            setSelectedAppIds((prev) => (
+                              checked ? [...prev, app.id] : prev.filter(id => id !== app.id)
+                            ));
+                          }}
+                        />
+                        <span>{app.name}</span>
+                      </label>
+                    ))}
+                    {(applications || []).length === 0 && (
+                      <div className="text-xs text-muted-foreground">暂无应用，可在“应用管理”中创建。</div>
+                    )}
+                  </div>
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-2">
                     协议类型

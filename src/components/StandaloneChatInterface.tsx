@@ -10,6 +10,8 @@ import McpManager from './McpManager';
 import AiModelManager from './AiModelManager';
 import SystemContextEditor from './SystemContextEditor';
 import AgentManager from './AgentManager';
+import ApplicationManager from './ApplicationManager';
+import ApplicationsPanel from './ApplicationsPanel';
 import { cn } from '../lib/utils';
 import ApiClient from '../lib/api/client';
 
@@ -101,6 +103,28 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
   const [aiModelManagerOpen, setAiModelManagerOpen] = useState(false);
   const [systemContextEditorOpen, setSystemContextEditorOpen] = useState(false);
   const [agentManagerOpen, setAgentManagerOpen] = useState(false);
+  const [appManagerOpen, setAppManagerOpen] = useState(false);
+  const [showAppPanel, setShowAppPanel] = useState(false);
+  const [appPanelWidth, setAppPanelWidth] = useState(260);
+  const [isResizing, setIsResizing] = useState(false);
+
+  const startResize = (e: React.MouseEvent) => {
+    setIsResizing(true);
+    const startX = e.clientX;
+    const startWidth = appPanelWidth;
+    const onMove = (ev: MouseEvent) => {
+      const delta = ev.clientX - startX;
+      const next = Math.max(200, Math.min(480, startWidth + delta));
+      setAppPanelWidth(next);
+    };
+    const onUp = () => {
+      setIsResizing(false);
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
 
   // 初始化加载会话、AI模型与智能体配置
   useEffect(() => {
@@ -159,6 +183,26 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
         </div>
         
         <div className="flex items-center gap-2">
+          {/* 应用管理按钮 */}
+          <button
+            onClick={() => setAppManagerOpen(true)}
+            className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
+            title="应用管理"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          {/* 左侧应用面板开关 */}
+          <button
+            onClick={() => setShowAppPanel(s => !s)}
+            className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
+            title="切换应用面板"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 5.25h6.75v13.5H3.75zM13.5 5.25h6.75v13.5H13.5z" />
+            </svg>
+          </button>
           {/* MCP服务管理按钮 */}
           {showMcpManager && (
             <button
@@ -233,26 +277,43 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
         </div>
       )}
 
-      {/* 消息列表 */}
-      <div className="flex-1 overflow-hidden">
-        {currentSession ? (
-          <MessageList
-            messages={messages}
-            isLoading={isLoading}
-            isStreaming={isStreaming}
-          />
-        ) : (
-          <div className="flex items-center justify-center h-full text-muted-foreground">
-            <div className="text-center">
-              <svg className="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-              </svg>
-              <p className="text-lg mb-2">欢迎使用AI聊天助手</p>
-              <p className="text-sm">点击左上角按钮创建新会话开始对话</p>
-            </div>
+      {/* 主区域：左侧应用列表 + 右侧聊天 */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* 左侧应用面板 */}
+        {showAppPanel && (
+          <div className="h-full border-r border-border overflow-y-auto" style={{ width: appPanelWidth }}>
+            <ApplicationsPanel />
           </div>
         )}
-        <div ref={messagesEndRef} />
+        {/* 分隔条 */}
+        {showAppPanel && (
+          <div
+            className={`w-1 cursor-col-resize bg-transparent ${isResizing ? 'bg-accent' : ''}`}
+            onMouseDown={startResize}
+            title="拖拽调整宽度"
+          />
+        )}
+        {/* 右侧消息列表 */}
+        <div className="flex-1 overflow-hidden">
+          {currentSession ? (
+            <MessageList
+              messages={messages}
+              isLoading={isLoading}
+              isStreaming={isStreaming}
+            />
+          ) : (
+            <div className="flex items-center justify-center h-full text-muted-foreground">
+              <div className="text-center">
+                <svg className="w-16 h-16 mx-auto mb-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                <p className="text-lg mb-2">欢迎使用AI聊天助手</p>
+                <p className="text-sm">点击左上角按钮创建新会话开始对话</p>
+              </div>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
       </div>
 
       {/* 输入区域 */}
@@ -278,6 +339,11 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
         onClose={() => setIsSessionModalOpen(false)} 
         store={store} 
       />
+
+      {/* 应用管理器模态框 */}
+      {appManagerOpen && (
+        <ApplicationManager onClose={() => setAppManagerOpen(false)} />
+      )}
 
       {/* MCP管理器模态框 */}
       {mcpManagerOpen && (

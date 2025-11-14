@@ -551,6 +551,17 @@ class SQLiteAdapter(AbstractDatabaseAdapter):
             FOREIGN KEY (ai_model_config_id) REFERENCES ai_model_configs (id) ON DELETE SET NULL,
             FOREIGN KEY (system_context_id) REFERENCES system_contexts (id) ON DELETE SET NULL
         );
+
+        -- 应用（Application）表
+        CREATE TABLE IF NOT EXISTS applications (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            url TEXT NOT NULL,
+            icon_url TEXT,
+            user_id TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
         """
         
         # 分割并执行每个CREATE TABLE语句
@@ -714,6 +725,14 @@ class SQLiteAdapter(AbstractDatabaseAdapter):
         except Exception as e:
             logger.warning(f"创建 messages 复合索引失败: {e}")
 
+        # 为 applications 创建按用户筛选索引（列存在时）
+        try:
+            apps_schema = await self.get_table_schema('applications')
+            if apps_schema and 'user_id' in apps_schema:
+                await self.create_index('applications', 'idx_applications_user_id', ['user_id'])
+        except Exception as e:
+            logger.warning(f"创建 applications 索引失败: {e}")
+
     async def _reconcile_tables(self):
         """对关键业务表进行强一致对齐：如发现缺列则重建表并迁移数据。
         注意：仅在列缺失时触发，尽量保持数据不丢失。
@@ -814,6 +833,15 @@ class SQLiteAdapter(AbstractDatabaseAdapter):
                 ('metadata', 'TEXT'),
                 ('created_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP'),
                 ('status', "TEXT DEFAULT 'completed'"),
+            ],
+            'applications': [
+                ('id', 'TEXT PRIMARY KEY'),
+                ('name', 'TEXT NOT NULL'),
+                ('url', 'TEXT NOT NULL'),
+                ('icon_url', 'TEXT'),
+                ('user_id', 'TEXT'),
+                ('created_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP'),
+                ('updated_at', 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP'),
             ],
         }
 
