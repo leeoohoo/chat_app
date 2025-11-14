@@ -201,6 +201,7 @@ class ApiClient {
     name: string;
     content: string;
     user_id: string;
+    app_ids?: string[];
   }): Promise<any> {
     return this.request<any>('/system-contexts', {
       method: 'POST',
@@ -211,6 +212,7 @@ class ApiClient {
   async updateSystemContext(id: string, data: {
     name: string;
     content: string;
+    app_ids?: string[];
   }): Promise<any> {
     return this.request<any>(`/system-contexts/${id}`, {
       method: 'PUT',
@@ -235,6 +237,10 @@ class ApiClient {
   async getApplications(userId?: string): Promise<any[]> {
     const params = userId ? `?user_id=${encodeURIComponent(userId)}` : '';
     return this.request<any[]>(`/applications${params}`);
+  }
+
+  async getApplication(id: string): Promise<any> {
+    return this.request<any>(`/applications/${id}`);
   }
 
   async createApplication(data: {
@@ -281,6 +287,7 @@ class ApiClient {
     system_context_id?: string;
     user_id?: string;
     enabled?: boolean;
+    app_ids?: string[];
   }): Promise<any> {
     return this.request<any>('/agents', {
       method: 'POST',
@@ -296,6 +303,7 @@ class ApiClient {
     callable_agent_ids?: string[];
     system_context_id?: string;
     enabled?: boolean;
+    app_ids?: string[];
   }): Promise<any> {
     return this.request<any>(`/agents/${agentId}`, {
       method: 'PUT',

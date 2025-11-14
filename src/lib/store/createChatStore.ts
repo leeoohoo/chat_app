@@ -72,8 +72,8 @@ interface ChatActions {
     deleteAiModelConfig: (id: string) => Promise<void>;
     setSelectedModel: (modelId: string | null) => void;
     loadSystemContexts: () => Promise<void>;
-    createSystemContext: (name: string, content: string) => Promise<void>;
-    updateSystemContext: (id: string, name: string, content: string) => Promise<void>;
+    createSystemContext: (name: string, content: string, appIds?: string[]) => Promise<void>;
+    updateSystemContext: (id: string, name: string, content: string, appIds?: string[]) => Promise<void>;
     deleteSystemContext: (id: string) => Promise<void>;
     activateSystemContext: (id: string) => Promise<void>;
 
@@ -995,12 +995,13 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
                         }
                     },
 
-                    createSystemContext: async (name: string, content: string) => {
+                    createSystemContext: async (name: string, content: string, appIds?: string[]) => {
                         try {
                             const newContext = await client.createSystemContext({
                                 name,
                                 content,
-                                user_id: getUserIdParam()
+                                user_id: getUserIdParam(),
+                                app_ids: Array.isArray(appIds) ? appIds : undefined,
                             });
                             set((state) => {
                                 state.systemContexts.push(newContext);
@@ -1011,9 +1012,9 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
                         }
                     },
 
-                    updateSystemContext: async (id: string, name: string, content: string) => {
+                    updateSystemContext: async (id: string, name: string, content: string, appIds?: string[]) => {
                         try {
-                            const updatedContext = await client.updateSystemContext(id, { name, content });
+                            const updatedContext = await client.updateSystemContext(id, { name, content, app_ids: Array.isArray(appIds) ? appIds : undefined });
                             set((state) => {
                                 const index = state.systemContexts.findIndex(ctx => ctx.id === id);
                                 if (index !== -1) {

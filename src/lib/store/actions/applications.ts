@@ -114,22 +114,26 @@ export function createApplicationActions({ set, get, client, getUserIdParam }: D
       });
     },
     setSystemContextAppAssociation: (contextId: string, appIds: string[]) => {
-      const raw = localStorage.getItem('sysctx_app_map');
-      const map = raw ? (JSON.parse(raw) as Record<string, string[]>) : {};
-      map[contextId] = Array.isArray(appIds) ? appIds : [];
-      localStorage.setItem('sysctx_app_map', JSON.stringify(map));
       set((state: any) => {
-        state.systemContexts = state.systemContexts.map((c: any) => (c.id === contextId ? { ...c, appIds: map[contextId] } : c));
+        state.systemContexts = state.systemContexts.map((c: any) => (c.id === contextId ? { ...c, appIds: Array.isArray(appIds) ? appIds : [] } : c));
       });
+      // 后端持久化 app_ids（只更新关联，避免覆盖名称与内容）
+      try {
+        (async () => {
+          await client.updateSystemContext(contextId, { name: undefined as any, content: undefined as any, app_ids: Array.isArray(appIds) ? appIds : [] });
+        })();
+      } catch {}
     },
     setAgentAppAssociation: (agentId: string, appIds: string[]) => {
-      const raw = localStorage.getItem('agent_app_map');
-      const map = raw ? (JSON.parse(raw) as Record<string, string[]>) : {};
-      map[agentId] = Array.isArray(appIds) ? appIds : [];
-      localStorage.setItem('agent_app_map', JSON.stringify(map));
       set((state: any) => {
-        state.agents = state.agents.map((a: any) => (a.id === agentId ? { ...a, appIds: map[agentId] } : a));
+        state.agents = state.agents.map((a: any) => (a.id === agentId ? { ...a, appIds: Array.isArray(appIds) ? appIds : [] } : a));
       });
+      // 后端持久化 app_ids 到 Agent
+      try {
+        (async () => {
+          await client.updateAgent(agentId, { app_ids: Array.isArray(appIds) ? appIds : [] });
+        })();
+      } catch {}
     },
   };
 }

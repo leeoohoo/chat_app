@@ -142,16 +142,9 @@ const SystemContextEditor: React.FC<SystemContextEditorProps> = ({ onClose, stor
     setIsSaving(true);
     try {
       if (viewMode === 'create') {
-        const created = await createSystemContext(formData.name, formData.content);
-        if (created?.id) {
-          setSystemContextAppAssociation?.(created.id, selectedAppIds);
-        }
+        await createSystemContext(formData.name, formData.content, selectedAppIds);
       } else if (viewMode === 'edit' && editingContext) {
-        const updated = await updateSystemContext(editingContext.id, formData.name, formData.content);
-        const targetId = updated?.id ?? editingContext.id;
-        if (targetId) {
-          setSystemContextAppAssociation?.(targetId, selectedAppIds);
-        }
+        await updateSystemContext(editingContext.id, formData.name, formData.content, selectedAppIds);
       }
       setViewMode('list');
     } catch (error) {

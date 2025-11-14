@@ -575,6 +575,32 @@ class SQLiteAdapter(AbstractDatabaseAdapter):
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+
+        -- 系统上下文与应用的关联表
+        CREATE TABLE IF NOT EXISTS system_context_applications (
+            id TEXT PRIMARY KEY,
+            system_context_id TEXT NOT NULL,
+            application_id TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (system_context_id) REFERENCES system_contexts (id) ON DELETE CASCADE,
+            FOREIGN KEY (application_id) REFERENCES applications (id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_sysctx_app_sys ON system_context_applications(system_context_id);
+        CREATE INDEX IF NOT EXISTS idx_sysctx_app_app ON system_context_applications(application_id);
+
+        -- 智能体与应用的关联表
+        CREATE TABLE IF NOT EXISTS agent_applications (
+            id TEXT PRIMARY KEY,
+            agent_id TEXT NOT NULL,
+            application_id TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (agent_id) REFERENCES agents (id) ON DELETE CASCADE,
+            FOREIGN KEY (application_id) REFERENCES applications (id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_agent_app_agent ON agent_applications(agent_id);
+        CREATE INDEX IF NOT EXISTS idx_agent_app_app ON agent_applications(application_id);
         """
         
         # 分割并执行每个CREATE TABLE语句

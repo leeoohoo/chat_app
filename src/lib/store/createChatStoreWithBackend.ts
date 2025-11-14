@@ -75,7 +75,7 @@ interface ChatActions {
     // 配置操作
     updateChatConfig: (config: Partial<ChatConfig>) => Promise<void>;
     loadMcpConfigs: () => Promise<void>;
-    updateMcpConfig: (config: McpConfig) => Promise<void>;
+    updateMcpConfig: (config: McpConfig) => Promise<McpConfig | null>;
     deleteMcpConfig: (id: string) => Promise<void>;
     loadAiModelConfigs: () => Promise<void>;
     updateAiModelConfig: (config: AiModelConfig) => Promise<void>;
@@ -85,8 +85,8 @@ interface ChatActions {
     loadAgents: () => Promise<void>;
     setSelectedAgent: (agentId: string | null) => void;
     loadSystemContexts: () => Promise<void>;
-    createSystemContext: (name: string, content: string) => Promise<void>;
-    updateSystemContext: (id: string, name: string, content: string) => Promise<void>;
+    createSystemContext: (name: string, content: string, appIds?: string[]) => Promise<any>;
+    updateSystemContext: (id: string, name: string, content: string, appIds?: string[]) => Promise<any>;
     deleteSystemContext: (id: string) => Promise<void>;
     activateSystemContext: (id: string) => Promise<void>;
     // 应用管理
@@ -507,9 +507,10 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                     loadAgents: async () => {
                         try {
                             const agents = await client.getAgents(getUserIdParam());
-                            const assocRaw = localStorage.getItem('agent_app_map');
-                            const assoc = assocRaw ? JSON.parse(assocRaw) as Record<string, string[]> : {};
-                            const merged = (agents || []).map((a: any) => ({ ...a, appIds: assoc[a.id] ?? [] }));
+                            const merged = (agents || []).map((a: any) => ({
+                                ...a,
+                                appIds: Array.isArray((a as any).app_ids) ? (a as any).app_ids : []
+                            }));
                             set((state) => {
                                 state.agents = merged || [];
                             });
@@ -536,14 +537,12 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                         try {
                             const contexts = await client.getSystemContexts(getUserIdParam());
                             const activeContextResponse = await client.getActiveSystemContext(getUserIdParam());
-                            const assocRaw = localStorage.getItem('sysctx_app_map');
-                            const assoc = assocRaw ? JSON.parse(assocRaw) as Record<string, string[]> : {};
                             set((state) => {
                                 // 先将所有上下文的isActive设为false
-                                const updatedContexts = contexts.map((ctx: any) => ({
+                                const updatedContexts = (contexts || []).map((ctx: any) => ({
                                     ...ctx,
                                     isActive: false,
-                                    appIds: assoc[ctx.id] ?? [],
+                                    appIds: Array.isArray((ctx as any).app_ids) ? (ctx as any).app_ids : []
                                 }));
                                 
                                 // 处理激活的上下文
@@ -553,7 +552,7 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                                     const activeIndex = updatedContexts.findIndex(ctx => ctx.id === activeContext.id);
                                     if (activeIndex !== -1) {
                                         updatedContexts[activeIndex].isActive = true;
-                                        state.activeSystemContext = { ...updatedContexts[activeIndex] };
+                                        state.activeSystemContext = { ...updatedContexts[activeIndex], appIds: Array.isArray((activeContext as any).app_ids) ? (activeContext as any).app_ids : updatedContexts[activeIndex].appIds };
                                     } else {
                                         state.activeSystemContext = null;
                                     }
@@ -572,12 +571,13 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                         }
                     },
 
-                    createSystemContext: async (name: string, content: string) => {
+                    createSystemContext: async (name: string, content: string, appIds?: string[]) => {
                         try {
                             const context = await client.createSystemContext({
                                 name,
                                 content,
                                 user_id: getUserIdParam(),
+                                app_ids: Array.isArray(appIds) ? appIds : undefined,
                             });
                             set((state) => {
                                 state.systemContexts.push(context);
@@ -592,9 +592,9 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                         }
                     },
 
-                    updateSystemContext: async (id: string, name: string, content: string) => {
+                    updateSystemContext: async (id: string, name: string, content: string, appIds?: string[]) => {
                         try {
-                            const updatedContext = await client.updateSystemContext(id, { name, content });
+                            const updatedContext = await client.updateSystemContext(id, { name, content, app_ids: Array.isArray(appIds) ? appIds : undefined });
                             set((state) => {
                                 const index = state.systemContexts.findIndex(c => c.id === id);
                                 if (index !== -1) {

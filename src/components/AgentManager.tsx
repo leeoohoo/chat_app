@@ -170,6 +170,41 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
     setSelectedAppIds([]);
   };
 
+  // 联动：应用变更时，完全重置 MCP 选择，不做自动填充；系统上下文仅做允许性校验
+  useEffect(() => {
+    const allowedMcpIds = new Set<string>(
+      (
+        selectedAppIds.length
+          ? mcpConfigs.filter((c: any) => {
+              const appIds = (c as any).appIds as string[] | undefined;
+              return Array.isArray(appIds) && appIds.some((id: string) => selectedAppIds.includes(id));
+            })
+          : mcpConfigs
+      ).map((c: any) => String((c as any).id))
+    );
+    const allowedScIds = new Set<string>(
+      (
+        selectedAppIds.length
+          ? systemContexts.filter((sc: any) => {
+              const appIds = (sc as any).appIds as string[] | undefined;
+              return Array.isArray(appIds) && appIds.some((id: string) => selectedAppIds.includes(id));
+            })
+          : systemContexts
+      ).map((sc: any) => String((sc as any).id))
+    );
+
+    setFormData(prev => {
+      const next = { ...prev } as typeof prev;
+      // 应用变更时完全重置 MCP 选择
+      next.mcp_config_ids = [];
+      // 清理不再允许的系统上下文
+      if (prev.system_context_id && !allowedScIds.has(prev.system_context_id)) {
+        next.system_context_id = undefined;
+      }
+      return next;
+    });
+  }, [selectedAppIds, mcpConfigs, systemContexts]);
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim() || !formData.ai_model_config_id) return;
@@ -182,6 +217,7 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
         system_context_id: formData.system_context_id,
         user_id: effectiveUserId,
         enabled: true,
+        app_ids: selectedAppIds,
       });
       // 乐观更新本地列表，避免等待后端读写一致性
       if (created && created.id) {
@@ -189,8 +225,7 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
           const exists = prev.some(a => a.id === created.id);
           return exists ? prev.map(a => (a.id === created.id ? { ...a, ...created } : a)) : [created, ...prev];
         });
-        // 保存 agent 与应用关联
-        try { setAgentAppAssociation?.(created.id, selectedAppIds); } catch {}
+        // 应用关联已通过 createAgent 的 app_ids 提交，无需重复提交
       }
       await refreshAgentsWithRetry(created?.id);
       resetForm();
@@ -211,12 +246,13 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
         mcp_config_ids: formData.mcp_config_ids,
         system_context_id: formData.system_context_id,
         enabled: true,
+        app_ids: selectedAppIds,
       });
       // 乐观更新本地列表
       setAgents(prev => prev.map(a => (
         a.id === editingAgent.id ? { ...a, ...updated, name: formData.name, description: formData.description, ai_model_config_id: formData.ai_model_config_id, mcp_config_ids: formData.mcp_config_ids, system_context_id: formData.system_context_id, enabled: true } : a
       )));
-      try { setAgentAppAssociation?.(editingAgent.id, selectedAppIds); } catch {}
+      // 应用关联已通过 updateAgent 的 app_ids 提交，无需重复提交
       await refreshAgentsWithRetry(editingAgent.id);
       resetForm();
     } catch (e) {

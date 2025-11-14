@@ -496,6 +496,8 @@ class SystemContextCreate(BaseModel):
     content: Optional[str] = None
     user_id: Optional[str] = None
     is_active: bool = False
+    # 关联的应用ID列表（可选）
+    app_ids: Optional[List[str]] = None
 
     @classmethod
     async def create(cls, context_data: "SystemContextCreate") -> Dict[str, Any]:
@@ -515,8 +517,21 @@ class SystemContextCreate(BaseModel):
             context_data.user_id,
             context_data.is_active
         ))
-        
-        return await cls.get_by_id(context_id)
+        # 写入应用关联（如果提供）
+        if context_data.app_ids:
+            for app_id in context_data.app_ids:
+                try:
+                    await db.execute_query_async(
+                        "INSERT INTO system_context_applications (id, system_context_id, application_id, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
+                        (str(uuid.uuid4()), context_id, app_id)
+                    )
+                except Exception:
+                    pass
+
+        obj = await cls.get_by_id(context_id)
+        if obj is not None:
+            obj["app_ids"] = context_data.app_ids or []
+        return obj
 
     @classmethod
     async def get_all(cls, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -528,8 +543,20 @@ class SystemContextCreate(BaseModel):
         else:
             query = "SELECT * FROM system_contexts ORDER BY created_at DESC"
             rows = await db.fetch_all_async(query)
-        
-        return [row_to_dict(row) for row in rows if row]
+        contexts: List[Dict[str, Any]] = []
+        for row in rows:
+            d = row_to_dict(row)
+            if d:
+                try:
+                    assoc_rows = await db.fetch_all_async(
+                        "SELECT application_id FROM system_context_applications WHERE system_context_id = ?",
+                        (d["id"],)
+                    )
+                    d["app_ids"] = [r["application_id"] for r in assoc_rows]
+                except Exception:
+                    d["app_ids"] = []
+                contexts.append(d)
+        return contexts
 
     @classmethod
     async def get_by_id(cls, context_id: str) -> Optional[Dict[str, Any]]:
@@ -537,7 +564,18 @@ class SystemContextCreate(BaseModel):
         db = get_database()
         query = "SELECT * FROM system_contexts WHERE id = ?"
         row = await db.fetch_one_async(query, (context_id,))
-        return row_to_dict(row) if row else None
+        if not row:
+            return None
+        d = row_to_dict(row)
+        try:
+            assoc_rows = await db.fetch_all_async(
+                "SELECT application_id FROM system_context_applications WHERE system_context_id = ?",
+                (context_id,)
+            )
+            d["app_ids"] = [r["application_id"] for r in assoc_rows]
+        except Exception:
+            d["app_ids"] = []
+        return d
 
     @classmethod
     async def get_active(cls, user_id: str) -> Optional[Dict[str, Any]]:
@@ -545,12 +583,26 @@ class SystemContextCreate(BaseModel):
         db = get_database()
         query = "SELECT * FROM system_contexts WHERE user_id = ? AND is_active = 1 LIMIT 1"
         row = await db.fetch_one_async(query, (user_id,))
-        return row_to_dict(row) if row else None
+        if not row:
+            return None
+        d = row_to_dict(row)
+        # 补充返回关联的应用ID
+        try:
+            assoc_rows = await db.fetch_all_async(
+                "SELECT application_id FROM system_context_applications WHERE system_context_id = ?",
+                (d.get("id"),)
+            )
+            d["app_ids"] = [r["application_id"] for r in assoc_rows]
+        except Exception:
+            d["app_ids"] = []
+        return d
 
 class SystemContextUpdate(BaseModel):
     name: Optional[str] = None
     content: Optional[str] = None
     is_active: Optional[bool] = None
+    # 更新时可覆盖关联应用ID列表（如提供）
+    app_ids: Optional[List[str]] = None
 
     @classmethod
     async def update(cls, context_id: str, update_data: "SystemContextUpdate") -> Optional[Dict[str, Any]]:
@@ -584,7 +636,21 @@ class SystemContextUpdate(BaseModel):
         
         query = f"UPDATE system_contexts SET {', '.join(update_fields)} WHERE id = ?"
         await db.execute_query_async(query, tuple(update_values))
-        
+        # 处理应用关联更新（如提供）
+        if update_data.app_ids is not None:
+            try:
+                await db.execute_query_async(
+                    "DELETE FROM system_context_applications WHERE system_context_id = ?",
+                    (context_id,)
+                )
+                for app_id in update_data.app_ids:
+                    await db.execute_query_async(
+                        "INSERT INTO system_context_applications (id, system_context_id, application_id, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
+                        (str(uuid.uuid4()), context_id, app_id)
+                    )
+            except Exception:
+                pass
+
         return await SystemContextCreate.get_by_id(context_id)
 
 class SystemContextActivate(BaseModel):
@@ -616,6 +682,8 @@ class AgentCreate(BaseModel):
     system_context_id: Optional[str] = None
     user_id: Optional[str] = None
     enabled: bool = True
+    # 关联的应用ID列表（可选）
+    app_ids: Optional[List[str]] = None
 
     @classmethod
     async def create(cls, data: "AgentCreate") -> Dict[str, Any]:
@@ -639,7 +707,20 @@ class AgentCreate(BaseModel):
             data.user_id,
             data.enabled
         ))
-        return await AgentCreate.get_by_id(agent_id)
+        # 写入应用关联（如果提供）
+        if data.app_ids:
+            for app_id in data.app_ids:
+                try:
+                    await db.execute_query_async(
+                        "INSERT INTO agent_applications (id, agent_id, application_id, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
+                        (str(uuid.uuid4()), agent_id, app_id)
+                    )
+                except Exception:
+                    pass
+        obj = await AgentCreate.get_by_id(agent_id)
+        if obj is not None:
+            obj["app_ids"] = data.app_ids or []
+        return obj
 
     @classmethod
     async def get_by_id(cls, agent_id: str) -> Optional[Dict[str, Any]]:
@@ -658,6 +739,15 @@ class AgentCreate(BaseModel):
             d["callable_agent_ids"] = json.loads(d.get("callable_agent_ids") or "[]")
         except Exception:
             d["callable_agent_ids"] = []
+        # 读取关联的应用ID
+        try:
+            assoc_rows = await db.fetch_all_async(
+                "SELECT application_id FROM agent_applications WHERE agent_id = ?",
+                (agent_id,)
+            )
+            d["app_ids"] = [r["application_id"] for r in assoc_rows]
+        except Exception:
+            d["app_ids"] = []
         return d
 
     @classmethod
@@ -678,6 +768,15 @@ class AgentCreate(BaseModel):
                 d["callable_agent_ids"] = json.loads(d.get("callable_agent_ids") or "[]")
             except Exception:
                 d["callable_agent_ids"] = []
+            # 读取关联应用
+            try:
+                assoc_rows = await db.fetch_all_async(
+                    "SELECT application_id FROM agent_applications WHERE agent_id = ?",
+                    (d["id"],)
+                )
+                d["app_ids"] = [r["application_id"] for r in assoc_rows]
+            except Exception:
+                d["app_ids"] = []
             out.append(d)
         return out
 
@@ -696,6 +795,8 @@ class AgentUpdate(BaseModel):
     callable_agent_ids: Optional[List[str]] = None
     system_context_id: Optional[str] = None
     enabled: Optional[bool] = None
+    # 更新时可覆盖关联应用ID列表（如提供）
+    app_ids: Optional[List[str]] = None
 
     @classmethod
     async def update(cls, agent_id: str, data: "AgentUpdate") -> Optional[Dict[str, Any]]:
@@ -729,6 +830,20 @@ class AgentUpdate(BaseModel):
         values.append(agent_id)
         query = f"UPDATE agents SET {', '.join(fields)} WHERE id = ?"
         await db.execute_query_async(query, tuple(values))
+        # 处理应用关联更新（如提供）
+        if data.app_ids is not None:
+            try:
+                await db.execute_query_async(
+                    "DELETE FROM agent_applications WHERE agent_id = ?",
+                    (agent_id,)
+                )
+                for app_id in data.app_ids:
+                    await db.execute_query_async(
+                        "INSERT INTO agent_applications (id, agent_id, application_id, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
+                        (str(uuid.uuid4()), agent_id, app_id)
+                    )
+            except Exception:
+                pass
         return await AgentCreate.get_by_id(agent_id)
 
 
@@ -760,7 +875,27 @@ class ApplicationCreate(BaseModel):
             "SELECT * FROM applications WHERE id = ?",
             (application_id,),
         )
-        return row_to_dict(row) if row else None
+        if not row:
+            return None
+        d = row_to_dict(row)
+        # 读取与该应用关联的 MCP 配置与系统上下文
+        try:
+            mcp_rows = await db.fetch_all_async(
+                "SELECT mcp_config_id FROM mcp_config_applications WHERE application_id = ?",
+                (application_id,)
+            )
+            d["mcp_config_ids"] = [r["mcp_config_id"] for r in mcp_rows]
+        except Exception:
+            d["mcp_config_ids"] = []
+        try:
+            sc_rows = await db.fetch_all_async(
+                "SELECT system_context_id FROM system_context_applications WHERE application_id = ?",
+                (application_id,)
+            )
+            d["system_context_ids"] = [r["system_context_id"] for r in sc_rows]
+        except Exception:
+            d["system_context_ids"] = []
+        return d
 
     @classmethod
     async def get_all(cls, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -774,7 +909,28 @@ class ApplicationCreate(BaseModel):
             rows = await db.fetch_all_async(
                 "SELECT * FROM applications ORDER BY created_at DESC"
             )
-        return [row_to_dict(row) for row in rows if row]
+        result: List[Dict[str, Any]] = []
+        for row in rows or []:
+            d = row_to_dict(row)
+            # 追加关联字段
+            try:
+                mcp_rows = await db.fetch_all_async(
+                    "SELECT mcp_config_id FROM mcp_config_applications WHERE application_id = ?",
+                    (d.get("id"),)
+                )
+                d["mcp_config_ids"] = [r["mcp_config_id"] for r in mcp_rows]
+            except Exception:
+                d["mcp_config_ids"] = []
+            try:
+                sc_rows = await db.fetch_all_async(
+                    "SELECT system_context_id FROM system_context_applications WHERE application_id = ?",
+                    (d.get("id"),)
+                )
+                d["system_context_ids"] = [r["system_context_id"] for r in sc_rows]
+            except Exception:
+                d["system_context_ids"] = []
+            result.append(d)
+        return result
 
     @classmethod
     async def delete(cls, application_id: str) -> bool:
