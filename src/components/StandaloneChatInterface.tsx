@@ -24,6 +24,8 @@ export interface StandaloneChatInterfaceProps {
   showAiModelManager?: boolean;
   showSystemContextEditor?: boolean;
   showAgentManager?: boolean;
+  // 控制是否显示“应用列表”按钮
+  showApplicationsButton?: boolean;
 }
 
 /**
@@ -40,6 +42,7 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
   showAiModelManager = true,
   showSystemContextEditor = true,
   showAgentManager = true,
+  showApplicationsButton = true,
 }) => {
   // 根据传入的port或apiBaseUrl创建自定义的API基础URL
   const customApiBaseUrl = React.useMemo(() => {
@@ -181,6 +184,19 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
         </div>
         
         <div className="flex items-center gap-2">
+          {/* 应用列表按钮（弹窗） */}
+          {showApplicationsButton && (
+            <button
+              onClick={() => setShowAppPanel(true)}
+              className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
+              title="打开应用列表"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path d="M4 5h6v14H4z" strokeWidth="2" />
+                <path d="M12 5h8v14h-8z" strokeWidth="2" />
+              </svg>
+            </button>
+          )}
           {/* 已移除应用管理按钮 */}
           {/* MCP服务管理按钮 */}
           {showMcpManager && (

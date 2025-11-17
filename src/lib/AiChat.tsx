@@ -12,6 +12,7 @@ export interface AiChatConfig {
   showAiModelManager?: boolean;
   showSystemContextEditor?: boolean;
   showAgentManager?: boolean;
+  showApplicationsButton?: boolean;
 }
 
 /**
@@ -37,6 +38,7 @@ export class AiChat {
   private showAiModelManager: boolean;
   private showSystemContextEditor: boolean;
   private showAgentManager: boolean;
+  private showApplicationsButton: boolean;
 
   constructor(
     userId: string, 
@@ -46,7 +48,8 @@ export class AiChat {
     showMcpManager: boolean = true,
     showAiModelManager: boolean = true,
     showSystemContextEditor: boolean = true,
-    showAgentManager: boolean = true
+    showAgentManager: boolean = true,
+    showApplicationsButton: boolean = true
   ) {
     this.userId = userId;
     this.projectId = projectId;
@@ -56,13 +59,15 @@ export class AiChat {
     this.showAiModelManager = showAiModelManager;
     this.showSystemContextEditor = showSystemContextEditor;
     this.showAgentManager = showAgentManager;
+    this.showApplicationsButton = showApplicationsButton;
 
     console.log('🔧 AiChat Constructor - configUrl:', this.configUrl);
     console.log('🔧 AiChat Constructor - Module Controls:', {
       showMcpManager: this.showMcpManager,
       showAiModelManager: this.showAiModelManager,
       showSystemContextEditor: this.showSystemContextEditor,
-      showAgentManager: this.showAgentManager
+      showAgentManager: this.showAgentManager,
+      showApplicationsButton: this.showApplicationsButton
     });
 
     // 创建自定义的 API 客户端
@@ -89,7 +94,8 @@ export class AiChat {
       showMcpManager: this.showMcpManager,
       showAiModelManager: this.showAiModelManager,
       showSystemContextEditor: this.showSystemContextEditor,
-      showAgentManager: this.showAgentManager
+      showAgentManager: this.showAgentManager,
+      showApplicationsButton: this.showApplicationsButton
     });
   }
 
@@ -105,7 +111,8 @@ export class AiChat {
       showMcpManager: this.showMcpManager,
       showAiModelManager: this.showAiModelManager,
       showSystemContextEditor: this.showSystemContextEditor,
-      showAgentManager: this.showAgentManager
+      showAgentManager: this.showAgentManager,
+      showApplicationsButton: this.showApplicationsButton
     };
   }
 
@@ -129,6 +136,7 @@ export class AiChat {
     if (config.showAiModelManager !== undefined) this.showAiModelManager = config.showAiModelManager;
     if (config.showSystemContextEditor !== undefined) this.showSystemContextEditor = config.showSystemContextEditor;
     if (config.showAgentManager !== undefined) this.showAgentManager = config.showAgentManager;
+    if (config.showApplicationsButton !== undefined) this.showApplicationsButton = config.showApplicationsButton;
   }
 
   /**
@@ -158,6 +166,7 @@ interface AiChatComponentProps {
   showAiModelManager?: boolean;
   showSystemContextEditor?: boolean;
   showAgentManager?: boolean;
+  showApplicationsButton?: boolean;
 }
 
 const AiChatComponent: React.FC<AiChatComponentProps> = ({
@@ -168,7 +177,8 @@ const AiChatComponent: React.FC<AiChatComponentProps> = ({
   showMcpManager,
   showAiModelManager,
   showSystemContextEditor,
-  showAgentManager
+  showAgentManager,
+  showApplicationsButton
 }) => {
   return (
     <StandaloneChatInterface 
@@ -180,6 +190,7 @@ const AiChatComponent: React.FC<AiChatComponentProps> = ({
       showAiModelManager={showAiModelManager}
       showSystemContextEditor={showSystemContextEditor}
       showAgentManager={showAgentManager}
+      showApplicationsButton={showApplicationsButton}
     />
   );
 };

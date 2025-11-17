@@ -128,7 +128,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     const startWidth = iframeWidth;
     const onMouseMove = (ev: MouseEvent) => {
       const delta = ev.clientX - startX;
-      const next = Math.min(1200, Math.max(400, startWidth + delta));
+      // 去除宽度限制，允许自由拖动（不为负）
+      const next = Math.max(0, startWidth + delta);
       setIframeWidth(next);
     };
     const onMouseUp = () => {

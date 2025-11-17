@@ -19,6 +19,8 @@ function App() {
     try {
       // 统一使用环境变量控制后端 API 基础地址
       const apiBase = import.meta.env.VITE_API_BASE || 'http://localhost:8000/api';
+      // 通过环境变量控制是否显示“应用列表”按钮（默认显示）
+      const showApplicationsButton = (import.meta.env.VITE_SHOW_APPLICATIONS_BUTTON ?? 'true') === 'true';
 
       // 创建 AiChat 实例 - 完整功能版本
       const aiChat = new AiChat(
@@ -29,7 +31,8 @@ function App() {
         true,                         // showMcpManager - 显示MCP服务管理
         true,                         // showAiModelManager - 显示AI配置管理
         true,                         // showSystemContextEditor - 显示System Prompt编辑器
-        true                          // showAgentManager - 显示智能体管理
+        true,                         // showAgentManager - 显示智能体管理
+        true        // showApplicationsButton - 显示应用列表按钮（可隐藏）
       );
 
       // 其他配置示例：
@@ -75,6 +78,7 @@ function App() {
       // 验证 API 客户端是否使用了正确的 baseUrl
       const apiClient = aiChat.getApiClient();
       console.log('  - API客户端baseUrl:', apiClient.getBaseUrl());
+      console.log('  - 显示应用列表按钮:', showApplicationsButton);
       
       // 验证参数是否正确传递
       const isUserIdCorrect = config.userId === 'custom_user_125';
