@@ -10,8 +10,7 @@ import McpManager from './McpManager';
 import AiModelManager from './AiModelManager';
 import SystemContextEditor from './SystemContextEditor';
 import AgentManager from './AgentManager';
-import ApplicationManager from './ApplicationManager';
-import ApplicationsPanel from './ApplicationsPanel';
+import ApplicationsPanel from '@/components/ApplicationsPanel';
 import { cn } from '../lib/utils';
 import ApiClient from '../lib/api/client';
 
@@ -103,7 +102,6 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
   const [aiModelManagerOpen, setAiModelManagerOpen] = useState(false);
   const [systemContextEditorOpen, setSystemContextEditorOpen] = useState(false);
   const [agentManagerOpen, setAgentManagerOpen] = useState(false);
-  const [appManagerOpen, setAppManagerOpen] = useState(false);
   const [showAppPanel, setShowAppPanel] = useState(false);
   const [appPanelWidth, setAppPanelWidth] = useState(260);
   const [isResizing, setIsResizing] = useState(false);
@@ -183,26 +181,7 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
         </div>
         
         <div className="flex items-center gap-2">
-          {/* 应用管理按钮 */}
-          <button
-            onClick={() => setAppManagerOpen(true)}
-            className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
-            title="应用管理"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-          {/* 左侧应用面板开关 */}
-          <button
-            onClick={() => setShowAppPanel(s => !s)}
-            className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
-            title="切换应用面板"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 5.25h6.75v13.5H3.75zM13.5 5.25h6.75v13.5H13.5z" />
-            </svg>
-          </button>
+          {/* 已移除应用管理按钮 */}
           {/* MCP服务管理按钮 */}
           {showMcpManager && (
             <button
@@ -277,22 +256,8 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
         </div>
       )}
 
-      {/* 主区域：左侧应用列表 + 右侧聊天 */}
+      {/* 主区域：右侧聊天（已移除左侧应用抽屉） */}
       <div className="flex-1 flex overflow-hidden">
-        {/* 左侧应用面板 */}
-        {showAppPanel && (
-          <div className="h-full border-r border-border overflow-y-auto" style={{ width: appPanelWidth }}>
-            <ApplicationsPanel />
-          </div>
-        )}
-        {/* 分隔条 */}
-        {showAppPanel && (
-          <div
-            className={`w-1 cursor-col-resize bg-transparent ${isResizing ? 'bg-accent' : ''}`}
-            onMouseDown={startResize}
-            title="拖拽调整宽度"
-          />
-        )}
         {/* 右侧消息列表 */}
         <div className="flex-1 overflow-hidden">
           {currentSession ? (
@@ -340,10 +305,15 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
         store={store} 
       />
 
-      {/* 应用管理器模态框 */}
-      {appManagerOpen && (
-        <ApplicationManager onClose={() => setAppManagerOpen(false)} />
-      )}
+      {/* 应用列表（弹窗） */}
+      <ApplicationsPanel
+        isOpen={showAppPanel}
+        onClose={() => setShowAppPanel(false)}
+        title="应用列表"
+        layout="modal"
+      />
+
+      {/* 已移除旧的 ApplicationManager 组件引用，改用上面的 ApplicationsPanel（弹窗模式） */}
 
       {/* MCP管理器模态框 */}
       {mcpManagerOpen && (
