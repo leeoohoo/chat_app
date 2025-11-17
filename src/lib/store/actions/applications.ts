@@ -2,12 +2,11 @@ import type { Application } from '../../../types';
 
 interface Deps {
   set: any;
-  get: any;
   client: any;
   getUserIdParam: () => string;
 }
 
-export function createApplicationActions({ set, get, client, getUserIdParam }: Deps) {
+export function createApplicationActions({ set, client, getUserIdParam }: Deps) {
   const toFrontendApp = (apiApp: any): Application => ({
     id: apiApp.id,
     name: apiApp.name,

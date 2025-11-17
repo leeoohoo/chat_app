@@ -81,7 +81,6 @@ const SystemContextEditor: React.FC<SystemContextEditorProps> = ({ onClose, stor
     deleteSystemContext,
     activateSystemContext,
     applications,
-    setSystemContextAppAssociation,
     loadApplications
   } = storeData;
   

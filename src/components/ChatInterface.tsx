@@ -48,8 +48,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   const [showSystemContextEditor, setShowSystemContextEditor] = useState(false);
   const [showAgentManager, setShowAgentManager] = useState(false);
   const [showApplicationsPanel, setShowApplicationsPanel] = useState(false);
-  const [applicationsPanelWidth, setApplicationsPanelWidth] = useState(260);
-  const [isResizingAppsPanel, setIsResizingAppsPanel] = useState(false);
+  // 移除未使用的应用面板宽度与拖拽状态
   const [iframeWidth, setIframeWidth] = useState(600);
   const [isResizingIframe, setIsResizingIframe] = useState(false);
   const [iframeScale, setIframeScale] = useState(1);
@@ -102,24 +101,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     }
   };
 
-  const startResizeAppsPanel = (e: React.MouseEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setIsResizingAppsPanel(true);
-    const startX = e.clientX;
-    const startWidth = applicationsPanelWidth;
-    const onMouseMove = (ev: MouseEvent) => {
-      const delta = ev.clientX - startX;
-      const next = Math.min(420, Math.max(200, startWidth + delta));
-      setApplicationsPanelWidth(next);
-    };
-    const onMouseUp = () => {
-      setIsResizingAppsPanel(false);
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    };
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
-  };
+  // 移除未使用的应用面板拖拽函数
 
   const startResizeIframe = (e: React.MouseEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -460,7 +442,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         />
 
         {/* 拖动时的覆盖层，避免选中文本 */}
-        {(isResizingAppsPanel || isResizingIframe) && (
+        {(isResizingIframe) && (
           <div className="fixed inset-0 cursor-col-resize" style={{ zIndex: 50 }} />
         )}
     </div>

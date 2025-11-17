@@ -326,30 +326,7 @@ export const ToolCallRenderer: React.FC<ToolCallRendererProps> = ({
     );
   };
 
-  // 将结果格式化为Markdown表格
-  const formatResultAsTable = (): string => {
-    if (!hasStructuredResult) return '';
-    const flattened = flattenObjectWithArrays(parsedResult);
-    const keys = Object.keys(flattened);
-    if (keys.length === 0) return '';
-
-    let tableContent = '| 字段 | 值 |\n|------|------|\n';
-    keys.forEach((key) => {
-      const value = flattened[key];
-      let formattedValue: string;
-      if (typeof value === 'string') {
-        formattedValue = value.replace(/\n/g, '<br>').replace(/\|/g, '\\|');
-      } else if (Array.isArray(value)) {
-        formattedValue = JSON.stringify(value).replace(/\|/g, '\\|');
-      } else if (value !== null && typeof value === 'object') {
-        formattedValue = JSON.stringify(value).replace(/\|/g, '\\|');
-      } else {
-        formattedValue = String(value).replace(/\|/g, '\\|');
-      }
-      tableContent += `| ${key} | ${formattedValue} |\n`;
-    });
-    return tableContent;
-  };
+  // 移除未使用的表格格式化方法
 
   return (
     <div className="tool-call-renderer tool-call-container">

@@ -1,9 +1,10 @@
 import React, { createContext, useContext, ReactNode } from 'react';
 import { createChatStoreWithConfig, useChatStore } from './index';
+import type { ChatStore as ChatStoreHook, ChatState, ChatActions } from './createChatStoreWithBackend';
 import type ApiClient from '../api/client';
 
 // Store类型定义
-type ChatStore = typeof useChatStore;
+type ChatStore = ChatStoreHook;
 
 // Context接口
 interface ChatStoreContextType {
@@ -63,7 +64,7 @@ export const useChatStoreContext = (): ChatStore => {
 };
 
 // 为了向后兼容，导出一个hook来获取store的状态和方法
-export const useChatStoreFromContext = () => {
+export const useChatStoreFromContext = (): ChatState & ChatActions => {
   const store = useChatStoreContext();
   return store();
 };

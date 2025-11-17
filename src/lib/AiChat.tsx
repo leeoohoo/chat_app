@@ -142,14 +142,14 @@ export class AiChat {
   /**
    * 获取 store 实例（用于高级用法）
    */
-  getStore() {
+  getStore(): import('./store/createChatStoreWithBackend').ChatStore {
     return this.store;
   }
 
   /**
    * 获取 API 客户端实例（用于高级用法）
    */
-  getApiClient() {
+  getApiClient(): ApiClient {
     return this.apiClient;
   }
 }

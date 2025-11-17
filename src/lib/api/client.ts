@@ -384,7 +384,8 @@ class ApiClient {
               model_name: 'gpt-3.5-turbo',
               temperature: 0.7,
               max_tokens: 4000,
-              api_key: import.meta.env.VITE_OPENAI_API_KEY || '',
+              // 避免对 import.meta.env 的类型依赖以通过声明生成
+              api_key: '',
               base_url: 'https://api.openai.com/v1'
             }
           }

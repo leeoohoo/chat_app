@@ -67,7 +67,6 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
     loadSystemContexts,
     applications,
     loadApplications,
-    setAgentAppAssociation,
   } = storeData;
 
   // 从上下文获取当前用户环境

@@ -96,8 +96,6 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
   // 配置档案弹窗相关状态
   const [profilesModalOpen, setProfilesModalOpen] = useState<boolean>(false);
   const [profilesModalConfig, setProfilesModalConfig] = useState<McpConfig | null>(null);
-  const [profilesLoading, setProfilesLoading] = useState<boolean>(false);
-  const [profilesError, setProfilesError] = useState<string | null>(null);
   const [selectedAppIds, setSelectedAppIds] = useState<string[]>([]);
 
 
@@ -120,15 +118,14 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
   const openProfilesModal = async (config: McpConfig) => {
     setProfilesModalConfig(config);
     setProfilesModalOpen(true);
-    setProfilesLoading(true);
-    setProfilesError(null);
     try {
       const pfs = await apiClient.getMcpConfigProfiles(config.id);
       setProfiles(Array.isArray(pfs) ? pfs : []);
     } catch (e: any) {
-      setProfilesError('加载配置档案失败');
+      // 仅记录错误日志；弹窗内组件自行处理加载与错误状态
+      console.error('加载配置档案失败');
     } finally {
-      setProfilesLoading(false);
+      // no-op
     }
   };
 

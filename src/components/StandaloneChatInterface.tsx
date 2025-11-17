@@ -95,6 +95,9 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
     setSelectedAgent,
     loadAgents,
     abortCurrentConversation,
+    applications,
+    selectedApplicationId,
+    setSelectedApplication,
   } = store();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -106,26 +109,26 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
   const [systemContextEditorOpen, setSystemContextEditorOpen] = useState(false);
   const [agentManagerOpen, setAgentManagerOpen] = useState(false);
   const [showAppPanel, setShowAppPanel] = useState(false);
-  const [appPanelWidth, setAppPanelWidth] = useState(260);
-  const [isResizing, setIsResizing] = useState(false);
+  // 移除未使用的应用面板宽度状态
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const selectedApp = React.useMemo(() => {
+    if (!applications || !selectedApplicationId) return null as any;
+    return applications.find((a: any) => a.id === selectedApplicationId) || null;
+  }, [applications, selectedApplicationId]);
 
-  const startResize = (e: React.MouseEvent) => {
-    setIsResizing(true);
-    const startX = e.clientX;
-    const startWidth = appPanelWidth;
-    const onMove = (ev: MouseEvent) => {
-      const delta = ev.clientX - startX;
-      const next = Math.max(200, Math.min(480, startWidth + delta));
-      setAppPanelWidth(next);
+  // 在关闭或切换应用时，主动清理 iframe，终止网络请求
+  useEffect(() => {
+    return () => {
+      try {
+        if (iframeRef.current) {
+          // 将 src 置空/置为 about:blank 以便立即终止网络活动
+          iframeRef.current.src = 'about:blank';
+        }
+      } catch {}
     };
-    const onUp = () => {
-      setIsResizing(false);
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-  };
+  }, [selectedApplicationId]);
+
+  // 移除未使用的拖拽状态与处理函数
 
   // 初始化加载会话、AI模型与智能体配置
   useEffect(() => {
@@ -296,6 +299,81 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
           <div ref={messagesEndRef} />
         </div>
       </div>
+
+      {/* 选中应用的嵌入视图（iframe） */}
+      {selectedApp && selectedApp.url && (
+        <div className="fixed right-6 bottom-28 w-[70vw] max-w-[1100px] h-[70vh] bg-card rounded-lg border border-border shadow-xl z-40 flex flex-col overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-2 border-b border-border">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-7 h-7 rounded-full overflow-hidden bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center shrink-0">
+                {selectedApp.iconUrl ? (
+                  <img src={selectedApp.iconUrl} alt={selectedApp.name} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-white text-xs font-bold">{selectedApp.name?.[0]?.toUpperCase?.() || 'A'}</span>
+                )}
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm font-medium text-foreground truncate">{selectedApp.name}</div>
+                {selectedApp.url && (
+                  <div className="text-xs text-muted-foreground truncate max-w-[50vw]">{selectedApp.url}</div>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                className="px-3 py-1.5 text-xs rounded bg-muted hover:bg-accent"
+                title="在新窗口打开"
+                onClick={() => {
+                  try {
+                    window.open(selectedApp.url, `_app_${selectedApp.id}`);
+                  } catch {}
+                }}
+              >弹窗打开</button>
+              <button
+                onClick={() => setSelectedApplication(null)}
+                className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
+                title="关闭"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div className="flex-1 bg-background">
+            <iframe
+              src={selectedApp.url}
+              title={selectedApp.name || 'Selected Application'}
+              className="w-full h-full"
+              key={selectedApp.id}
+              ref={iframeRef}
+              sandbox="allow-scripts allow-same-origin allow-forms allow-downloads"
+              onError={() => {
+                try {
+                  const evt = new CustomEvent('iframe-load-error', { detail: { appId: selectedApp.id, error: 'Iframe onError' } });
+                  window.dispatchEvent(evt as any);
+                } catch {}
+              }}
+              onLoad={(e) => {
+                const iframe = e.currentTarget as HTMLIFrameElement;
+                setTimeout(() => {
+                  try {
+                    const cw = iframe.contentWindow;
+                    // 访问 title 以触发潜在的跨域/CSP错误
+                    const _title = cw?.document?.title;
+                    void _title;
+                  } catch (err) {
+                    try {
+                      const evt = new CustomEvent('iframe-load-error', { detail: { appId: selectedApp.id, error: (err as any)?.message || 'SecurityError' } });
+                      window.dispatchEvent(evt as any);
+                    } catch {}
+                  }
+                }, 1000);
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* 输入区域 */}
       {currentSession && (

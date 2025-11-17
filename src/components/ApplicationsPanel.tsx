@@ -30,7 +30,6 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ isOpen, onClose, 
     deleteApplication,
   } = storeData;
 
-  const [popupWindows, setPopupWindows] = useState<Map<string, Window>>(new Map());
   const popupWindowsRef = useRef<Map<string, Window>>(new Map());
   const [failedIframeApps, setFailedIframeApps] = useState<Set<string>>(new Set());
   const [showManageMode, setShowManageMode] = useState(manageOnly ? true : false);
@@ -85,14 +84,12 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ isOpen, onClose, 
 
       if (newWindow) {
         popupWindowsRef.current.set(app.id, newWindow);
-        setPopupWindows(new Map(popupWindowsRef.current));
         setSelectedApplication?.(app.id);
         newWindow.focus();
 
         const checkInterval = setInterval(() => {
           if (newWindow.closed) {
             popupWindowsRef.current.delete(app.id);
-            setPopupWindows(new Map(popupWindowsRef.current));
             if (selectedApplicationId === app.id) {
               setSelectedApplication?.(null);
             }
@@ -110,7 +107,6 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ isOpen, onClose, 
       existingWindow.close();
     }
     popupWindowsRef.current.delete(appId);
-    setPopupWindows(new Map(popupWindowsRef.current));
     if (selectedApplicationId === appId) {
       setSelectedApplication?.(null);
     }

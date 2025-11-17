@@ -84,42 +84,55 @@ function findBinaryExecutable() {
         }
     }
 
-    // 根据平台与架构构建 Nuitka 目录名
-    const platform = process.platform; // 'darwin' | 'win32' | 'linux'
-    const arch = process.arch; // 'arm64' | 'x64' | ...
-    const nuitkaDirName = `chat_app_server_nuitka_${platform}_${arch}`;
-    const targetBinaryPath = path.join(
-        repoRoot,
-        'server',
-        'chat_app_server',
-        'dist',
-        nuitkaDirName,
-        binaryName
-    );
-
-    console.log('[Electron] Resolving backend binary (Nuitka):', targetBinaryPath);
-
-    if (fs.existsSync(targetBinaryPath)) {
+    // 优先查找打包目录: server/chat_app_server/dist/chat_app_server/<binaryName>
+    const packagedDir = path.join(repoRoot, 'server', 'chat_app_server', 'dist', 'chat_app_server');
+    const packagedBinaryPath = path.join(packagedDir, binaryName);
+    console.log('[Electron] Resolving backend binary (packaged dist):', packagedBinaryPath);
+    if (fs.existsSync(packagedBinaryPath)) {
         try {
-            const stats = fs.statSync(targetBinaryPath);
-            console.log(`[Electron] ✓ Found binary: ${targetBinaryPath}`);
+            const stats = fs.statSync(packagedBinaryPath);
+            console.log(`[Electron] ✓ Found packaged binary: ${packagedBinaryPath}`);
             console.log(`[Electron]   Size: ${stats.size} bytes`);
-
             if (!isWin && !(stats.mode & parseInt('111', 8))) {
                 console.log(`[Electron]   Setting executable permissions...`);
-                fs.chmodSync(targetBinaryPath, 0o755);
+                fs.chmodSync(packagedBinaryPath, 0o755);
             }
-
             return {
-                path: targetBinaryPath,
-                workingDir: path.dirname(targetBinaryPath),
+                path: packagedBinaryPath,
+                workingDir: packagedDir,
                 size: stats.size,
             };
         } catch (err) {
-            console.warn(`[Electron] Error checking binary ${targetBinaryPath}: ${err.message}`);
+            console.warn(`[Electron] Error checking packaged binary ${packagedBinaryPath}: ${err.message}`);
+        }
+    }
+
+    // 回退方案：根据平台与架构查找 Nuitka 目录
+    const platform = process.platform; // 'darwin' | 'win32' | 'linux'
+    const arch = process.arch; // 'arm64' | 'x64' | ...
+    const nuitkaDirName = `chat_app_server_nuitka_${platform}_${arch}`;
+    const nuitkaDir = path.join(repoRoot, 'server', 'chat_app_server', 'dist', nuitkaDirName);
+    const nuitkaBinaryPath = path.join(nuitkaDir, binaryName);
+    console.log('[Electron] Resolving backend binary (Nuitka fallback):', nuitkaBinaryPath);
+    if (fs.existsSync(nuitkaBinaryPath)) {
+        try {
+            const stats = fs.statSync(nuitkaBinaryPath);
+            console.log(`[Electron] ✓ Found Nuitka binary: ${nuitkaBinaryPath}`);
+            console.log(`[Electron]   Size: ${stats.size} bytes`);
+            if (!isWin && !(stats.mode & parseInt('111', 8))) {
+                console.log(`[Electron]   Setting executable permissions...`);
+                fs.chmodSync(nuitkaBinaryPath, 0o755);
+            }
+            return {
+                path: nuitkaBinaryPath,
+                workingDir: nuitkaDir,
+                size: stats.size,
+            };
+        } catch (err) {
+            console.warn(`[Electron] Error checking Nuitka binary ${nuitkaBinaryPath}: ${err.message}`);
         }
     } else {
-        console.error('[Electron] ❌ Backend binary not found at:', targetBinaryPath);
+        console.error('[Electron] ❌ Backend binary not found at:', nuitkaBinaryPath);
         console.error('[Electron] Platform/Arch:', { platform, arch });
         console.error('[Electron] Hint: Ensure Nuitka build output exists at directory:', nuitkaDirName);
         console.error('[Electron] Or set BACKEND_BIN_PATH to the absolute path of the binary');

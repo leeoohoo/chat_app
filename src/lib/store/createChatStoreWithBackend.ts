@@ -14,7 +14,7 @@ import { createMcpActions } from './actions/mcp';
 import { createChatConfigActions } from './actions/chatConfig';
 
 // 聊天状态接口
-interface ChatState {
+export interface ChatState {
     // 会话相关
     sessions: Session[];
     currentSessionId: string | null;
@@ -48,7 +48,7 @@ interface ChatState {
 }
 
 // 聊天操作接口
-interface ChatActions {
+export interface ChatActions {
     // 会话操作
     loadSessions: () => Promise<void>;
     createSession: (title?: string) => Promise<string>;
@@ -106,7 +106,7 @@ interface ChatActions {
 }
 
 // 自定义配置接口
-interface ChatStoreConfig {
+export interface ChatStoreConfig {
     userId?: string;
     projectId?: string;
     configUrl?: string;
@@ -499,7 +499,7 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                     ...createMcpActions({ set, get, client, getUserIdParam }),
 
                     // 应用管理（拆分到独立模块）
-                    ...createApplicationActions({ set, get, client, getUserIdParam }),
+                    ...createApplicationActions({ set, client, getUserIdParam }),
 
                     // AI模型管理（拆分到独立模块）
                     ...createAiModelActions({ set, get, client, getUserIdParam }),
@@ -670,3 +670,6 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
         )
     ));
 }
+
+// 导出 ChatStore 类型别名，供外部命名使用
+export type ChatStore = ReturnType<typeof createChatStoreWithBackend>;
