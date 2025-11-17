@@ -20,12 +20,14 @@ export function createApplicationActions({ set, client, getUserIdParam }: Deps) 
     // 应用管理
     loadApplications: async () => {
       try {
+        console.log('[Store] loadApplications: start');
         const userId = getUserIdParam();
         const items = await client.getApplications(userId);
         const apps: Application[] = (items || []).map(toFrontendApp);
         set((state: any) => {
           state.applications = apps;
         });
+        console.log('[Store] loadApplications: loaded', apps.length, 'items');
       } catch (error) {
         console.error('Failed to load applications:', error);
         set((state: any) => {
@@ -100,6 +102,7 @@ export function createApplicationActions({ set, client, getUserIdParam }: Deps) 
       }
     },
     setSelectedApplication: (appId: string | null) => {
+      console.log('[Store] setSelectedApplication:', appId);
       set((state: any) => {
         state.selectedApplicationId = appId;
       });

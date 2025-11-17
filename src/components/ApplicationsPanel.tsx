@@ -40,7 +40,12 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ isOpen, onClose, 
   );
 
   useEffect(() => {
-    loadApplications?.();
+    try {
+      console.log('[ApplicationsPanel] useEffect -> loadApplications');
+      loadApplications?.();
+    } catch (err) {
+      console.error('[ApplicationsPanel] loadApplications error:', err);
+    }
   }, [loadApplications]);
 
   const resetForm = () => {
@@ -66,9 +71,11 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ isOpen, onClose, 
 
   // 打开应用窗口（降级方案）
   const openAppWindow = (app: any) => {
+    console.log('[ApplicationsPanel] openAppWindow start:', { id: app.id, name: app.name, url: app.url });
     const existingWindow = popupWindowsRef.current.get(app.id);
 
     if (existingWindow && !existingWindow.closed) {
+      console.log('[ApplicationsPanel] reuse existing popup window, focusing');
       existingWindow.focus();
       setSelectedApplication?.(app.id);
     } else {
@@ -83,12 +90,18 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ isOpen, onClose, 
       const newWindow = window.open(app.url, `app_${app.id}`, features);
 
       if (newWindow) {
+        console.log('[ApplicationsPanel] popup opened successfully');
         popupWindowsRef.current.set(app.id, newWindow);
         setSelectedApplication?.(app.id);
-        newWindow.focus();
+        try {
+          newWindow.focus();
+        } catch (e) {
+          console.warn('[ApplicationsPanel] popup focus warning:', e);
+        }
 
         const checkInterval = setInterval(() => {
           if (newWindow.closed) {
+            console.log('[ApplicationsPanel] popup window closed');
             popupWindowsRef.current.delete(app.id);
             if (selectedApplicationId === app.id) {
               setSelectedApplication?.(null);
@@ -96,12 +109,15 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ isOpen, onClose, 
             clearInterval(checkInterval);
           }
         }, 1000);
+      } else {
+        console.warn('[ApplicationsPanel] window.open returned null (blocked by browser?)');
       }
     }
   };
 
   // 关闭应用窗口
   const closeAppWindow = (appId: string) => {
+    console.log('[ApplicationsPanel] closeAppWindow:', appId);
     const existingWindow = popupWindowsRef.current.get(appId);
     if (existingWindow && !existingWindow.closed) {
       existingWindow.close();
@@ -114,11 +130,14 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ isOpen, onClose, 
 
   // 处理应用点击
   const handleAppClick = (app: any) => {
+    console.log('[ApplicationsPanel] handleAppClick:', { id: app.id, name: app.name, url: app.url });
     // 如果之前iframe失败过，直接用弹窗
     if (failedIframeApps.has(app.id)) {
+      console.log('[ApplicationsPanel] prior iframe failure detected -> open popup');
       openAppWindow(app);
     } else {
       // 先尝试iframe模式
+      console.log('[ApplicationsPanel] try iframe mode -> setSelectedApplication', app.id);
       setSelectedApplication?.(app.id);
     }
   };
@@ -126,11 +145,13 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ isOpen, onClose, 
   // 监听iframe失败事件（从window事件）
   useEffect(() => {
     const handleIframeError = (event: CustomEvent) => {
+      console.warn('[ApplicationsPanel] iframe-load-error event received:', event?.detail);
       const appId = event.detail.appId;
       setFailedIframeApps(prev => new Set(prev).add(appId));
       // 自动切换到弹窗模式
       const app = applications?.find((a: any) => a.id === appId);
       if (app) {
+        console.log('[ApplicationsPanel] fallback -> openAppWindow for appId:', appId);
         openAppWindow(app);
       }
     };

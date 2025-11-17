@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useChatStore } from '../lib/store';
 import { ChatStoreProvider } from '../lib/store/ChatStoreContext';
-import { createChatStoreWithBackend } from '../lib/store/createChatStoreWithBackend';
+import { useChatStoreContext } from '../lib/store/ChatStoreContext';
 import { MessageList } from './MessageList';
 import { InputArea } from './InputArea';
 import { SessionList } from './SessionList';
@@ -55,7 +54,7 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
     return undefined;
   }, [apiBaseUrl, port]);
 
-  // 创建自定义的ApiClient实例
+  // 创建自定义的ApiClient实例（仅用于 Provider）
   const customApiClient = React.useMemo(() => {
     if (customApiBaseUrl) {
       return new ApiClient(customApiBaseUrl);
@@ -63,20 +62,39 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
     return undefined;
   }, [customApiBaseUrl]);
 
-  // Create custom store if we have custom parameters or custom API client
-  const customStore = React.useMemo(() => {
-    if (customApiClient || userId || projectId) {
-      return createChatStoreWithBackend(customApiClient, {
-        userId,
-        projectId,
-        configUrl: customApiBaseUrl
-      });
-    }
-    return null;
-  }, [customApiClient, userId, projectId, customApiBaseUrl]);
-  // Use custom store if available, otherwise use default store
-  const store = customStore || useChatStore;
-  
+  return (
+    <ChatStoreProvider userId={userId} projectId={projectId} customApiClient={customApiClient}>
+      <StandaloneChatContent
+        className={className}
+        showMcpManager={showMcpManager}
+        showAiModelManager={showAiModelManager}
+        showSystemContextEditor={showSystemContextEditor}
+        showAgentManager={showAgentManager}
+        showApplicationsButton={showApplicationsButton}
+      />
+    </ChatStoreProvider>
+  );
+};
+
+export default StandaloneChatInterface;
+
+// 内部内容组件：在 Provider 环境内使用上下文
+const StandaloneChatContent: React.FC<{
+  className?: string;
+  showMcpManager: boolean;
+  showAiModelManager: boolean;
+  showSystemContextEditor: boolean;
+  showAgentManager: boolean;
+  showApplicationsButton: boolean;
+}> = ({
+  className,
+  showMcpManager,
+  showAiModelManager,
+  showSystemContextEditor,
+  showAgentManager,
+  showApplicationsButton,
+}) => {
+  const store = useChatStoreContext();
   const {
     currentSession,
     messages,
@@ -102,37 +120,22 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);
-  
+
   // 模态框状态
   const [mcpManagerOpen, setMcpManagerOpen] = useState(false);
   const [aiModelManagerOpen, setAiModelManagerOpen] = useState(false);
   const [systemContextEditorOpen, setSystemContextEditorOpen] = useState(false);
   const [agentManagerOpen, setAgentManagerOpen] = useState(false);
   const [showAppPanel, setShowAppPanel] = useState(false);
-  // 移除未使用的应用面板宽度状态
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+
   const selectedApp = React.useMemo(() => {
     if (!applications || !selectedApplicationId) return null as any;
     return applications.find((a: any) => a.id === selectedApplicationId) || null;
   }, [applications, selectedApplicationId]);
 
-  // 在关闭或切换应用时，主动清理 iframe，终止网络请求
-  useEffect(() => {
-    return () => {
-      try {
-        if (iframeRef.current) {
-          // 将 src 置空/置为 about:blank 以便立即终止网络活动
-          iframeRef.current.src = 'about:blank';
-        }
-      } catch {}
-    };
-  }, [selectedApplicationId]);
-
-  // 移除未使用的拖拽状态与处理函数
-
   // 初始化加载会话、AI模型与智能体配置
   useEffect(() => {
-    // React 18 开发模式副作用双执行，使用一次性保护避免重复请求
     const didInit = (window as any).__standaloneChatInterfaceDidInit__ ?? false;
     if (didInit) return;
     (window as any).__standaloneChatInterfaceDidInit__ = true;
@@ -149,6 +152,17 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
     }
   }, [messages, isStreaming]);
 
+  // 在关闭或切换应用时，主动清理 iframe，终止网络请求
+  useEffect(() => {
+    return () => {
+      try {
+        if (iframeRef.current) {
+          iframeRef.current.src = 'about:blank';
+        }
+      } catch {}
+    };
+  }, [selectedApplicationId]);
+
   // 处理消息发送 - 完全内部处理，不需要外部回调
   const handleMessageSend = async (content: string, attachments?: File[]) => {
     try {
@@ -159,11 +173,7 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
   };
 
   return (
-    <ChatStoreProvider userId={userId} projectId={projectId} customApiClient={customApiClient}>
-      <div className={cn(
-        'flex flex-col h-screen bg-background text-foreground',
-        className
-      )}>
+    <div className={cn('flex flex-col h-screen bg-background text-foreground', className)}>
       {/* 头部 - 包含会话按钮和主题切换 */}
       <div className="flex items-center justify-between p-4 bg-card border-b border-border">
         <div className="flex items-center space-x-3">
@@ -176,7 +186,7 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
               <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
             </svg>
           </button>
-          
+
           {currentSession && (
             <div className="flex-1 min-w-0">
               <h1 className="text-lg font-semibold text-foreground truncate">
@@ -185,12 +195,15 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
             </div>
           )}
         </div>
-        
+
         <div className="flex items-center gap-2">
           {/* 应用列表按钮（弹窗） */}
           {showApplicationsButton && (
             <button
-              onClick={() => setShowAppPanel(true)}
+              onClick={() => {
+                console.log('[StandaloneChat] open ApplicationsPanel button clicked');
+                setShowAppPanel(true);
+              }}
               className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg transition-colors"
               title="打开应用列表"
             >
@@ -200,7 +213,6 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
               </svg>
             </button>
           )}
-          {/* 已移除应用管理按钮 */}
           {/* MCP服务管理按钮 */}
           {showMcpManager && (
             <button
@@ -261,7 +273,7 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
       {/* 错误提示 */}
       {error && (
         <div className="mx-4 mt-4 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
-          <div className="flex items-center justify-between">
+          <div className="flex items中心 justify-between">
             <p className="text-sm text-destructive">{error}</p>
             <button
               onClick={clearError}
@@ -280,11 +292,7 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
         {/* 右侧消息列表 */}
         <div className="flex-1 overflow-hidden">
           {currentSession ? (
-            <MessageList
-              messages={messages}
-              isLoading={isLoading}
-              isStreaming={isStreaming}
-            />
+            <MessageList messages={messages} isLoading={isLoading} isStreaming={isStreaming} />
           ) : (
             <div className="flex items-center justify-center h-full text-muted-foreground">
               <div className="text-center">
@@ -349,6 +357,7 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
               ref={iframeRef}
               sandbox="allow-scripts allow-same-origin allow-forms allow-downloads"
               onError={() => {
+                console.warn('[StandaloneChat] iframe onError fired for app:', selectedApp.id);
                 try {
                   const evt = new CustomEvent('iframe-load-error', { detail: { appId: selectedApp.id, error: 'Iframe onError' } });
                   window.dispatchEvent(evt as any);
@@ -359,10 +368,11 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
                 setTimeout(() => {
                   try {
                     const cw = iframe.contentWindow;
-                    // 访问 title 以触发潜在的跨域/CSP错误
                     const _title = cw?.document?.title;
                     void _title;
+                    console.log('[StandaloneChat] iframe loaded successfully, title accessible');
                   } catch (err) {
+                    console.warn('[StandaloneChat] iframe load cross-origin/CSP error:', (err as any)?.message);
                     try {
                       const evt = new CustomEvent('iframe-load-error', { detail: { appId: selectedApp.id, error: (err as any)?.message || 'SecurityError' } });
                       window.dispatchEvent(evt as any);
@@ -393,47 +403,22 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
       )}
 
       {/* 会话管理抽屉 */}
-      <SessionList 
-        isOpen={isSessionModalOpen} 
-        onClose={() => setIsSessionModalOpen(false)} 
-        store={store} 
-      />
+      <SessionList isOpen={isSessionModalOpen} onClose={() => setIsSessionModalOpen(false)} store={store} />
 
       {/* 应用列表（弹窗） */}
-      <ApplicationsPanel
-        isOpen={showAppPanel}
-        onClose={() => setShowAppPanel(false)}
-        title="应用列表"
-        layout="modal"
-      />
-
-      {/* 已移除旧的 ApplicationManager 组件引用，改用上面的 ApplicationsPanel（弹窗模式） */}
+      <ApplicationsPanel isOpen={showAppPanel} onClose={() => setShowAppPanel(false)} title="应用列表" layout="modal" />
 
       {/* MCP管理器模态框 */}
-      {mcpManagerOpen && (
-          <McpManager onClose={() => setMcpManagerOpen(false)} store={store} />
-        )}
+      {mcpManagerOpen && <McpManager onClose={() => setMcpManagerOpen(false)} store={store} />}
 
       {/* AI模型管理器模态框 */}
-      {aiModelManagerOpen && (
-          <AiModelManager onClose={() => setAiModelManagerOpen(false)} store={store} />
-        )}
+      {aiModelManagerOpen && <AiModelManager onClose={() => setAiModelManagerOpen(false)} store={store} />}
 
       {/* 智能体管理器模态框 */}
-      {showAgentManager && agentManagerOpen && (
-          <AgentManager onClose={() => setAgentManagerOpen(false)} store={store} />
-        )}
+      {showAgentManager && agentManagerOpen && <AgentManager onClose={() => setAgentManagerOpen(false)} store={store} />}
 
       {/* 系统上下文编辑器模态框 */}
-      {systemContextEditorOpen && (
-        <SystemContextEditor 
-          onClose={() => setSystemContextEditorOpen(false)} 
-          store={store}
-        />
-      )}
-      </div>
-    </ChatStoreProvider>
+      {systemContextEditorOpen && <SystemContextEditor onClose={() => setSystemContextEditorOpen(false)} store={store} />}
+    </div>
   );
 };
-
-export default StandaloneChatInterface;
