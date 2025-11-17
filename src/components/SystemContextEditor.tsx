@@ -128,7 +128,7 @@ const SystemContextEditor: React.FC<SystemContextEditorProps> = ({ onClose, stor
   const handleEdit = (context: SystemContext) => {
     setFormData({ name: context.name, content: context.content });
     setEditingContext(context);
-    setSelectedAppIds(Array.isArray((context as any).appIds) ? (context as any).appIds : []);
+    setSelectedAppIds(Array.isArray((context as any).app_ids) ? (context as any).app_ids : []);
     setViewMode('edit');
   };
 

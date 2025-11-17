@@ -166,7 +166,7 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
       args: formData.argsInput?.trim() ? formData.argsInput.split(',').map(s => s.trim()).filter(Boolean) : undefined,
       createdAt: new Date(),
       updatedAt: new Date(),
-      appIds: selectedAppIds,
+      app_ids: selectedAppIds,
     };
 
     const saved = await updateMcpConfig(newConfig as McpConfig);
@@ -192,7 +192,7 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
       cwd: formData.cwd?.trim() ? formData.cwd.trim() : undefined,
       args: formData.argsInput?.trim() ? formData.argsInput.split(',').map(s => s.trim()).filter(Boolean) : undefined,
       updatedAt: new Date(),
-      appIds: selectedAppIds,
+      app_ids: selectedAppIds,
     };
     const saved = await updateMcpConfig(updatedConfig);
     if (saved?.id) {
@@ -217,7 +217,7 @@ const McpManager: React.FC<McpManagerProps> = ({ onClose, store: externalStore }
     setDynamicConfig({});
     setConfigError(null);
     setConfigLoading(false);
-    setSelectedAppIds(Array.isArray((config as any).appIds) ? (config as any).appIds : []);
+    setSelectedAppIds(Array.isArray((config as any).app_ids) ? (config as any).app_ids : []);
   };
 
   // 删除服务器

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useChatStoreFromContext, useChatRuntimeEnv, useChatApiClientFromContext } from '../lib/store/ChatStoreContext';
 import { useChatStore } from '../lib/store';
 import { apiClient as globalApiClient } from '../lib/api/client';
@@ -96,6 +96,8 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
     system_context_id: undefined,
   });
   const [selectedAppIds, setSelectedAppIds] = useState<string[]>([]);
+  // 跳过首次编辑回显时的联动重置，避免清空 MCP/系统上下文
+  const skipResetOnHydration = useRef(false);
 
   const loadAll = async () => {
     setIsLoading(true);
@@ -109,10 +111,11 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
         (storeData.loadAgents ? storeData.loadAgents() : Promise.resolve()),
       ]);
       // 优先使用store加载的agents以保证与全局状态一致
-      const list = storeData.agents && Array.isArray(storeData.agents)
+      const rawList = storeData.agents && Array.isArray(storeData.agents)
         ? storeData.agents
         : await client.getAgents(effectiveUserId);
-      setAgents(Array.isArray(list) ? list : []);
+      const list = Array.isArray(rawList) ? rawList : [];
+      setAgents(list);
     } catch (e) {
       console.error('加载智能体失败', e);
     } finally {
@@ -129,8 +132,9 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
           await storeData.loadAgents();
         }
         // 始终通过客户端获取最新列表，避免在同一渲染周期读取到过期的store快照
-        const list = await client.getAgents(effectiveUserId);
-        setAgents(Array.isArray(list) ? list : []);
+        const rawList = await client.getAgents(effectiveUserId);
+        const list = Array.isArray(rawList) ? rawList : [];
+        setAgents(list);
         if (createdId && Array.isArray(list) && list.some(a => a.id === createdId)) {
           break;
         }
@@ -170,40 +174,20 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
     setSelectedAppIds([]);
   };
 
-  // 联动：应用变更时，完全重置 MCP 选择，不做自动填充；系统上下文仅做允许性校验
+  // 联动：仅在用户变更应用时重置 MCP 与系统上下文，编辑回显不触发
   useEffect(() => {
-    const allowedMcpIds = new Set<string>(
-      (
-        selectedAppIds.length
-          ? mcpConfigs.filter((c: any) => {
-              const appIds = (c as any).appIds as string[] | undefined;
-              return Array.isArray(appIds) && appIds.some((id: string) => selectedAppIds.includes(id));
-            })
-          : mcpConfigs
-      ).map((c: any) => String((c as any).id))
-    );
-    const allowedScIds = new Set<string>(
-      (
-        selectedAppIds.length
-          ? systemContexts.filter((sc: any) => {
-              const appIds = (sc as any).appIds as string[] | undefined;
-              return Array.isArray(appIds) && appIds.some((id: string) => selectedAppIds.includes(id));
-            })
-          : systemContexts
-      ).map((sc: any) => String((sc as any).id))
-    );
-
+    if (skipResetOnHydration.current) {
+      // 跳过首次（编辑态）设置应用ID导致的联动重置
+      skipResetOnHydration.current = false;
+      return;
+    }
     setFormData(prev => {
       const next = { ...prev } as typeof prev;
-      // 应用变更时完全重置 MCP 选择
       next.mcp_config_ids = [];
-      // 清理不再允许的系统上下文
-      if (prev.system_context_id && !allowedScIds.has(prev.system_context_id)) {
-        next.system_context_id = undefined;
-      }
+      next.system_context_id = undefined;
       return next;
     });
-  }, [selectedAppIds, mcpConfigs, systemContexts]);
+  }, [selectedAppIds]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -284,8 +268,9 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
       mcp_config_ids: Array.isArray(agent.mcp_config_ids) ? agent.mcp_config_ids : [],
       system_context_id: agent.system_context_id,
     });
-    // 初始化应用多选（若 agent 对象包含 appIds 则使用，否则默认空）
-    setSelectedAppIds(Array.isArray((agent as any).appIds) ? (agent as any).appIds : []);
+    // 初始化应用多选，统一使用后端字段 app_ids
+    skipResetOnHydration.current = true;
+    setSelectedAppIds(Array.isArray((agent as any).app_ids) ? (agent as any).app_ids : []);
   };
 
   const getModelName = (id: string) => {
@@ -402,7 +387,7 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">选择 MCP 配置（多选）</label>
                 <div className="space-y-2 max-h-40 overflow-y-auto p-2 border rounded-md">
-                  {(selectedAppIds.length ? mcpConfigs.filter((c: any) => Array.isArray((c as any).appIds) && (c as any).appIds.some((id: string) => selectedAppIds.includes(id))) : mcpConfigs).map((c: any) => (
+                  {(selectedAppIds.length ? mcpConfigs.filter((c: any) => Array.isArray((c as any).app_ids) && (c as any).app_ids.some((id: string) => selectedAppIds.includes(id))) : mcpConfigs).map((c: any) => (
                     <label key={c.id} className="flex items-center space-x-2">
                       <input
                         type="checkbox"
@@ -420,7 +405,7 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
                       <span>{c.name}</span>
                     </label>
                   ))}
-                  {selectedAppIds.length > 0 && mcpConfigs.filter((c: any) => Array.isArray((c as any).appIds) && (c as any).appIds.some((id: string) => selectedAppIds.includes(id))).length === 0 && (
+                  {selectedAppIds.length > 0 && mcpConfigs.filter((c: any) => Array.isArray((c as any).app_ids) && (c as any).app_ids.some((id: string) => selectedAppIds.includes(id))).length === 0 && (
                     <div className="text-xs text-muted-foreground">所选应用下暂无 MCP 配置</div>
                   )}
                 </div>
@@ -434,12 +419,12 @@ const AgentManager: React.FC<AgentManagerProps> = ({ onClose, store: externalSto
                   className="w-full px-3 py-2 border border-input bg-background text-foreground rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
                 >
                   <option value="">不使用</option>
-                  {(selectedAppIds.length ? systemContexts.filter((sc: any) => Array.isArray((sc as any).appIds) && (sc as any).appIds.some((id: string) => selectedAppIds.includes(id))) : systemContexts).map((sc: any) => (
+                  {(selectedAppIds.length ? systemContexts.filter((sc: any) => Array.isArray((sc as any).app_ids) && (sc as any).app_ids.some((id: string) => selectedAppIds.includes(id))) : systemContexts).map((sc: any) => (
                     <option key={sc.id} value={sc.id}>
                       {sc.name}
                     </option>
                   ))}
-                  {selectedAppIds.length > 0 && systemContexts.filter((sc: any) => Array.isArray((sc as any).appIds) && (sc as any).appIds.some((id: string) => selectedAppIds.includes(id))).length === 0 && (
+                  {selectedAppIds.length > 0 && systemContexts.filter((sc: any) => Array.isArray((sc as any).app_ids) && (sc as any).app_ids.some((id: string) => selectedAppIds.includes(id))).length === 0 && (
                     <option value="" disabled>所选应用下暂无系统上下文</option>
                   )}
                 </select>

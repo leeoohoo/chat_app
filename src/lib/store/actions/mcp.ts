@@ -15,14 +15,8 @@ export function createMcpActions({ set, get, client, getUserIdParam }: Deps) {
         const userId = getUserIdParam();
         const configs = await client.getMcpConfigs(userId);
 
-        const merged = (configs as any[]).map((c: any) => ({
-          ...c,
-          // 仅使用后端返回的关联应用
-          appIds: Array.isArray(c.app_ids) ? c.app_ids : []
-        }));
-
         set((state: any) => {
-          state.mcpConfigs = merged as McpConfig[];
+          state.mcpConfigs = configs as McpConfig[];
         });
       } catch (error) {
         console.error('Failed to load MCP configs:', error);
@@ -53,8 +47,8 @@ export function createMcpActions({ set, get, client, getUserIdParam }: Deps) {
             cwd: (config as any).cwd ?? undefined,
             enabled: (config as any).enabled,
             userId,
-            // 发送关联应用到后端
-            app_ids: Array.isArray((config as any).appIds) ? (config as any).appIds : undefined,
+            // 发送关联应用到后端（统一使用下划线）
+            app_ids: Array.isArray((config as any).app_ids) ? (config as any).app_ids : undefined,
           };
           console.log('🔍 updateMcpConfig 更新数据:', updateData);
           saved = await (client as any).updateMcpConfig((config as any).id, updateData);
@@ -69,7 +63,7 @@ export function createMcpActions({ set, get, client, getUserIdParam }: Deps) {
             cwd: (config as any).cwd ?? undefined,
             enabled: (config as any).enabled,
             user_id: userId,
-            app_ids: Array.isArray((config as any).appIds) ? (config as any).appIds : undefined,
+            app_ids: Array.isArray((config as any).app_ids) ? (config as any).app_ids : undefined,
           };
           saved = await (client as any).createMcpConfig(createData);
         }
@@ -79,10 +73,10 @@ export function createMcpActions({ set, get, client, getUserIdParam }: Deps) {
         const targetId = (saved as any)?.id ?? (config as any).id;
         const returnedIds: string[] = Array.isArray((saved as any)?.app_ids)
           ? (saved as any).app_ids
-          : (Array.isArray((config as any).appIds) ? (config as any).appIds : []);
+          : (Array.isArray((config as any).app_ids) ? (config as any).app_ids : []);
         set((state: any) => {
           state.mcpConfigs = state.mcpConfigs.map((c: any) => (
-            c.id === targetId ? { ...c, appIds: returnedIds } : c
+            c.id === targetId ? { ...c, app_ids: returnedIds } : c
           ));
         });
 

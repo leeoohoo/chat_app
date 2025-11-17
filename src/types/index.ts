@@ -55,7 +55,7 @@ export interface SystemContext {
   createdAt: Date;
   updatedAt: Date;
   // 关联的应用（不选择表示通用）
-  appIds?: string[];
+  app_ids?: string[];
 }
 
 // 附件接口
@@ -111,7 +111,7 @@ export interface McpConfig {
   createdAt: Date;
   updatedAt: Date;
   // 关联的应用（不选择表示通用）
-  appIds?: string[];
+  app_ids?: string[];
 }
 
 // AI模型配置接口
@@ -136,7 +136,7 @@ export interface AgentConfig {
   createdAt: Date;
   updatedAt: Date;
   // 关联的应用（不选择表示通用）
-  appIds?: string[];
+  app_ids?: string[];
 }
 
 // AI客户端配置

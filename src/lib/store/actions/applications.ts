@@ -81,16 +81,16 @@ export function createApplicationActions({ set, get, client, getUserIdParam }: D
           // 仅更新内存中的关联，不再使用本地映射；MCP 关联由后端持久化
           state.mcpConfigs = state.mcpConfigs.map((c: any) => ({
             ...c,
-            appIds: Array.isArray(c.appIds) ? c.appIds.filter((aid: string) => aid !== id) : []
+            app_ids: Array.isArray(c.app_ids) ? c.app_ids.filter((aid: string) => aid !== id) : []
           }));
           // 其他类型（SystemContext/Agent）暂保持现状，待后端支持后统一切换
           state.systemContexts = state.systemContexts.map((c: any) => ({
             ...c,
-            appIds: Array.isArray(c.appIds) ? c.appIds.filter((aid: string) => aid !== id) : []
+            app_ids: Array.isArray(c.app_ids) ? c.app_ids.filter((aid: string) => aid !== id) : []
           }));
           state.agents = state.agents.map((a: any) => ({
             ...a,
-            appIds: Array.isArray(a.appIds) ? a.appIds.filter((aid: string) => aid !== id) : []
+            app_ids: Array.isArray(a.app_ids) ? a.app_ids.filter((aid: string) => aid !== id) : []
           }));
         });
       } catch (error) {
@@ -109,13 +109,13 @@ export function createApplicationActions({ set, get, client, getUserIdParam }: D
       // 仅更新内存中的选择，持久化通过保存 MCP 配置时由后端处理
       set((state: any) => {
         state.mcpConfigs = state.mcpConfigs.map((c: any) => (
-          c.id === mcpId ? { ...c, appIds: Array.isArray(appIds) ? appIds : [] } : c
+          c.id === mcpId ? { ...c, app_ids: Array.isArray(appIds) ? appIds : [] } : c
         ));
       });
     },
     setSystemContextAppAssociation: (contextId: string, appIds: string[]) => {
       set((state: any) => {
-        state.systemContexts = state.systemContexts.map((c: any) => (c.id === contextId ? { ...c, appIds: Array.isArray(appIds) ? appIds : [] } : c));
+        state.systemContexts = state.systemContexts.map((c: any) => (c.id === contextId ? { ...c, app_ids: Array.isArray(appIds) ? appIds : [] } : c));
       });
       // 后端持久化 app_ids（只更新关联，避免覆盖名称与内容）
       try {
@@ -126,7 +126,7 @@ export function createApplicationActions({ set, get, client, getUserIdParam }: D
     },
     setAgentAppAssociation: (agentId: string, appIds: string[]) => {
       set((state: any) => {
-        state.agents = state.agents.map((a: any) => (a.id === agentId ? { ...a, appIds: Array.isArray(appIds) ? appIds : [] } : a));
+        state.agents = state.agents.map((a: any) => (a.id === agentId ? { ...a, app_ids: Array.isArray(appIds) ? appIds : [] } : a));
       });
       // 后端持久化 app_ids 到 Agent
       try {

@@ -507,12 +507,8 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                     loadAgents: async () => {
                         try {
                             const agents = await client.getAgents(getUserIdParam());
-                            const merged = (agents || []).map((a: any) => ({
-                                ...a,
-                                appIds: Array.isArray((a as any).app_ids) ? (a as any).app_ids : []
-                            }));
                             set((state) => {
-                                state.agents = merged || [];
+                                state.agents = (agents || []) as any[];
                             });
                         } catch (error) {
                             console.error('Failed to load agents:', error);
@@ -542,9 +538,8 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                                 const updatedContexts = (contexts || []).map((ctx: any) => ({
                                     ...ctx,
                                     isActive: false,
-                                    appIds: Array.isArray((ctx as any).app_ids) ? (ctx as any).app_ids : []
                                 }));
-                                
+
                                 // 处理激活的上下文
                                 if (activeContextResponse && activeContextResponse.context) {
                                     const activeContext = activeContextResponse.context;
@@ -552,14 +547,14 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                                     const activeIndex = updatedContexts.findIndex(ctx => ctx.id === activeContext.id);
                                     if (activeIndex !== -1) {
                                         updatedContexts[activeIndex].isActive = true;
-                                        state.activeSystemContext = { ...updatedContexts[activeIndex], appIds: Array.isArray((activeContext as any).app_ids) ? (activeContext as any).app_ids : updatedContexts[activeIndex].appIds };
+                                        state.activeSystemContext = { ...updatedContexts[activeIndex] };
                                     } else {
                                         state.activeSystemContext = null;
                                     }
                                 } else {
                                     state.activeSystemContext = null;
                                 }
-                                
+
                                 state.systemContexts = updatedContexts;
                             });
                         } catch (error) {
