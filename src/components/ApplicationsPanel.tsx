@@ -22,16 +22,14 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ isOpen, onClose, 
 
   const {
     applications,
-    selectedApplicationId,
     loadApplications,
-    setSelectedApplication,
     createApplication,
     updateApplication,
     deleteApplication,
   } = storeData;
 
   const popupWindowsRef = useRef<Map<string, Window>>(new Map());
-  const [failedIframeApps, setFailedIframeApps] = useState<Set<string>>(new Set());
+  // 已移除 iframe 降级与选择逻辑，仅保留弹窗打开
   const [showManageMode, setShowManageMode] = useState(manageOnly ? true : false);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -77,7 +75,6 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ isOpen, onClose, 
     if (existingWindow && !existingWindow.closed) {
       console.log('[ApplicationsPanel] reuse existing popup window, focusing');
       existingWindow.focus();
-      setSelectedApplication?.(app.id);
     } else {
       const screenWidth = window.screen.width;
       const screenHeight = window.screen.height;
@@ -92,7 +89,6 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ isOpen, onClose, 
       if (newWindow) {
         console.log('[ApplicationsPanel] popup opened successfully');
         popupWindowsRef.current.set(app.id, newWindow);
-        setSelectedApplication?.(app.id);
         try {
           newWindow.focus();
         } catch (e) {
@@ -103,9 +99,6 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ isOpen, onClose, 
           if (newWindow.closed) {
             console.log('[ApplicationsPanel] popup window closed');
             popupWindowsRef.current.delete(app.id);
-            if (selectedApplicationId === app.id) {
-              setSelectedApplication?.(null);
-            }
             clearInterval(checkInterval);
           }
         }, 1000);
@@ -123,44 +116,16 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ isOpen, onClose, 
       existingWindow.close();
     }
     popupWindowsRef.current.delete(appId);
-    if (selectedApplicationId === appId) {
-      setSelectedApplication?.(null);
-    }
   };
 
   // 处理应用点击
   const handleAppClick = (app: any) => {
-    console.log('[ApplicationsPanel] handleAppClick:', { id: app.id, name: app.name, url: app.url });
-    // 如果之前iframe失败过，直接用弹窗
-    if (failedIframeApps.has(app.id)) {
-      console.log('[ApplicationsPanel] prior iframe failure detected -> open popup');
-      openAppWindow(app);
-    } else {
-      // 先尝试iframe模式
-      console.log('[ApplicationsPanel] try iframe mode -> setSelectedApplication', app.id);
-      setSelectedApplication?.(app.id);
-    }
+    console.log('[ApplicationsPanel] handleAppClick (disabled):', { id: app.id, name: app.name, url: app.url });
+    // 点击应用不再打开任何窗口或标签页
+    // 保留占位以便未来扩展为“高亮/详情”等非跳转行为
   };
 
-  // 监听iframe失败事件（从window事件）
-  useEffect(() => {
-    const handleIframeError = (event: CustomEvent) => {
-      console.warn('[ApplicationsPanel] iframe-load-error event received:', event?.detail);
-      const appId = event.detail.appId;
-      setFailedIframeApps(prev => new Set(prev).add(appId));
-      // 自动切换到弹窗模式
-      const app = applications?.find((a: any) => a.id === appId);
-      if (app) {
-        console.log('[ApplicationsPanel] fallback -> openAppWindow for appId:', appId);
-        openAppWindow(app);
-      }
-    };
-
-    window.addEventListener('iframe-load-error' as any, handleIframeError as any);
-    return () => {
-      window.removeEventListener('iframe-load-error' as any, handleIframeError as any);
-    };
-  }, [applications]);
+  // 已移除 iframe 错误监听与降级逻辑
 
   const shouldRender = layout === 'modal' ? !!isOpen : true;
   if (!shouldRender) return null;
@@ -191,11 +156,10 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ isOpen, onClose, 
                   {effectiveManageMode ? '浏览模式' : '管理模式'}
                 </button>
               )}
-              {!effectiveManageMode && (selectedApplicationId || popupWindowsRef.current.size > 0) && (
+              {!effectiveManageMode && (popupWindowsRef.current.size > 0) && (
                 <button
                   className="px-3 py-1.5 text-sm rounded bg-muted hover:bg-accent"
                   onClick={() => {
-                    setSelectedApplication?.(null);
                     popupWindowsRef.current.forEach((_, appId) => closeAppWindow(appId));
                   }}
                 >关闭全部</button>
@@ -322,9 +286,7 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ isOpen, onClose, 
             <div className="grid grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-6">
               {applications?.map((app: any) => {
                 const isOpenInPopup = popupWindowsRef.current.has(app.id);
-                const isOpenInIframe = selectedApplicationId === app.id && !isOpenInPopup;
-                const usesPopup = failedIframeApps.has(app.id);
-
+                
                 return (
                   <div key={app.id} className="relative group/item">
                     <button
@@ -333,7 +295,7 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ isOpen, onClose, 
                       title={app.url || ''}
                     >
                       <div className={`relative w-16 h-16 rounded-full flex items-center justify-center overflow-hidden transition-all ${
-                        (isOpenInIframe || isOpenInPopup)
+                        isOpenInPopup
                           ? 'ring-2 ring-green-500 ring-offset-2 ring-offset-background scale-110'
                           : 'bg-gradient-to-br from-blue-500/20 to-purple-500/20 group-hover/item:scale-105'
                       }`}>
@@ -346,17 +308,9 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ isOpen, onClose, 
                             </span>
                           </div>
                         )}
-                        {(isOpenInIframe || isOpenInPopup) && (
+                        {isOpenInPopup && (
                           <div className="absolute -top-1 -right-1 w-5 h-5 bg-green-500 rounded-full border-2 border-background flex items-center justify-center">
                             <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                          </div>
-                        )}
-                        {/* 显示模式标识 */}
-                        {usesPopup && (
-                          <div className="absolute -bottom-1 -left-1 w-4 h-4 bg-blue-500 rounded-full border-2 border-background flex items-center justify-center" title="弹窗模式">
-                            <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                            </svg>
                           </div>
                         )}
                       </div>
@@ -364,15 +318,11 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ isOpen, onClose, 
                         {app.name}
                       </div>
                     </button>
-                    {(isOpenInIframe || isOpenInPopup) && (
+                    {isOpenInPopup && (
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (isOpenInPopup) {
-                            closeAppWindow(app.id);
-                          } else {
-                            setSelectedApplication?.(null);
-                          }
+                          closeAppWindow(app.id);
                         }}
                         className="absolute top-0 left-0 w-5 h-5 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center opacity-0 group-hover/item:opacity-100 transition-opacity z-10"
                         title="关闭"
@@ -428,11 +378,10 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ isOpen, onClose, 
               {effectiveManageMode ? '浏览模式' : '管理模式'}
             </button>
           )}
-          {!effectiveManageMode && (selectedApplicationId || popupWindowsRef.current.size > 0) && (
+          {!effectiveManageMode && (popupWindowsRef.current.size > 0) && (
             <button
               className="px-2 py-1 text-xs rounded bg-muted hover:bg-accent"
               onClick={() => {
-                setSelectedApplication?.(null);
                 popupWindowsRef.current.forEach((_, appId) => closeAppWindow(appId));
               }}
             >关闭全部</button>
@@ -572,8 +521,6 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ isOpen, onClose, 
           <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {applications?.map((app: any) => {
               const isOpenInPopup = popupWindowsRef.current.has(app.id);
-              const isOpenInIframe = selectedApplicationId === app.id && !isOpenInPopup;
-              const usesPopup = failedIframeApps.has(app.id);
 
               return (
                 <div key={app.id} className="relative group/item">
@@ -583,7 +530,7 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ isOpen, onClose, 
                     title={app.url || ''}
                   >
                     <div className={`relative w-14 h-14 rounded-full flex items-center justify-center overflow-hidden transition-all ${
-                      (isOpenInIframe || isOpenInPopup)
+                      isOpenInPopup
                         ? 'ring-2 ring-green-500 ring-offset-2 ring-offset-background scale-105'
                         : 'bg-gradient-to-br from-blue-500/20 to-purple-500/20 group-hover/item:scale-105'
                     }`}>
@@ -600,15 +547,11 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ isOpen, onClose, 
                     <div className="text-xs font-medium text-foreground truncate max-w-full">{app.name}</div>
                     {app.url && <div className="text-[10px] text-muted-foreground truncate max-w-full">{app.url}</div>}
                   </button>
-                  {(isOpenInPopup || isOpenInIframe || usesPopup) && (
+                  {isOpenInPopup && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (isOpenInPopup) {
-                          closeAppWindow(app.id);
-                        } else {
-                          setSelectedApplication?.(null);
-                        }
+                        closeAppWindow(app.id);
                       }}
                       className="absolute top-0 left-0 w-4 h-4 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center opacity-0 group-hover/item:opacity-100 transition-opacity z-10"
                       title="关闭"

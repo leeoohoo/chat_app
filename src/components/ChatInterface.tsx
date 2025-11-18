@@ -42,6 +42,12 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
   } = useChatStoreFromContext();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const webviewRef = useRef<any>(null);
+  const isElectron = typeof navigator !== 'undefined' && (
+    navigator.userAgent.toLowerCase().includes('electron') ||
+    (window as any)?.process?.versions?.electron
+  );
   const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);
   const [showMcpManager, setShowMcpManager] = useState(false);
   const [showAiModelManager, setShowAiModelManager] = useState(false);
@@ -73,6 +79,57 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages, isStreaming]);
+
+  // 在关闭或切换应用时，主动清理 iframe/webview，终止网络请求
+  useEffect(() => {
+    return () => {
+      try {
+        if (iframeRef.current) {
+          iframeRef.current.src = 'about:blank';
+        }
+        if (webviewRef.current && isElectron) {
+          try {
+            webviewRef.current.removeAttribute('src');
+          } catch {}
+        }
+      } catch {}
+    };
+  }, [selectedApplicationId]);
+
+  // Electron 环境：绑定 webview 事件，处理成功/失败和降级
+  useEffect(() => {
+    if (!isElectron) return;
+    const webviewEl = webviewRef.current;
+    if (!webviewEl) return;
+
+    const handleDidFinishLoad = () => {
+      try {
+        console.log('[ChatInterface] webview did-finish-load for app:', selectedApplicationId);
+      } catch {}
+    };
+
+    const handleDidFailLoad = (event: any) => {
+      try {
+        const message = String(event?.errorDescription || 'webview did-fail-load');
+        console.warn('[ChatInterface] webview did-fail-load:', message);
+        const appId = selectedApplicationId;
+        if (appId) {
+          const evt = new CustomEvent('iframe-load-error', { detail: { appId, error: message } });
+          window.dispatchEvent(evt as any);
+        }
+      } catch {}
+    };
+
+    webviewEl.addEventListener('did-finish-load', handleDidFinishLoad as any);
+    webviewEl.addEventListener('did-fail-load', handleDidFailLoad as any);
+
+    return () => {
+      try {
+        webviewEl.removeEventListener('did-finish-load', handleDidFinishLoad as any);
+        webviewEl.removeEventListener('did-fail-load', handleDidFailLoad as any);
+      } catch {}
+    };
+  }, [isElectron, selectedApplicationId]);
 
   // 根据iframe宽度自动计算缩放比例
   useEffect(() => {
@@ -225,7 +282,7 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         <div className="flex flex-1 overflow-hidden">
           {/* 已移除左侧应用抽屉面板，改为弹窗 */}
 
-          {/* iframe区域 - 显示选中的应用 */}
+          {/* 嵌入区域 - Electron 使用 webview；Web 使用 iframe */}
           {selectedApp && selectedApp.url && (
             <>
               <div
@@ -288,65 +345,75 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
                     </button>
                   </div>
                 </div>
-                {/* iframe内容 */}
+                {/* 嵌入内容 */}
                 <div className="flex-1 relative bg-white overflow-hidden">
-                  <div
-                    style={{
-                      transform: `scale(${iframeScale})`,
-                      transformOrigin: 'top left',
-                      width: `${targetWidth}px`,
-                      height: `${100 / iframeScale}%`,
-                    }}
-                  >
-                    <iframe
-                      src={selectedApp.url}
-                      className="w-full h-full border-0"
-                      title={selectedApp.name}
-                      sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
-                      onError={() => {
-                        console.error('iframe加载失败', selectedApp.id);
-                        // 发送自定义事件通知ApplicationsPanel切换到弹窗模式
-                        window.dispatchEvent(new CustomEvent('iframe-load-error', {
-                          detail: { appId: selectedApp.id }
-                        }));
+                  {isElectron ? (
+                    // Electron: 使用 webview 以绕过 X-Frame-Options/frame-ancestors 等限制
+                    <div style={{ width: '100%', height: '100%' }}>
+                      <webview
+                        ref={webviewRef}
+                        src={selectedApp.url}
+                        style={{ width: '100%', height: '100%' }}
+                        allowpopups
+                        key={selectedApp.id}
+                      />
+                    </div>
+                  ) : (
+                    <div
+                      style={{
+                        transform: `scale(${iframeScale})`,
+                        transformOrigin: 'top left',
+                        width: `${targetWidth}px`,
+                        height: `${100 / iframeScale}%`,
                       }}
-                      onLoad={(e) => {
-                        setTimeout(() => {
-                          try {
-                            const iframe = e.currentTarget;
-                            // 尝试访问iframe的contentWindow，如果被CSP阻止会抛出错误
-                            if (iframe.contentWindow) {
-                              const doc = iframe.contentWindow.document;
-                              // 尝试访问document的某个属性，确保没有被CSP阻止
-                              const title = doc.title;
-                              console.log('iframe加载成功:', title);
-                            }
-                          } catch (err: any) {
-                            // 只有真正的安全策略错误才触发弹窗
-                            const isSecurityError =
-                              err.name === 'SecurityError' ||
-                              err.name === 'DOMException' ||
-                              (err.message && (
-                                err.message.includes('cross-origin') ||
-                                err.message.includes('X-Frame-Options') ||
-                                err.message.includes('frame-ancestors') ||
-                                err.message.includes('Blocked a frame')
-                              ));
+                    >
+                      <iframe
+                        src={selectedApp.url}
+                        className="w-full h-full border-0"
+                        title={selectedApp.name}
+                        ref={iframeRef}
+                        sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
+                        onError={() => {
+                          console.error('iframe加载失败', selectedApp.id);
+                          window.dispatchEvent(new CustomEvent('iframe-load-error', {
+                            detail: { appId: selectedApp.id, error: 'Iframe onError' }
+                          }));
+                        }}
+                        onLoad={(e) => {
+                          setTimeout(() => {
+                            try {
+                              const iframe = e.currentTarget as HTMLIFrameElement;
+                              // 尝试访问iframe的contentWindow，如果被CSP阻止会抛出错误
+                              const cw = iframe.contentWindow;
+                              const doc = cw?.document;
+                              const title = doc?.title;
+                              void title;
+                              console.log('iframe加载成功');
+                            } catch (err: any) {
+                              const msg = err?.message || '';
+                              const isSecurityError =
+                                err.name === 'SecurityError' ||
+                                err.name === 'DOMException' ||
+                                msg.includes('cross-origin') ||
+                                msg.includes('X-Frame-Options') ||
+                                msg.includes('frame-ancestors') ||
+                                msg.includes('Blocked a frame') ||
+                                msg.includes('Refused to display');
 
-                            if (isSecurityError) {
-                              console.error('iframe被安全策略阻止:', err);
-                              // 发送自定义事件通知ApplicationsPanel切换到弹窗模式
-                              window.dispatchEvent(new CustomEvent('iframe-load-error', {
-                                detail: { appId: selectedApp.id }
-                              }));
-                            } else {
-                              console.warn('iframe访问失败，但可能不是CSP问题:', err);
+                              if (isSecurityError) {
+                                console.error('iframe被安全策略阻止:', err);
+                                window.dispatchEvent(new CustomEvent('iframe-load-error', {
+                                  detail: { appId: selectedApp.id, error: msg }
+                                }));
+                              } else {
+                                console.warn('iframe访问失败，但可能不是CSP问题:', err);
+                              }
                             }
-                          }
-                        }, 1000); // 增加延迟到1秒，给iframe更多加载时间
-                      }}
-                    />
-                  </div>
+                          }, 1000);
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
               <div

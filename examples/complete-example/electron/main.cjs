@@ -309,6 +309,10 @@ function createWindow() {
             nodeIntegration: false,
             contextIsolation: true,
             webSecurity: false,
+            // 允许在渲染进程使用 <webview> 标签，以替代 iframe 进行页面嵌入
+            webviewTag: true,
+            // 让 window.open 在 Electron 中创建原生 BrowserWindow（更符合预期）
+            nativeWindowOpen: true,
         },
         title: 'AI Chat Example',
     });

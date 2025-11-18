@@ -1,6 +1,7 @@
 import React from 'react';
 import { StandaloneChatInterface } from '../components/StandaloneChatInterface';
 import { createChatStoreWithBackend } from './store/createChatStoreWithBackend';
+import type { Application } from '../types';
 import ApiClient from './api/client';
 
 export interface AiChatConfig {
@@ -151,6 +152,42 @@ export class AiChat {
    */
   getApiClient(): ApiClient {
     return this.apiClient;
+  }
+
+  /**
+   * 获取当前选中的应用对象
+   */
+  getSelectedApplication(): Application | null {
+    const state = this.store.getState();
+    const id = state.selectedApplicationId;
+    if (!id) return null;
+    return state.applications.find(app => app.id === id) || null;
+  }
+
+  /**
+   * 获取当前选中的应用 URL
+   */
+  getSelectedApplicationUrl(): string | null {
+    const app = this.getSelectedApplication();
+    return app ? app.url : null;
+  }
+
+  /**
+   * 订阅应用选择变化（实时回调当前应用对象），返回取消订阅函数
+   */
+  subscribeSelectedApplication(
+    listener: (app: Application | null) => void
+  ): () => void {
+    // 使用 subscribeWithSelector 提供的选择器订阅 selectedApplicationId 的变化
+    const unsubscribe = this.store.subscribe(
+      (s) => s.selectedApplicationId,
+      (_newId, _oldId) => {
+        listener(this.getSelectedApplication());
+      }
+    );
+    // 立即推送当前值，保证首次订阅就拿到状态
+    listener(this.getSelectedApplication());
+    return unsubscribe;
   }
 }
 

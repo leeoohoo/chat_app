@@ -4,6 +4,7 @@
 
 import  { useEffect, useState } from 'react';
 import { AiChat } from '@leeoohoo/aichat';
+import type { Application } from '@leeoohoo/aichat';
 import '@leeoohoo/aichat/styles';
 
 /**
@@ -14,6 +15,8 @@ function App() {
   const [aiChatInstance, setAiChatInstance] = useState<AiChat | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedApp, setSelectedApp] = useState<Application | null>(null);
+  const [isElectron, setIsElectron] = useState<boolean>(false);
 
   useEffect(() => {
     try {
@@ -73,7 +76,6 @@ function App() {
       console.log('✅ 验证自定义参数:');
       console.log('  - 用户ID:', config.userId, '(期望: custom_user_125)');
       console.log('  - 项目ID:', config.projectId, '(期望: custom_project_456)');
-      console.log('  - API URL:', config.baseUrl, `(期望: ${apiBase})`);
       
       // 验证 API 客户端是否使用了正确的 baseUrl
       const apiClient = aiChat.getApiClient();
@@ -83,20 +85,39 @@ function App() {
       // 验证参数是否正确传递
       const isUserIdCorrect = config.userId === 'custom_user_125';
       const isProjectIdCorrect = config.projectId === 'custom_project_456';
-      const isBaseUrlCorrect = config.baseUrl === apiBase;
       const isApiClientBaseUrlCorrect = apiClient.getBaseUrl() === apiBase;
       
       console.log('🔍 参数验证结果:');
       console.log('  ✅ 用户ID正确:', isUserIdCorrect);
       console.log('  ✅ 项目ID正确:', isProjectIdCorrect);
-      console.log('  ✅ API URL正确:', isBaseUrlCorrect);
       console.log('  ✅ API客户端URL正确:', isApiClientBaseUrlCorrect);
       
-      if (isUserIdCorrect && isProjectIdCorrect && isBaseUrlCorrect && isApiClientBaseUrlCorrect) {
+      if (isUserIdCorrect && isProjectIdCorrect && isApiClientBaseUrlCorrect) {
         console.log('🎉 所有自定义参数都被正确传递和使用！');
       } else {
         console.warn('⚠️ 某些参数可能没有被正确传递');
       }
+
+      // 加载应用列表，并订阅所选应用实时变化
+      const store = aiChat.getStore();
+      store.getState().loadApplications().catch(err => {
+      
+        console.warn('⚠️ 加载应用列表失败:', err);
+      });
+      debugger
+      const unsubscribe = aiChat.subscribeSelectedApplication((app) => {
+        setSelectedApp(app);
+      });
+
+      // 检测 Electron 环境（用于外部渲染 webview）
+      const nav = typeof navigator !== 'undefined' ? navigator.userAgent.toLowerCase() : '';
+      const isElectronDetected = typeof (window as any).process !== 'undefined' && !!(window as any).process.versions?.electron || nav.includes('electron');
+      setIsElectron(!!isElectronDetected);
+
+      // 清理订阅
+      return () => {
+        unsubscribe?.();
+      };
     } catch (err) {
       console.error('❌ AiChat 实例创建失败:', err);
       setError(err instanceof Error ? err.message : '未知错误');
@@ -138,6 +159,39 @@ function App() {
       <div className="h-full max-w-6xl mx-auto bg-white shadow-lg">
         {/* 使用 AiChat 实例的 render 方法 */}
         {aiChatInstance.render()}
+
+        {/* 外部渲染：当前所选应用 */}
+        <div className="border-t border-gray-200">
+          <div className="px-4 py-2 text-sm text-gray-500 flex items-center gap-2">
+            <span>当前应用:</span>
+            {selectedApp ? (
+              <span className="text-gray-800 font-medium">{selectedApp.name}</span>
+            ) : (
+              <span className="italic">未选择</span>
+            )}
+          </div>
+          {selectedApp && (
+            <div className="h-[360px] w-full bg-gray-50">
+              {isElectron ? (
+                // Electron 环境：使用 webview
+                // @ts-ignore - 定义已在全局 d.ts 中
+                <webview
+                  src={selectedApp.url}
+                  style={{ width: '100%', height: '100%' }}
+                  allowpopups
+                />
+              ) : (
+                // 浏览器环境：使用 iframe
+                <iframe
+                  src={selectedApp.url}
+                  className="w-full h-full border-0"
+                  sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                  referrerPolicy="no-referrer"
+                />
+              )}
+            </div>
+          )}
+        </div>
       </div>
       
       {/* 应用信息 */}
