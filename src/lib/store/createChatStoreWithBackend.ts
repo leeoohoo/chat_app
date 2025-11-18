@@ -1,5 +1,4 @@
 import {create} from 'zustand';
-import {subscribeWithSelector} from 'zustand/middleware';
 import {immer} from 'zustand/middleware/immer';
 import {persist} from 'zustand/middleware';
 import type {Message, Session, ChatConfig, Theme, McpConfig, AiModelConfig, SystemContext, AgentConfig, Application} from '../../types';
@@ -144,12 +143,11 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
     const messageManager = new MessageManager(databaseService);
     const chatService = new ChatService(userId, projectId, messageManager, configUrl);
     console.log("chatService:", chatService)
-    
-    return create<ChatState & ChatActions>()
-    (subscribeWithSelector(
+
+    return create<ChatState & ChatActions>()(
         immer(
             persist(
-                (set, get) => ({
+                    (set, get) => ({
                     // 初始状态
                     sessions: [],
                     currentSessionId: null,
@@ -499,7 +497,7 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                     ...createMcpActions({ set, get, client, getUserIdParam }),
 
                     // 应用管理（拆分到独立模块）
-                    ...createApplicationActions({ set, client, getUserIdParam }),
+                    ...createApplicationActions({ set, get, client, getUserIdParam }),
 
                     // AI模型管理（拆分到独立模块）
                     ...createAiModelActions({ set, get, client, getUserIdParam }),
@@ -667,7 +665,6 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                     }),
                 }
             )
-        )
     ));
 }
 

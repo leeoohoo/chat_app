@@ -12,6 +12,7 @@ import AgentManager from './AgentManager';
 import ApplicationsPanel from '@/components/ApplicationsPanel';
 import { cn } from '../lib/utils';
 import ApiClient from '../lib/api/client';
+import type { Application } from '../types';
 
 export interface StandaloneChatInterfaceProps {
   className?: string;
@@ -23,8 +24,8 @@ export interface StandaloneChatInterfaceProps {
   showAiModelManager?: boolean;
   showSystemContextEditor?: boolean;
   showAgentManager?: boolean;
-  // 控制是否显示“应用列表”按钮
-  showApplicationsButton?: boolean;
+  // 应用选择回调：当用户点击应用时调用。如果未提供，则不显示应用列表按钮
+  onApplicationSelect?: (app: Application) => void;
 }
 
 /**
@@ -41,7 +42,7 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
   showAiModelManager = true,
   showSystemContextEditor = true,
   showAgentManager = true,
-  showApplicationsButton = true,
+  onApplicationSelect,
 }) => {
   // 根据传入的port或apiBaseUrl创建自定义的API基础URL
   const customApiBaseUrl = React.useMemo(() => {
@@ -70,7 +71,7 @@ export const StandaloneChatInterface: React.FC<StandaloneChatInterfaceProps> = (
         showAiModelManager={showAiModelManager}
         showSystemContextEditor={showSystemContextEditor}
         showAgentManager={showAgentManager}
-        showApplicationsButton={showApplicationsButton}
+        onApplicationSelect={onApplicationSelect}
       />
     </ChatStoreProvider>
   );
@@ -85,14 +86,14 @@ const StandaloneChatContent: React.FC<{
   showAiModelManager: boolean;
   showSystemContextEditor: boolean;
   showAgentManager: boolean;
-  showApplicationsButton: boolean;
+  onApplicationSelect?: (app: Application) => void;
 }> = ({
   className,
   showMcpManager,
   showAiModelManager,
   showSystemContextEditor,
   showAgentManager,
-  showApplicationsButton,
+  onApplicationSelect,
 }) => {
   const store = useChatStoreContext();
   const {
@@ -180,8 +181,8 @@ const StandaloneChatContent: React.FC<{
         </div>
 
         <div className="flex items-center gap-2">
-          {/* 应用列表按钮（弹窗） */}
-          {showApplicationsButton && (
+          {/* 应用列表按钮（弹窗） - 只有提供了回调才显示 */}
+          {onApplicationSelect && (
             <button
               onClick={() => {
                 console.log('[StandaloneChat] open ApplicationsPanel button clicked');
@@ -314,7 +315,13 @@ const StandaloneChatContent: React.FC<{
       <SessionList isOpen={isSessionModalOpen} onClose={() => setIsSessionModalOpen(false)} store={store} />
 
       {/* 应用列表（弹窗） */}
-      <ApplicationsPanel isOpen={showAppPanel} onClose={() => setShowAppPanel(false)} title="应用列表" layout="modal" />
+      <ApplicationsPanel
+        isOpen={showAppPanel}
+        onClose={() => setShowAppPanel(false)}
+        title="应用列表"
+        layout="modal"
+        onApplicationSelect={onApplicationSelect}
+      />
 
       {/* MCP管理器模态框 */}
       {mcpManagerOpen && <McpManager onClose={() => setMcpManagerOpen(false)} store={store} />}

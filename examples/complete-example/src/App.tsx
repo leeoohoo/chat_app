@@ -17,29 +17,123 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
   const [isElectron, setIsElectron] = useState<boolean>(false);
+  const [leftPanelWidth, setLeftPanelWidth] = useState(384);
+  const [isDragging, setIsDragging] = useState(false);
+
+  // 处理拖动调整左侧面板宽度
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDragging) return;
+
+      const minWidth = 200;
+      const maxWidth = window.innerWidth * 0.7;
+      const newWidth = Math.min(Math.max(e.clientX, minWidth), maxWidth);
+      setLeftPanelWidth(newWidth);
+    };
+
+    const handleMouseUp = () => {
+      setIsDragging(false);
+    };
+
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isDragging]);
+
+  // 检测 Electron 环境
+  useEffect(() => {
+    const checkElectron = async () => {
+      const nav = typeof navigator !== 'undefined' ? navigator.userAgent.toLowerCase() : '';
+      const hasElectronProcess = typeof (window as any).process !== 'undefined' && !!(window as any).process.versions?.electron;
+      const hasElectronAPI = typeof (window as any).electronAPI !== 'undefined';
+      const isElectronEnv = hasElectronProcess || nav.includes('electron') || hasElectronAPI;
+
+      console.log('[App] Electron detection:', { hasElectronProcess, hasElectronAPI, isElectronEnv });
+      setIsElectron(isElectronEnv);
+    };
+
+    checkElectron();
+  }, []);
 
   useEffect(() => {
     try {
+      // 先检测 Electron 环境
+      const nav = typeof navigator !== 'undefined' ? navigator.userAgent.toLowerCase() : '';
+      const hasElectronProcess = typeof (window as any).process !== 'undefined' && !!(window as any).process.versions?.electron;
+      const hasElectronAPI = typeof (window as any).electronAPI !== 'undefined';
+      const isElectronEnv = hasElectronProcess || nav.includes('electron') || hasElectronAPI;
+
+      console.log('[App] Electron detection:', { hasElectronProcess, hasElectronAPI, isElectronEnv });
+      setIsElectron(isElectronEnv);
+
       // 统一使用环境变量控制后端 API 基础地址
       const apiBase = import.meta.env.VITE_API_BASE || 'http://localhost:8000/api';
-      // 通过环境变量控制是否显示“应用列表”按钮（默认显示）
-      const showApplicationsButton = (import.meta.env.VITE_SHOW_APPLICATIONS_BUTTON ?? 'true') === 'true';
 
       // 创建 AiChat 实例 - 完整功能版本
+      // 最后一个参数是应用选择回调函数
       const aiChat = new AiChat(
         'custom_user_127',
         'custom_project_456',
         apiBase,
         'h-full w-full',
-        true,
-        true,
-        true,
-        true,
-        showApplicationsButton
+        true,  // showMcpManager
+        true,  // showAiModelManager
+        true,  // showSystemContextEditor
+        true,  // showAgentManager
+        (app) => {  // onApplicationSelect 回调
+          console.log('[App] 📢 应用被选择:', app);
+          setSelectedApp(app);
+
+          // 检测 Electron 环境并处理
+          const hasElectronAPI = typeof (window as any).electronAPI !== 'undefined';
+          const hasElectronProcess = typeof (window as any).process !== 'undefined' && !!(window as any).process.versions?.electron;
+          const currentIsElectron = hasElectronAPI || hasElectronProcess;
+
+          console.log('[App] 🔍 环境检测:', {
+            hasElectronAPI,
+            hasElectronProcess,
+            currentIsElectron,
+            appData: { id: app.id, name: app.name, url: app.url }
+          });
+
+          // ✨ 在这里你可以自己决定如何处理应用打开
+          if (currentIsElectron && hasElectronAPI) {
+            console.log('[App] Electron 环境 - 可以调用 electronAPI.openAppWindow');
+            // 取消注释下面的代码来启用自动打开：
+            /*
+            (window as any).electronAPI.openAppWindow({
+              id: app.id,
+              name: app.name,
+              url: app.url,
+              iconUrl: app.iconUrl,
+            }).then((result: any) => {
+              if (result.success) {
+                console.log('[App] ✅ Electron 窗口打开成功:', app.name);
+              }
+            });
+            */
+          } else if (!currentIsElectron) {
+            console.log('[App] 浏览器环境 - 应用选择已记录:', app.name);
+            // 🔧 在浏览器环境，你可以选择：
+            // - 使用 window.open 打开新窗口
+            // - 在页面底部的 iframe 中显示
+            // - 或者其他自定义行为
+          }
+        }
       );
 
       // 其他配置示例：
-      
+
       // 1. 简化聊天版本（隐藏所有管理模块）
       // const simpleChatInstance = new AiChat(
       //   'simple_user', 'simple_project', 'http://localhost:8000/api', 'h-full w-full',
@@ -70,66 +164,37 @@ function App() {
 
       console.log('🎉 AiChat 实例创建成功！');
       console.log('配置信息:', aiChat.getConfig());
-      
+
       // 验证自定义参数是否被正确使用
       const config = aiChat.getConfig();
       console.log('✅ 验证自定义参数:');
       console.log('  - 用户ID:', config.userId, '(期望: custom_user_127)');
       console.log('  - 项目ID:', config.projectId, '(期望: custom_project_456)');
-      
+
       // 验证 API 客户端是否使用了正确的 baseUrl
       const apiClient = aiChat.getApiClient();
       console.log('  - API客户端baseUrl:', apiClient.getBaseUrl());
-      console.log('  - 显示应用列表按钮:', showApplicationsButton);
-      
+      console.log('  - 是否提供应用选择回调:', !!config.onApplicationSelect);
+
       // 验证参数是否正确传递
       const isUserIdCorrect = config.userId === 'custom_user_127';
       const isProjectIdCorrect = config.projectId === 'custom_project_456';
       const isApiClientBaseUrlCorrect = apiClient.getBaseUrl() === apiBase;
-      
+
       console.log('🔍 参数验证结果:');
       console.log('  ✅ 用户ID正确:', isUserIdCorrect);
       console.log('  ✅ 项目ID正确:', isProjectIdCorrect);
       console.log('  ✅ API客户端URL正确:', isApiClientBaseUrlCorrect);
-      
+
       if (isUserIdCorrect && isProjectIdCorrect && isApiClientBaseUrlCorrect) {
         console.log('🎉 所有自定义参数都被正确传递和使用！');
       } else {
         console.warn('⚠️ 某些参数可能没有被正确传递');
       }
-
-      // 加载应用列表，并订阅所选应用实时变化
-      const store = aiChat.getStore();
-      store.getState().loadApplications().catch(err => {
-      
-        console.warn('⚠️ 加载应用列表失败:', err);
-      });
-      
-      const unsubscribe = aiChat.subscribeSelectedApplication((app) => {
-        setSelectedApp(app);
-      });
-
-      // 检测 Electron 环境（用于外部渲染 webview）
-      const nav = typeof navigator !== 'undefined' ? navigator.userAgent.toLowerCase() : '';
-      const isElectronDetected = typeof (window as any).process !== 'undefined' && !!(window as any).process.versions?.electron || nav.includes('electron');
-      setIsElectron(!!isElectronDetected);
-
-      // 清理订阅
-      return () => {
-        unsubscribe?.();
-      };
     } catch (err) {
       console.error('❌ AiChat 实例创建失败:', err);
       setError(err instanceof Error ? err.message : '未知错误');
     }
-
-    // 清理函数
-    return () => {
-      if (aiChatInstance) {
-        console.log('🧹 清理 AiChat 实例');
-        setAiChatInstance(null);
-      }
-    };
   }, []);
 
   if (error) {
@@ -156,46 +221,64 @@ function App() {
 
   return (
     <div className="h-screen w-full bg-gray-50">
-      <div className="h-full max-w-6xl mx-auto bg-white shadow-lg">
-        {/* 使用 AiChat 实例的 render 方法 */}
-        {aiChatInstance.render()}
-
-        {/* 外部渲染：当前所选应用 */}
-        <div className="border-t border-gray-200">
-          <div className="px-4 py-2 text-sm text-gray-500 flex items-center gap-2">
-            <span>当前应用:</span>
-            {selectedApp ? (
-              <span className="text-gray-800 font-medium">{selectedApp.name}</span>
-            ) : (
-              <span className="italic">未选择</span>
-            )}
-          </div>
-          {selectedApp && (
-            <div className="h-[360px] w-full bg-gray-50">
-              {isElectron ? (
-                // Electron 环境：使用 webview
-                // @ts-ignore - 定义已在全局 d.ts 中
-                <webview
-                  key={selectedApp.url}
-                  src={selectedApp.url}
-                  style={{ width: '100%', height: '100%' }}
-                  allowpopups
-                />
-              ) : (
-                // 浏览器环境：使用 iframe
-                <iframe
-                  key={selectedApp.url}
-                  src={selectedApp.url}
-                  className="w-full h-full border-0"
-                  sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
-                  referrerPolicy="no-referrer"
-                />
-              )}
+      <div className="h-full max-w-6xl mx-auto bg-white shadow-lg flex">
+        {/* 左侧：选中的应用 */}
+        {selectedApp && (
+          <>
+            <div
+              className="border-r border-gray-200 flex flex-col"
+              style={{ width: `${leftPanelWidth}px` }}
+            >
+              <div className="px-4 py-2 border-b border-gray-200 text-sm text-gray-700 flex items-center justify-between">
+                <span className="font-medium">{selectedApp.name}</span>
+                <button
+                  onClick={() => setSelectedApp(null)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="flex-1 bg-gray-50">
+                {isElectron ? (
+                  // Electron 环境：使用 webview
+                  // @ts-ignore - 定义已在全局 d.ts 中
+                  <webview
+                    key={selectedApp.url}
+                    src={selectedApp.url}
+                    style={{ width: '100%', height: '100%' }}
+                    {...({ allowpopups: true } as any)}
+                  />
+                ) : (
+                  // 浏览器环境：使用 iframe
+                  <iframe
+                    key={selectedApp.url}
+                    src={selectedApp.url}
+                    className="w-full h-full border-0"
+                    sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                    referrerPolicy="no-referrer"
+                  />
+                )}
+              </div>
             </div>
-          )}
+
+            {/* 可拖动的分隔条 */}
+            <div
+              className="w-1 bg-gray-300 hover:bg-blue-500 cursor-col-resize flex-shrink-0 transition-colors"
+              onMouseDown={() => setIsDragging(true)}
+              title="拖动调整大小"
+            />
+          </>
+        )}
+
+        {/* 右侧：聊天界面 */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {/* 使用 AiChat 实例的 render 方法 */}
+          {aiChatInstance.render()}
         </div>
       </div>
-      
+
       {/* 应用信息 */}
       {process.env.NODE_ENV === 'development' && (
         <div className="fixed bottom-4 right-4 bg-black text-white p-2 rounded text-xs max-w-xs">

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useChatStoreFromContext } from '../lib/store/ChatStoreContext';
 import { useChatStore } from '../lib/store';
+import type { Application } from '../types';
 
 interface ApplicationsPanelProps {
     isOpen?: boolean;
@@ -10,9 +11,11 @@ interface ApplicationsPanelProps {
     title?: string;
     // 新增布局控制：embedded（嵌入左侧面板）或 modal（居中弹窗）
     layout?: 'embedded' | 'modal';
+    // 应用选择回调：当用户点击应用时调用
+    onApplicationSelect?: (app: Application) => void;
 }
 
-const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ isOpen, onClose, manageOnly = false, title, layout = 'modal' }) => {
+const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ isOpen, onClose, manageOnly = false, title, layout = 'modal', onApplicationSelect }) => {
     let storeData: any;
     try {
         storeData = useChatStoreFromContext();
@@ -79,9 +82,17 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ isOpen, onClose, 
         popupWindowsRef.current.delete(appId);
     };
 
-    // 处理应用点击
+    // 处理应用点击 - 调用外部提供的回调
     const handleAppClick = (app: any) => {
-        console.log('[ApplicationsPanel] handleAppClick (popup only):', { id: app.id, name: app.name, url: app.url });
+        console.log('[ApplicationsPanel] handleAppClick - 应用被点击:', { id: app.id, name: app.name, url: app.url });
+
+        // 如果提供了回调，调用它
+        if (onApplicationSelect) {
+            console.log('[ApplicationsPanel] 调用 onApplicationSelect 回调');
+            onApplicationSelect(app);
+        } else {
+            console.log('[ApplicationsPanel] ⚠️ 未提供 onApplicationSelect 回调');
+        }
     };
 
     // 已移除 iframe 错误监听与降级逻辑

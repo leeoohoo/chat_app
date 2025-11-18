@@ -13,7 +13,7 @@ export interface AiChatConfig {
   showAiModelManager?: boolean;
   showSystemContextEditor?: boolean;
   showAgentManager?: boolean;
-  showApplicationsButton?: boolean;
+  onApplicationSelect?: (app: Application) => void;
 }
 
 /**
@@ -39,18 +39,18 @@ export class AiChat {
   private showAiModelManager: boolean;
   private showSystemContextEditor: boolean;
   private showAgentManager: boolean;
-  private showApplicationsButton: boolean;
+  private onApplicationSelect?: (app: Application) => void;
 
   constructor(
-    userId: string, 
-    projectId: string, 
-    configUrl?: string, 
+    userId: string,
+    projectId: string,
+    configUrl?: string,
     className?: string,
     showMcpManager: boolean = true,
     showAiModelManager: boolean = true,
     showSystemContextEditor: boolean = true,
     showAgentManager: boolean = true,
-    showApplicationsButton: boolean = true
+    onApplicationSelect?: (app: Application) => void
   ) {
     this.userId = userId;
     this.projectId = projectId;
@@ -60,7 +60,7 @@ export class AiChat {
     this.showAiModelManager = showAiModelManager;
     this.showSystemContextEditor = showSystemContextEditor;
     this.showAgentManager = showAgentManager;
-    this.showApplicationsButton = showApplicationsButton;
+    this.onApplicationSelect = onApplicationSelect;
 
     console.log('🔧 AiChat Constructor - configUrl:', this.configUrl);
     console.log('🔧 AiChat Constructor - Module Controls:', {
@@ -68,7 +68,7 @@ export class AiChat {
       showAiModelManager: this.showAiModelManager,
       showSystemContextEditor: this.showSystemContextEditor,
       showAgentManager: this.showAgentManager,
-      showApplicationsButton: this.showApplicationsButton
+      hasApplicationSelectCallback: !!this.onApplicationSelect
     });
 
     // 创建自定义的 API 客户端
@@ -96,7 +96,7 @@ export class AiChat {
       showAiModelManager: this.showAiModelManager,
       showSystemContextEditor: this.showSystemContextEditor,
       showAgentManager: this.showAgentManager,
-      showApplicationsButton: this.showApplicationsButton
+      onApplicationSelect: this.onApplicationSelect
     });
   }
 
@@ -113,7 +113,7 @@ export class AiChat {
       showAiModelManager: this.showAiModelManager,
       showSystemContextEditor: this.showSystemContextEditor,
       showAgentManager: this.showAgentManager,
-      showApplicationsButton: this.showApplicationsButton
+      onApplicationSelect: this.onApplicationSelect
     };
   }
 
@@ -137,7 +137,7 @@ export class AiChat {
     if (config.showAiModelManager !== undefined) this.showAiModelManager = config.showAiModelManager;
     if (config.showSystemContextEditor !== undefined) this.showSystemContextEditor = config.showSystemContextEditor;
     if (config.showAgentManager !== undefined) this.showAgentManager = config.showAgentManager;
-    if (config.showApplicationsButton !== undefined) this.showApplicationsButton = config.showApplicationsButton;
+    if (config.onApplicationSelect !== undefined) this.onApplicationSelect = config.onApplicationSelect;
   }
 
   /**
@@ -160,8 +160,11 @@ export class AiChat {
   getSelectedApplication(): Application | null {
     const state = this.store.getState();
     const id = state.selectedApplicationId;
+    console.log('[AiChat] getSelectedApplication called:', { id, applicationsCount: state.applications?.length });
     if (!id) return null;
-    return state.applications.find(app => app.id === id) || null;
+    const app = state.applications.find(app => app.id === id) || null;
+    console.log('[AiChat] getSelectedApplication result:', app);
+    return app;
   }
 
   /**
@@ -178,16 +181,35 @@ export class AiChat {
   subscribeSelectedApplication(
     listener: (app: Application | null) => void
   ): () => void {
-    // 使用 subscribeWithSelector 提供的选择器订阅 selectedApplicationId 的变化
-    const unsubscribe = this.store.subscribe(
-      (s) => s.selectedApplicationId,
-      (_newId, _oldId) => {
-        listener(this.getSelectedApplication());
+    console.log('[AiChat] subscribeSelectedApplication: 设置订阅');
+    console.log('[AiChat] store 对象:', this.store);
+    console.log('[AiChat] store.subscribe 类型:', typeof this.store.subscribe);
+
+    let previousId = this.store.getState().selectedApplicationId;
+    console.log('[AiChat] 初始 previousId:', previousId);
+
+    // 使用基础的 subscribe，监听整个 state 的变化
+    const unsubscribe = this.store.subscribe((state) => {
+      const currentId = state.selectedApplicationId;
+      console.log('[AiChat] store.subscribe 被触发, currentId:', currentId, 'previousId:', previousId);
+
+      if (currentId !== previousId) {
+        console.log('[AiChat] selectedApplicationId 变化检测到:', { old: previousId, new: currentId });
+        previousId = currentId;
+        const app = this.getSelectedApplication();
+        console.log('[AiChat] 准备调用 listener，app:', app);
+        listener(app);
       }
-    );
+    });
+
     // 立即推送当前值，保证首次订阅就拿到状态
+    console.log('[AiChat] 首次调用 listener');
     listener(this.getSelectedApplication());
-    return unsubscribe;
+
+    return () => {
+      console.log('[AiChat] 取消订阅');
+      unsubscribe();
+    };
   }
 }
 
@@ -203,7 +225,7 @@ interface AiChatComponentProps {
   showAiModelManager?: boolean;
   showSystemContextEditor?: boolean;
   showAgentManager?: boolean;
-  showApplicationsButton?: boolean;
+  onApplicationSelect?: (app: Application) => void;
 }
 
 const AiChatComponent: React.FC<AiChatComponentProps> = ({
@@ -215,10 +237,10 @@ const AiChatComponent: React.FC<AiChatComponentProps> = ({
   showAiModelManager,
   showSystemContextEditor,
   showAgentManager,
-  showApplicationsButton
+  onApplicationSelect
 }) => {
   return (
-    <StandaloneChatInterface 
+    <StandaloneChatInterface
       className={className}
       apiBaseUrl={configUrl}
       userId={userId}
@@ -227,7 +249,7 @@ const AiChatComponent: React.FC<AiChatComponentProps> = ({
       showAiModelManager={showAiModelManager}
       showSystemContextEditor={showSystemContextEditor}
       showAgentManager={showAgentManager}
-      showApplicationsButton={showApplicationsButton}
+      onApplicationSelect={onApplicationSelect}
     />
   );
 };

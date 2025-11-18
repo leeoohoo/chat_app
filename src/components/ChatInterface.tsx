@@ -37,29 +37,17 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     setSelectedAgent,
     loadAgents,
     abortCurrentConversation,
-    applications,
-    selectedApplicationId,
+    // applications,  // 不再在此组件中使用
+    // selectedApplicationId,  // 不再用于自动显示
   } = useChatStoreFromContext();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  const webviewRef = useRef<any>(null);
-  const isElectron = typeof navigator !== 'undefined' && (
-    navigator.userAgent.toLowerCase().includes('electron') ||
-    (window as any)?.process?.versions?.electron
-  );
   const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);
   const [showMcpManager, setShowMcpManager] = useState(false);
   const [showAiModelManager, setShowAiModelManager] = useState(false);
   const [showSystemContextEditor, setShowSystemContextEditor] = useState(false);
   const [showAgentManager, setShowAgentManager] = useState(false);
   const [showApplicationsPanel, setShowApplicationsPanel] = useState(false);
-  // 移除未使用的应用面板宽度与拖拽状态
-  const [iframeWidth, setIframeWidth] = useState(600);
-  const [isResizingIframe, setIsResizingIframe] = useState(false);
-  const [iframeScale, setIframeScale] = useState(1);
-  const [targetWidth, setTargetWidth] = useState(1600);
-  const [manualScaleOverride, setManualScaleOverride] = useState<number | null>(null);
 
   // 初始化加载会话、AI模型和智能体配置
   useEffect(() => {
@@ -80,74 +68,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     }
   }, [messages, isStreaming]);
 
-  // 在关闭或切换应用时，主动清理 iframe/webview，终止网络请求
-  useEffect(() => {
-    return () => {
-      try {
-        if (iframeRef.current) {
-          iframeRef.current.src = 'about:blank';
-        }
-        if (webviewRef.current && isElectron) {
-          try {
-            webviewRef.current.removeAttribute('src');
-          } catch {}
-        }
-      } catch {}
-    };
-  }, [selectedApplicationId]);
-
-  // Electron 环境：绑定 webview 事件，处理成功/失败和降级
-  useEffect(() => {
-    if (!isElectron) return;
-    const webviewEl = webviewRef.current;
-    if (!webviewEl) return;
-
-    const handleDidFinishLoad = () => {
-      try {
-        console.log('[ChatInterface] webview did-finish-load for app:', selectedApplicationId);
-      } catch {}
-    };
-
-    const handleDidFailLoad = (event: any) => {
-      try {
-        const message = String(event?.errorDescription || 'webview did-fail-load');
-        console.warn('[ChatInterface] webview did-fail-load:', message);
-        const appId = selectedApplicationId;
-        if (appId) {
-          const evt = new CustomEvent('iframe-load-error', { detail: { appId, error: message } });
-          window.dispatchEvent(evt as any);
-        }
-      } catch {}
-    };
-
-    webviewEl.addEventListener('did-finish-load', handleDidFinishLoad as any);
-    webviewEl.addEventListener('did-fail-load', handleDidFailLoad as any);
-
-    return () => {
-      try {
-        webviewEl.removeEventListener('did-finish-load', handleDidFinishLoad as any);
-        webviewEl.removeEventListener('did-fail-load', handleDidFailLoad as any);
-      } catch {}
-    };
-  }, [isElectron, selectedApplicationId]);
-
-  // 根据iframe宽度自动计算缩放比例
-  useEffect(() => {
-    if (manualScaleOverride !== null) {
-      setIframeScale(manualScaleOverride);
-    } else {
-      const safetyFactor = 0.95; // 安全系数，避免出现滚动条
-      const calculatedScale = (iframeWidth * safetyFactor) / targetWidth;
-      setIframeScale(Math.min(1, calculatedScale)); // 最大不超过1
-    }
-  }, [iframeWidth, targetWidth, manualScaleOverride]);
-
-  // 处理会话切换
-  // const handleSessionChange = async (sessionId: string) => {
-  //   await selectSession(sessionId);
-  //   onSessionChange?.(sessionId);
-  // };
-
   // 处理消息发送
   const handleMessageSend = async (content: string, attachments?: File[]) => {
     try {
@@ -157,31 +77,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
       console.error('Failed to send message:', error);
     }
   };
-
-  // 移除未使用的应用面板拖拽函数
-
-  const startResizeIframe = (e: React.MouseEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setIsResizingIframe(true);
-    const startX = e.clientX;
-    const startWidth = iframeWidth;
-    const onMouseMove = (ev: MouseEvent) => {
-      const delta = ev.clientX - startX;
-      // 去除宽度限制，允许自由拖动（不为负）
-      const next = Math.max(0, startWidth + delta);
-      setIframeWidth(next);
-    };
-    const onMouseUp = () => {
-      setIsResizingIframe(false);
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-    };
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
-  };
-
-  // 获取选中应用的信息
-  const selectedApp = applications?.find((app: any) => app.id === selectedApplicationId);
 
   return (
     <div className={cn(
@@ -282,147 +177,9 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
         <div className="flex flex-1 overflow-hidden">
           {/* 已移除左侧应用抽屉面板，改为弹窗 */}
 
-          {/* 嵌入区域 - Electron 使用 webview；Web 使用 iframe */}
-          {selectedApp && selectedApp.url && (
-            <>
-              <div
-                className="shrink-0 border-r border-border bg-card flex flex-col"
-                style={{ width: iframeWidth }}
-              >
-                {/* iframe头部 */}
-                <div className="flex items-center justify-between p-2 border-b border-border bg-muted/30">
-                  <div className="flex items-center space-x-2 flex-1 min-w-0">
-                    <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center overflow-hidden shrink-0">
-                      {selectedApp.iconUrl ? (
-                        <img src={selectedApp.iconUrl} alt={selectedApp.name} className="w-full h-full object-cover" />
-                      ) : (
-                        <span className="text-white text-xs font-bold">
-                          {selectedApp.name.charAt(0).toUpperCase()}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-foreground truncate">{selectedApp.name}</div>
-                      <div className="text-xs text-muted-foreground truncate">{selectedApp.url}</div>
-                    </div>
-                  </div>
-                  {/* 缩放控制 */}
-                  <div className="flex items-center space-x-1 ml-2">
-                    <div className="flex items-center space-x-1 px-2 py-1 bg-background/50 rounded">
-                      <span className="text-xs text-muted-foreground">缩放:</span>
-                      <span className="text-xs font-mono text-foreground">{Math.round(iframeScale * 100)}%</span>
-                    </div>
-                    <div className="flex space-x-0.5">
-                      <button
-                        onClick={() => { setTargetWidth(1200); setManualScaleOverride(null); }}
-                        className="px-1.5 py-0.5 text-xs bg-background hover:bg-accent rounded transition-colors"
-                        title="小尺寸 (1200px)"
-                      >S</button>
-                      <button
-                        onClick={() => { setTargetWidth(1600); setManualScaleOverride(null); }}
-                        className="px-1.5 py-0.5 text-xs bg-background hover:bg-accent rounded transition-colors"
-                        title="中尺寸 (1600px)"
-                      >M</button>
-                      <button
-                        onClick={() => { setTargetWidth(1920); setManualScaleOverride(null); }}
-                        className="px-1.5 py-0.5 text-xs bg-background hover:bg-accent rounded transition-colors"
-                        title="大尺寸 (1920px)"
-                      >L</button>
-                      <button
-                        onClick={() => { setTargetWidth(2560); setManualScaleOverride(null); }}
-                        className="px-1.5 py-0.5 text-xs bg-background hover:bg-accent rounded transition-colors"
-                        title="超大尺寸 (2560px)"
-                      >XL</button>
-                    </div>
-                    <button
-                      onClick={() => setManualScaleOverride(manualScaleOverride === null ? 1 : null)}
-                      className={`px-2 py-0.5 text-xs rounded transition-colors ${
-                        manualScaleOverride !== null ? 'bg-primary text-primary-foreground' : 'bg-background hover:bg-accent'
-                      }`}
-                      title={manualScaleOverride !== null ? '已锁定100%' : '锁定100%缩放'}
-                    >
-                      {manualScaleOverride !== null ? '🔒' : '🔓'}
-                    </button>
-                  </div>
-                </div>
-                {/* 嵌入内容 */}
-                <div className="flex-1 relative bg-white overflow-hidden">
-                  {isElectron ? (
-                    // Electron: 使用 webview 以绕过 X-Frame-Options/frame-ancestors 等限制
-                    <div style={{ width: '100%', height: '100%' }}>
-                      <webview
-                        ref={webviewRef}
-                        src={selectedApp.url}
-                        style={{ width: '100%', height: '100%' }}
-                        allowpopups
-                        key={selectedApp.id}
-                      />
-                    </div>
-                  ) : (
-                    <div
-                      style={{
-                        transform: `scale(${iframeScale})`,
-                        transformOrigin: 'top left',
-                        width: `${targetWidth}px`,
-                        height: `${100 / iframeScale}%`,
-                      }}
-                    >
-                      <iframe
-                        src={selectedApp.url}
-                        className="w-full h-full border-0"
-                        title={selectedApp.name}
-                        ref={iframeRef}
-                        sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
-                        onError={() => {
-                          console.error('iframe加载失败', selectedApp.id);
-                          window.dispatchEvent(new CustomEvent('iframe-load-error', {
-                            detail: { appId: selectedApp.id, error: 'Iframe onError' }
-                          }));
-                        }}
-                        onLoad={(e) => {
-                          setTimeout(() => {
-                            try {
-                              const iframe = e.currentTarget as HTMLIFrameElement;
-                              // 尝试访问iframe的contentWindow，如果被CSP阻止会抛出错误
-                              const cw = iframe.contentWindow;
-                              const doc = cw?.document;
-                              const title = doc?.title;
-                              void title;
-                              console.log('iframe加载成功');
-                            } catch (err: any) {
-                              const msg = err?.message || '';
-                              const isSecurityError =
-                                err.name === 'SecurityError' ||
-                                err.name === 'DOMException' ||
-                                msg.includes('cross-origin') ||
-                                msg.includes('X-Frame-Options') ||
-                                msg.includes('frame-ancestors') ||
-                                msg.includes('Blocked a frame') ||
-                                msg.includes('Refused to display');
-
-                              if (isSecurityError) {
-                                console.error('iframe被安全策略阻止:', err);
-                                window.dispatchEvent(new CustomEvent('iframe-load-error', {
-                                  detail: { appId: selectedApp.id, error: msg }
-                                }));
-                              } else {
-                                console.warn('iframe访问失败，但可能不是CSP问题:', err);
-                              }
-                            }
-                          }, 1000);
-                        }}
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div
-                onMouseDown={startResizeIframe}
-                className="w-1 cursor-col-resize bg-border hover:bg-primary transition-colors"
-                title="拖动调整应用窗口宽度"
-              />
-            </>
-          )}
+          {/* 嵌入区域已移除 - 应用选择后只触发事件，不自动显示 */}
+          {/* 外部可以通过 subscribeSelectedApplication 监听应用选择事件 */}
+          {/* 然后自行决定如何打开/显示应用（Electron 窗口、window.open 等） */}
 
           <div className="flex-1 overflow-hidden">
           {currentSession ? (
@@ -507,11 +264,6 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
           title="应用列表"
           layout="modal"
         />
-
-        {/* 拖动时的覆盖层，避免选中文本 */}
-        {(isResizingIframe) && (
-          <div className="fixed inset-0 cursor-col-resize" style={{ zIndex: 50 }} />
-        )}
     </div>
   );
 };

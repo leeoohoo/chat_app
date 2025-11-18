@@ -1,4 +1,4 @@
-const { app, BrowserWindow, session } = require('electron');
+const { app, BrowserWindow, session, ipcMain } = require('electron');
 const net = require('net');
 const { spawn } = require('child_process');
 const path = require('path');
@@ -8,6 +8,8 @@ let mainWindow;
 let backendProcess = null;
 let selectedBackendPort = null;
 let splashWindow = null;
+// 应用窗口管理：Map<应用ID, BrowserWindow>
+const appWindows = new Map();
 
 function terminateBackendProcess() {
     if (backendProcess && !backendProcess.killed) {
@@ -313,6 +315,8 @@ function createWindow() {
             webviewTag: true,
             // 让 window.open 在 Electron 中创建原生 BrowserWindow（更符合预期）
             nativeWindowOpen: true,
+            // 添加 preload 脚本以暴露安全的 IPC API
+            preload: path.join(__dirname, 'preload.cjs'),
         },
         title: 'AI Chat Example',
     });
@@ -397,6 +401,10 @@ app.disableHardwareAcceleration();
 
 app.whenReady().then(async () => {
     console.log('[Electron] App ready, starting binary backend...');
+
+    // 注册 IPC 处理器
+    setupIpcHandlers();
+
     // 显示启动过场动画
     createSplashWindow();
 
@@ -466,3 +474,142 @@ app.on('will-quit', () => {
     }
     terminateBackendProcess();
 });
+
+// ==================== 应用窗口管理 ====================
+
+/**
+ * 创建或聚焦应用窗口
+ * @param {Object} appData - 应用数据 {id, name, url, iconUrl?}
+ */
+function createOrFocusAppWindow(appData) {
+    const { id, name, url, iconUrl } = appData;
+
+    console.log('[Electron] createOrFocusAppWindow:', { id, name, url });
+
+    // 如果窗口已存在且未关闭，则聚焦
+    if (appWindows.has(id)) {
+        const existingWindow = appWindows.get(id);
+        if (existingWindow && !existingWindow.isDestroyed()) {
+            console.log('[Electron] Window exists, focusing...');
+            existingWindow.focus();
+            return;
+        } else {
+            // 窗口已销毁，从 Map 中移除
+            appWindows.delete(id);
+        }
+    }
+
+    // 创建新窗口
+    const appWindow = new BrowserWindow({
+        width: 1000,
+        height: 700,
+        title: name || 'Application',
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            webSecurity: true,
+            allowRunningInsecureContent: false,
+        },
+        icon: iconUrl, // 可选：设置窗口图标
+    });
+
+    console.log('[Electron] Creating new window for:', name);
+
+    // 加载应用 URL
+    if (url) {
+        appWindow.loadURL(url).catch(err => {
+            console.error('[Electron] Failed to load URL:', url, err);
+        });
+    }
+
+    // 窗口关闭时从 Map 中移除
+    appWindow.on('closed', () => {
+        console.log('[Electron] App window closed:', name);
+        appWindows.delete(id);
+
+        // 通知渲染进程窗口已关闭
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('app-window-closed', id);
+        }
+    });
+
+    // 保存窗口引用
+    appWindows.set(id, appWindow);
+}
+
+/**
+ * 关闭指定应用窗口
+ * @param {string} appId - 应用ID
+ */
+function closeAppWindow(appId) {
+    console.log('[Electron] closeAppWindow:', appId);
+
+    if (appWindows.has(appId)) {
+        const appWindow = appWindows.get(appId);
+        if (appWindow && !appWindow.isDestroyed()) {
+            appWindow.close();
+        }
+        appWindows.delete(appId);
+    }
+}
+
+/**
+ * 获取所有打开的应用窗口ID列表
+ * @returns {string[]} 应用ID数组
+ */
+function getOpenAppWindowIds() {
+    const openIds = [];
+    for (const [id, window] of appWindows.entries()) {
+        if (window && !window.isDestroyed()) {
+            openIds.push(id);
+        }
+    }
+    return openIds;
+}
+
+// ==================== IPC 通信处理 ====================
+
+/**
+ * 设置 IPC 监听器
+ */
+function setupIpcHandlers() {
+    // 打开应用窗口
+    ipcMain.handle('open-app-window', async (event, appData) => {
+        try {
+            createOrFocusAppWindow(appData);
+            return { success: true };
+        } catch (error) {
+            console.error('[Electron] Error opening app window:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // 关闭应用窗口
+    ipcMain.handle('close-app-window', async (event, appId) => {
+        try {
+            closeAppWindow(appId);
+            return { success: true };
+        } catch (error) {
+            console.error('[Electron] Error closing app window:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // 获取打开的应用窗口列表
+    ipcMain.handle('get-open-app-windows', async () => {
+        try {
+            const openIds = getOpenAppWindowIds();
+            return { success: true, data: openIds };
+        } catch (error) {
+            console.error('[Electron] Error getting open app windows:', error);
+            return { success: false, error: error.message };
+        }
+    });
+
+    // 检查是否在 Electron 环境
+    ipcMain.handle('is-electron', async () => {
+        return { success: true, data: true };
+    });
+
+    console.log('[Electron] IPC handlers registered');
+}

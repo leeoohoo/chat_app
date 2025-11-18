@@ -2,11 +2,12 @@ import type { Application } from '../../../types';
 
 interface Deps {
   set: any;
+  get: any;
   client: any;
   getUserIdParam: () => string;
 }
 
-export function createApplicationActions({ set, client, getUserIdParam }: Deps) {
+export function createApplicationActions({ set, get, client, getUserIdParam }: Deps) {
   const toFrontendApp = (apiApp: any): Application => ({
     id: apiApp.id,
     name: apiApp.name,
@@ -103,9 +104,14 @@ export function createApplicationActions({ set, client, getUserIdParam }: Deps) 
     },
     setSelectedApplication: (appId: string | null) => {
       console.log('[Store] setSelectedApplication:', appId);
-      set((state: any) => {
-        state.selectedApplicationId = appId;
-      });
+      const oldId = get().selectedApplicationId;
+      console.log('[Store] setSelectedApplication - before:', { oldId, newId: appId });
+
+      // 强制创建新的状态对象，确保引用变化
+      set((state: any) => ({ ...state, selectedApplicationId: appId }));
+
+      const newId = get().selectedApplicationId;
+      console.log('[Store] setSelectedApplication - after:', { oldId, newId });
     },
     setMcpAppAssociation: (mcpId: string, appIds: string[]) => {
       // 仅更新内存中的选择，持久化通过保存 MCP 配置时由后端处理
