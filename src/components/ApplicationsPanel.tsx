@@ -93,6 +93,12 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ isOpen, onClose, 
         } else {
             console.log('[ApplicationsPanel] ⚠️ 未提供 onApplicationSelect 回调');
         }
+
+        // 点击应用后自动关闭面板
+        if (onClose) {
+            console.log('[ApplicationsPanel] 关闭应用列表面板');
+            onClose();
+        }
     };
 
     // 已移除 iframe 错误监听与降级逻辑

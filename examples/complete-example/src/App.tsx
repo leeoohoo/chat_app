@@ -2,10 +2,15 @@
 /// <reference types="react-dom" />
 /// <reference types="vite/client" />
 
-import  { useEffect, useState } from 'react';
+import  { useEffect, useState, useRef } from 'react';
 import { AiChat } from '@leeoohoo/aichat';
 import type { Application } from '@leeoohoo/aichat';
 import '@leeoohoo/aichat/styles';
+
+// 应用窗口缩放配置：调整此值来控制应用内容的缩放比例
+// 值越大，内容显示越小；值越小，内容显示越大
+// 建议范围：1600-2400
+const WEBVIEW_BASE_WIDTH = 1920;
 
 /**
  * 完整使用示例 - 使用 AiChat 类实例化
@@ -19,15 +24,22 @@ function App() {
   const [isElectron, setIsElectron] = useState<boolean>(false);
   const [leftPanelWidth, setLeftPanelWidth] = useState(384);
   const [isDragging, setIsDragging] = useState(false);
+  const [isAppLoading, setIsAppLoading] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // 处理拖动调整左侧面板宽度
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      if (!isDragging) return;
+      if (!isDragging || !containerRef.current) return;
+
+      // 获取容器的左边界位置
+      const containerRect = containerRef.current.getBoundingClientRect();
+      const relativeX = e.clientX - containerRect.left;
 
       const minWidth = 200;
-      const maxWidth = window.innerWidth * 0.7;
-      const newWidth = Math.min(Math.max(e.clientX, minWidth), maxWidth);
+      const maxWidth = containerRect.width * 0.7;
+      const newWidth = Math.min(Math.max(relativeX, minWidth), maxWidth);
+
       setLeftPanelWidth(newWidth);
     };
 
@@ -93,6 +105,7 @@ function App() {
         (app) => {  // onApplicationSelect 回调
           console.log('[App] 📢 应用被选择:', app);
           setSelectedApp(app);
+          setIsAppLoading(true); // 开始加载
 
           // 检测 Electron 环境并处理
           const hasElectronAPI = typeof (window as any).electronAPI !== 'undefined';
@@ -221,7 +234,12 @@ function App() {
 
   return (
     <div className="h-screen w-full bg-gray-50">
-      <div className="h-full max-w-6xl mx-auto bg-white shadow-lg flex">
+      {/* 拖动时的遮罩层，防止iframe捕获鼠标事件 */}
+      {isDragging && (
+        <div className="fixed inset-0 z-50 cursor-col-resize" />
+      )}
+
+      <div ref={containerRef} className="h-full max-w-6xl mx-auto bg-white shadow-lg flex">
         {/* 左侧：选中的应用 */}
         {selectedApp && (
           <>
@@ -232,7 +250,10 @@ function App() {
               <div className="px-4 py-2 border-b border-gray-200 text-sm text-gray-700 flex items-center justify-between">
                 <span className="font-medium">{selectedApp.name}</span>
                 <button
-                  onClick={() => setSelectedApp(null)}
+                  onClick={() => {
+                    setSelectedApp(null);
+                    setIsAppLoading(false); // 重置加载状态
+                  }}
                   className="text-gray-500 hover:text-gray-700"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -240,40 +261,107 @@ function App() {
                   </svg>
                 </button>
               </div>
-              <div className="flex-1 bg-gray-50">
-                {isElectron ? (
-                  // Electron 环境：使用 webview
-                  // @ts-ignore - 定义已在全局 d.ts 中
-                  <webview
-                    key={selectedApp.url}
-                    src={selectedApp.url}
-                    style={{ width: '100%', height: '100%' }}
-                    {...({ allowpopups: true } as any)}
-                  />
-                ) : (
-                  // 浏览器环境：使用 iframe
-                  <iframe
-                    key={selectedApp.url}
-                    src={selectedApp.url}
-                    className="w-full h-full border-0"
-                    sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
-                    referrerPolicy="no-referrer"
-                  />
+              <div className="flex-1 bg-gray-50 relative overflow-hidden">
+                {/* 加载动画 */}
+                {isAppLoading && (
+                  <div className="absolute inset-0 bg-white z-20 flex items-center justify-center">
+                    <div className="text-center">
+                      <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                      <p className="text-gray-600 text-sm">正在加载应用...</p>
+                      <p className="text-gray-400 text-xs mt-2">{selectedApp?.name}</p>
+                    </div>
+                  </div>
                 )}
+
+                {(() => {
+                  const baseWidth = WEBVIEW_BASE_WIDTH;
+                  const scale = leftPanelWidth / baseWidth;
+
+                  if (isElectron) {
+                    // Electron 环境：使用 webview，通过 CSS transform 缩放
+                    return (
+                      <div className="w-full h-full overflow-hidden">
+                        {/* @ts-ignore - 定义已在全局 d.ts 中 */}
+                        <webview
+                          key={selectedApp.url}
+                          src={selectedApp.url}
+                          style={{
+                            width: `${baseWidth}px`,
+                            height: `${100 / scale}%`,
+                            transform: `scale(${scale})`,
+                            transformOrigin: 'top left'
+                          }}
+                          {...({
+                            allowpopups: 'true',
+                            // @ts-ignore
+                            onContentLoad: () => {
+                              console.log('[webview] Content loaded');
+                              setIsAppLoading(false);
+                            }
+                          } as any)}
+                        />
+                      </div>
+                    );
+                  } else {
+                    // 浏览器环境：使用 iframe，添加缩放功能
+                    return (
+                      <div className="w-full h-full overflow-hidden">
+                        <iframe
+                          key={selectedApp.url}
+                          src={selectedApp.url}
+                          className="border-0"
+                          style={{
+                            width: `${baseWidth}px`,
+                            height: `${100 / scale}%`,
+                            transform: `scale(${scale})`,
+                            transformOrigin: 'top left'
+                          }}
+                          sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                          referrerPolicy="no-referrer"
+                          onLoad={() => {
+                            console.log('[iframe] Content loaded');
+                            setIsAppLoading(false);
+                          }}
+                        />
+                      </div>
+                    );
+                  }
+                })()}
               </div>
             </div>
 
             {/* 可拖动的分隔条 */}
             <div
-              className="w-1 bg-gray-300 hover:bg-blue-500 cursor-col-resize flex-shrink-0 transition-colors"
-              onMouseDown={() => setIsDragging(true)}
+              className="w-2 bg-gray-300 hover:bg-blue-500 cursor-col-resize flex-shrink-0 transition-all relative group z-10"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
               title="拖动调整大小"
-            />
+            >
+              {/* 拖动指示器 - 更大更明显，默认显示 */}
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-all pointer-events-none">
+                <div className="flex flex-col items-center justify-center space-y-1 bg-white rounded-full p-2 shadow-md border border-gray-200 opacity-70 group-hover:opacity-100 group-hover:scale-110">
+                  <div className="flex space-x-0.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-gray-400 group-hover:bg-blue-500" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-gray-400 group-hover:bg-blue-500" />
+                  </div>
+                  <div className="flex space-x-0.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-gray-400 group-hover:bg-blue-500" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-gray-400 group-hover:bg-blue-500" />
+                  </div>
+                  <div className="flex space-x-0.5">
+                    <div className="w-1.5 h-1.5 rounded-full bg-gray-400 group-hover:bg-blue-500" />
+                    <div className="w-1.5 h-1.5 rounded-full bg-gray-400 group-hover:bg-blue-500" />
+                  </div>
+                </div>
+              </div>
+            </div>
           </>
         )}
 
         {/* 右侧：聊天界面 */}
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0 shadow-[-4px_0_10px_rgba(0,0,0,0.1)]" style={{ borderLeft: '2px solid #e5e7eb' }}>
           {/* 使用 AiChat 实例的 render 方法 */}
           {aiChatInstance.render()}
         </div>
