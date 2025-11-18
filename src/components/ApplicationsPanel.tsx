@@ -26,6 +26,7 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ isOpen, onClose, 
     createApplication,
     updateApplication,
     deleteApplication,
+    setSelectedApplication,
   } = storeData;
 
   const popupWindowsRef = useRef<Map<string, Window>>(new Map());
@@ -120,9 +121,9 @@ const ApplicationsPanel: React.FC<ApplicationsPanelProps> = ({ isOpen, onClose, 
 
   // 处理应用点击
   const handleAppClick = (app: any) => {
-    console.log('[ApplicationsPanel] handleAppClick (disabled):', { id: app.id, name: app.name, url: app.url });
-    // 点击应用不再打开任何窗口或标签页
-    // 保留占位以便未来扩展为“高亮/详情”等非跳转行为
+    try {
+      setSelectedApplication?.(app.id);
+    } catch (e) {}
   };
 
   // 已移除 iframe 错误监听与降级逻辑

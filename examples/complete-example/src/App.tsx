@@ -27,15 +27,15 @@ function App() {
 
       // 创建 AiChat 实例 - 完整功能版本
       const aiChat = new AiChat(
-        'custom_user_127',            // 自定义用户ID
-        'custom_project_456',         // 自定义项目ID
-        apiBase,                      // 自定义API基础URL
-        'h-full w-full',              // CSS类名
-        true,                         // showMcpManager - 显示MCP服务管理
-        true,                         // showAiModelManager - 显示AI配置管理
-        true,                         // showSystemContextEditor - 显示System Prompt编辑器
-        true,                         // showAgentManager - 显示智能体管理
-        true        // showApplicationsButton - 显示应用列表按钮（可隐藏）
+        'custom_user_127',
+        'custom_project_456',
+        apiBase,
+        'h-full w-full',
+        true,
+        true,
+        true,
+        true,
+        showApplicationsButton
       );
 
       // 其他配置示例：
@@ -74,7 +74,7 @@ function App() {
       // 验证自定义参数是否被正确使用
       const config = aiChat.getConfig();
       console.log('✅ 验证自定义参数:');
-      console.log('  - 用户ID:', config.userId, '(期望: custom_user_125)');
+      console.log('  - 用户ID:', config.userId, '(期望: custom_user_127)');
       console.log('  - 项目ID:', config.projectId, '(期望: custom_project_456)');
       
       // 验证 API 客户端是否使用了正确的 baseUrl
@@ -83,7 +83,7 @@ function App() {
       console.log('  - 显示应用列表按钮:', showApplicationsButton);
       
       // 验证参数是否正确传递
-      const isUserIdCorrect = config.userId === 'custom_user_125';
+      const isUserIdCorrect = config.userId === 'custom_user_127';
       const isProjectIdCorrect = config.projectId === 'custom_project_456';
       const isApiClientBaseUrlCorrect = apiClient.getBaseUrl() === apiBase;
       
@@ -104,7 +104,7 @@ function App() {
       
         console.warn('⚠️ 加载应用列表失败:', err);
       });
-      debugger
+      
       const unsubscribe = aiChat.subscribeSelectedApplication((app) => {
         setSelectedApp(app);
       });
@@ -176,6 +176,7 @@ function App() {
                 // Electron 环境：使用 webview
                 // @ts-ignore - 定义已在全局 d.ts 中
                 <webview
+                  key={selectedApp.url}
                   src={selectedApp.url}
                   style={{ width: '100%', height: '100%' }}
                   allowpopups
@@ -183,6 +184,7 @@ function App() {
               ) : (
                 // 浏览器环境：使用 iframe
                 <iframe
+                  key={selectedApp.url}
                   src={selectedApp.url}
                   className="w-full h-full border-0"
                   sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
