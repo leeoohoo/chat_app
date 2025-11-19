@@ -15,6 +15,9 @@ export function createMcpActions({ set, get, client, getUserIdParam }: Deps) {
         const userId = getUserIdParam();
         const configs = await client.getMcpConfigs(userId);
 
+        console.log('🔍 [后端返回] loadMcpConfigs 返回的数据:', configs);
+        console.log('🔍 [后端返回] 第一个配置的 app_ids:', (configs as any)?.[0]?.app_ids);
+
         set((state: any) => {
           state.mcpConfigs = configs as McpConfig[];
         });

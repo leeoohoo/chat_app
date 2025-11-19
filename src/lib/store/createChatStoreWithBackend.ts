@@ -505,6 +505,8 @@ export function createChatStoreWithBackend(customApiClient?: ApiClient, config?:
                     loadAgents: async () => {
                         try {
                             const agents = await client.getAgents(getUserIdParam());
+                            console.log('🔍 [后端返回] loadAgents 返回的数据:', agents);
+                            console.log('🔍 [后端返回] 第一个智能体的 app_ids:', agents?.[0]?.app_ids);
                             set((state) => {
                                 state.agents = (agents || []) as any[];
                             });

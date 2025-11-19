@@ -961,6 +961,8 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
                     loadSystemContexts: async () => {
                         try {
                             const contexts = await client.getSystemContexts(getUserIdParam());
+                            console.log('🔍 [后端返回] loadSystemContexts 返回的数据:', contexts);
+                            console.log('🔍 [后端返回] 第一个上下文的 app_ids:', contexts[0]?.app_ids);
                             const activeContextResponse = await client.getActiveSystemContext(getUserIdParam());
                             set((state) => {
                                 // 先将所有上下文的isActive设为false

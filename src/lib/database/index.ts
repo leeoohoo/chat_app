@@ -159,6 +159,16 @@ export class DatabaseService {
         }
       }
 
+      // 解析顶层的toolCalls（兼容后端可能同时在顶层和metadata中存储）
+      let parsedTopLevelToolCalls = undefined;
+      if (message.toolCalls) {
+        try {
+          parsedTopLevelToolCalls = typeof message.toolCalls === 'string' ? JSON.parse(message.toolCalls) : message.toolCalls;
+        } catch (error) {
+          console.warn('Failed to parse top-level toolCalls:', error);
+        }
+      }
+
       return {
         id: message.id,
         sessionId: message.session_id,
@@ -168,6 +178,7 @@ export class DatabaseService {
         toolCallId: message.tool_call_id,
         reasoning: message.reasoning,
         metadata: parsedMetadata,
+        topLevelToolCalls: parsedTopLevelToolCalls, // 保存顶层的toolCalls
         createdAt: new Date(message.created_at),
         originalMessage: message
       };
@@ -190,9 +201,13 @@ export class DatabaseService {
     // 第三步：处理工具调用并关联结果
     return parsedMessages.map(msg => {
       let toolCalls = undefined;
-      
-      if (msg.role === 'assistant' && msg.metadata?.toolCalls && Array.isArray(msg.metadata.toolCalls)) {
-        toolCalls = msg.metadata.toolCalls.map((toolCall: any) => {
+
+      // 优先使用顶层的toolCalls，如果没有再使用metadata中的
+      const sourceToolCalls = (msg as any).topLevelToolCalls || msg.metadata?.toolCalls;
+
+      if (msg.role === 'assistant' && sourceToolCalls && Array.isArray(sourceToolCalls)) {
+        console.log('[Database] 处理工具调用:', { messageId: msg.id, sourceToolCalls });
+        toolCalls = sourceToolCalls.map((toolCall: any) => {
           if (toolCall.function) {
             // 解析工具调用参数
             let parsedArguments = {};
@@ -222,7 +237,7 @@ export class DatabaseService {
         }).filter(Boolean);
       }
 
-      // 构建内容分段：优先将 reasoning 作为独立的 thinking 段，其次正文为 text 段
+      // 构建内容分段：优先将 reasoning 作为独立的 thinking 段，其次正文为 text 段，最后添加工具调用段
       const contentSegments: any[] = [];
       const hasReasoning = typeof msg.reasoning === 'string' && msg.reasoning.trim().length > 0;
       if (msg.role === 'assistant' && hasReasoning) {
@@ -230,6 +245,12 @@ export class DatabaseService {
       }
       if (typeof msg.content === 'string' && msg.content.trim().length > 0) {
         contentSegments.push({ type: 'text', content: msg.content });
+      }
+      // 为每个工具调用添加 tool_call 段
+      if (toolCalls && Array.isArray(toolCalls) && toolCalls.length > 0) {
+        toolCalls.forEach((tc: any) => {
+          contentSegments.push({ type: 'tool_call', toolCallId: tc.id });
+        });
       }
 
        return {

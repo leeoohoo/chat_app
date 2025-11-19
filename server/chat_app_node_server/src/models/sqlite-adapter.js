@@ -165,6 +165,8 @@ export class SQLiteAdapter extends AbstractDatabaseAdapter {
         system_context_id TEXT,
         description TEXT,
         user_id TEXT,
+        mcp_config_ids TEXT,
+        callable_agent_ids TEXT,
         enabled INTEGER DEFAULT 1,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -172,6 +174,18 @@ export class SQLiteAdapter extends AbstractDatabaseAdapter {
         FOREIGN KEY (system_context_id) REFERENCES system_contexts(id)
       )
     `);
+
+    // 迁移：为已有 agents 表添加缺失的列
+    try {
+      const cols = this.db.prepare('PRAGMA table_info(agents)').all();
+      const colNames = new Set(cols.map(c => c.name));
+      if (!colNames.has('mcp_config_ids')) {
+        await this.execute(`ALTER TABLE agents ADD COLUMN mcp_config_ids TEXT`);
+      }
+      if (!colNames.has('callable_agent_ids')) {
+        await this.execute(`ALTER TABLE agents ADD COLUMN callable_agent_ids TEXT`);
+      }
+    } catch (e) {}
 
     // 应用表
     await this.execute(`
@@ -184,6 +198,42 @@ export class SQLiteAdapter extends AbstractDatabaseAdapter {
         enabled INTEGER DEFAULT 1,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // MCP 配置与应用关联表
+    await this.execute(`
+      CREATE TABLE IF NOT EXISTS mcp_config_applications (
+        id TEXT PRIMARY KEY,
+        mcp_config_id TEXT NOT NULL,
+        application_id TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (mcp_config_id) REFERENCES mcp_configs(id) ON DELETE CASCADE,
+        FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
+      )
+    `);
+
+    // 系统上下文与应用关联表
+    await this.execute(`
+      CREATE TABLE IF NOT EXISTS system_context_applications (
+        id TEXT PRIMARY KEY,
+        system_context_id TEXT NOT NULL,
+        application_id TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (system_context_id) REFERENCES system_contexts(id) ON DELETE CASCADE,
+        FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
+      )
+    `);
+
+    // 智能体与应用关联表
+    await this.execute(`
+      CREATE TABLE IF NOT EXISTS agent_applications (
+        id TEXT PRIMARY KEY,
+        agent_id TEXT NOT NULL,
+        application_id TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (agent_id) REFERENCES agents(id) ON DELETE CASCADE,
+        FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
       )
     `);
 
@@ -220,7 +270,10 @@ export class SQLiteAdapter extends AbstractDatabaseAdapter {
       'CREATE INDEX IF NOT EXISTS idx_agents_user_id ON agents(user_id)',
       'CREATE INDEX IF NOT EXISTS idx_applications_user_id ON applications(user_id)',
       'CREATE INDEX IF NOT EXISTS idx_session_mcp_servers_session_id ON session_mcp_servers(session_id)',
-      'CREATE INDEX IF NOT EXISTS idx_mcp_config_profiles_mcp_config_id ON mcp_config_profiles(mcp_config_id)'
+      'CREATE INDEX IF NOT EXISTS idx_mcp_config_profiles_mcp_config_id ON mcp_config_profiles(mcp_config_id)',
+      'CREATE INDEX IF NOT EXISTS idx_mcp_config_applications_mcp_config_id ON mcp_config_applications(mcp_config_id)',
+      'CREATE INDEX IF NOT EXISTS idx_system_context_applications_context_id ON system_context_applications(system_context_id)',
+      'CREATE INDEX IF NOT EXISTS idx_agent_applications_agent_id ON agent_applications(agent_id)'
     ];
 
     for (const indexSql of indexes) {

@@ -33,8 +33,22 @@ router.get('/mcp-configs', async (req, res) => {
     query += ' ORDER BY created_at DESC';
 
     const configs = db.fetchallSync(query, params);
-    logger.info(`获取到 ${configs.length} 个MCP配置`);
-    res.json(configs);
+    const out = [];
+    for (const cfg of configs) {
+      let appIds = [];
+      try {
+        const rows = db.fetchallSync(
+          'SELECT application_id FROM mcp_config_applications WHERE mcp_config_id = ?',
+          [cfg.id]
+        );
+        appIds = rows.map(r => r.application_id);
+      } catch (e) {
+        appIds = [];
+      }
+      out.push({ ...cfg, app_ids: appIds });
+    }
+    logger.info(`获取到 ${out.length} 个MCP配置`);
+    res.json(out);
   } catch (error) {
     logger.error('获取MCP配置失败:', error);
     res.status(500).json({ error: '获取MCP配置失败' });
@@ -46,7 +60,7 @@ router.get('/mcp-configs', async (req, res) => {
  */
 router.post('/mcp-configs', async (req, res) => {
   try {
-    const { name, command, type, args, env, cwd, user_id, enabled } = req.body;
+    const { name, command, type, args, env, cwd, user_id, enabled, app_ids } = req.body;
     const db = getDatabaseSync();
     const id = uuidv4();
     const now = new Date().toISOString();
@@ -60,9 +74,30 @@ router.post('/mcp-configs', async (req, res) => {
       [id, name, command, type || 'stdio', argsStr, envStr, cwd || null, user_id || null, enabled !== false ? 1 : 0, now, now]
     );
 
+    if (Array.isArray(app_ids)) {
+      for (const appId of app_ids) {
+        try {
+          db.executeSync(
+            'INSERT INTO mcp_config_applications (id, mcp_config_id, application_id, created_at) VALUES (?, ?, ?, ?)',
+            [uuidv4(), id, appId, now]
+          );
+        } catch (e) {}
+      }
+    }
+
     const newConfig = db.fetchoneSync('SELECT * FROM mcp_configs WHERE id = ?', [id]);
+    let appIds = [];
+    try {
+      const rows = db.fetchallSync(
+        'SELECT application_id FROM mcp_config_applications WHERE mcp_config_id = ?',
+        [id]
+      );
+      appIds = rows.map(r => r.application_id);
+    } catch (e) {
+      appIds = [];
+    }
     logger.info(`创建MCP配置成功: ${id}`);
-    res.status(201).json(newConfig);
+    res.status(201).json({ ...newConfig, app_ids: appIds });
   } catch (error) {
     logger.error('创建MCP配置失败:', error);
     res.status(500).json({ error: '创建MCP配置失败' });
@@ -75,7 +110,7 @@ router.post('/mcp-configs', async (req, res) => {
 router.put('/mcp-configs/:config_id', async (req, res) => {
   try {
     const { config_id } = req.params;
-    const { name, command, type, args, env, cwd, enabled } = req.body;
+    const { name, command, type, args, env, cwd, enabled, app_ids } = req.body;
     const db = getDatabaseSync();
 
     const existing = db.fetchoneSync('SELECT * FROM mcp_configs WHERE id = ?', [config_id]);
@@ -126,9 +161,36 @@ router.put('/mcp-configs/:config_id', async (req, res) => {
       );
     }
 
+    if (app_ids !== undefined) {
+      try {
+        db.executeSync('DELETE FROM mcp_config_applications WHERE mcp_config_id = ?', [config_id]);
+        const now = new Date().toISOString();
+        if (Array.isArray(app_ids)) {
+          for (const appId of app_ids) {
+            try {
+              db.executeSync(
+                'INSERT INTO mcp_config_applications (id, mcp_config_id, application_id, created_at) VALUES (?, ?, ?, ?)',
+                [uuidv4(), config_id, appId, now]
+              );
+            } catch (e) {}
+          }
+        }
+      } catch (e) {}
+    }
+
     const updated = db.fetchoneSync('SELECT * FROM mcp_configs WHERE id = ?', [config_id]);
+    let appIds = [];
+    try {
+      const rows = db.fetchallSync(
+        'SELECT application_id FROM mcp_config_applications WHERE mcp_config_id = ?',
+        [config_id]
+      );
+      appIds = rows.map(r => r.application_id);
+    } catch (e) {
+      appIds = [];
+    }
     logger.info(`成功更新MCP配置: ${config_id}`);
-    res.json(updated);
+    res.json({ ...updated, app_ids: appIds });
   } catch (error) {
     logger.error('更新MCP配置失败:', error);
     res.status(500).json({ error: '更新MCP配置失败' });
@@ -629,8 +691,23 @@ router.get('/system-contexts', async (req, res) => {
       [user_id]
     );
 
-    logger.info(`获取到 ${contexts.length} 个系统上下文`);
-    res.json(contexts);
+    const out = [];
+    for (const ctx of contexts) {
+      let appIds = [];
+      try {
+        const rows = db.fetchallSync(
+          'SELECT application_id FROM system_context_applications WHERE system_context_id = ?',
+          [ctx.id]
+        );
+        appIds = rows.map(r => r.application_id);
+      } catch (e) {
+        appIds = [];
+      }
+      out.push({ ...ctx, app_ids: appIds });
+    }
+
+    logger.info(`获取到 ${out.length} 个系统上下文`);
+    res.json(out);
   } catch (error) {
     logger.error('获取系统上下文失败:', error);
     res.status(500).json({ error: '获取系统上下文失败' });
@@ -654,9 +731,22 @@ router.get('/system-context/active', async (req, res) => {
       [user_id]
     );
 
+    let appIds = [];
+    if (context) {
+      try {
+        const rows = db.fetchallSync(
+          'SELECT application_id FROM system_context_applications WHERE system_context_id = ?',
+          [context.id]
+        );
+        appIds = rows.map(r => r.application_id);
+      } catch (e) {
+        appIds = [];
+      }
+    }
+
     res.json({
       content: context ? context.content : '',
-      context
+      context: context ? { ...context, app_ids: appIds } : null
     });
   } catch (error) {
     logger.error('获取活跃系统上下文失败:', error);
@@ -669,7 +759,7 @@ router.get('/system-context/active', async (req, res) => {
  */
 router.post('/system-contexts', async (req, res) => {
   try {
-    const { name, content, user_id, is_active } = req.body;
+    const { name, content, user_id, is_active, app_ids } = req.body;
     const db = getDatabaseSync();
     const id = uuidv4();
     const now = new Date().toISOString();
@@ -680,9 +770,30 @@ router.post('/system-contexts', async (req, res) => {
       [id, name, content, user_id, is_active ? 1 : 0, now, now]
     );
 
+    if (Array.isArray(app_ids)) {
+      for (const appId of app_ids) {
+        try {
+          db.executeSync(
+            'INSERT INTO system_context_applications (id, system_context_id, application_id, created_at) VALUES (?, ?, ?, ?)',
+            [uuidv4(), id, appId, now]
+          );
+        } catch (e) {}
+      }
+    }
+
     const newContext = db.fetchoneSync('SELECT * FROM system_contexts WHERE id = ?', [id]);
+    let appIds = [];
+    try {
+      const rows = db.fetchallSync(
+        'SELECT application_id FROM system_context_applications WHERE system_context_id = ?',
+        [id]
+      );
+      appIds = rows.map(r => r.application_id);
+    } catch (e) {
+      appIds = [];
+    }
     logger.info(`创建系统上下文成功: ${id}`);
-    res.status(201).json(newContext);
+    res.status(201).json({ ...newContext, app_ids: appIds });
   } catch (error) {
     logger.error('创建系统上下文失败:', error);
     res.status(500).json({ error: '创建系统上下文失败' });
@@ -695,7 +806,7 @@ router.post('/system-contexts', async (req, res) => {
 router.put('/system-contexts/:context_id', async (req, res) => {
   try {
     const { context_id } = req.params;
-    const { name, content, is_active } = req.body;
+    const { name, content, is_active, app_ids } = req.body;
     const db = getDatabaseSync();
 
     const updates = [];
@@ -725,9 +836,36 @@ router.put('/system-contexts/:context_id', async (req, res) => {
       );
     }
 
+    if (app_ids !== undefined) {
+      try {
+        db.executeSync('DELETE FROM system_context_applications WHERE system_context_id = ?', [context_id]);
+        const now = new Date().toISOString();
+        if (Array.isArray(app_ids)) {
+          for (const appId of app_ids) {
+            try {
+              db.executeSync(
+                'INSERT INTO system_context_applications (id, system_context_id, application_id, created_at) VALUES (?, ?, ?, ?)',
+                [uuidv4(), context_id, appId, now]
+              );
+            } catch (e) {}
+          }
+        }
+      } catch (e) {}
+    }
+
     const updated = db.fetchoneSync('SELECT * FROM system_contexts WHERE id = ?', [context_id]);
+    let appIds = [];
+    try {
+      const rows = db.fetchallSync(
+        'SELECT application_id FROM system_context_applications WHERE system_context_id = ?',
+        [context_id]
+      );
+      appIds = rows.map(r => r.application_id);
+    } catch (e) {
+      appIds = [];
+    }
     logger.info(`更新系统上下文成功: ${context_id}`);
-    res.json(updated);
+    res.json({ ...updated, app_ids: appIds });
   } catch (error) {
     logger.error('更新系统上下文失败:', error);
     res.status(500).json({ error: '更新系统上下文失败' });

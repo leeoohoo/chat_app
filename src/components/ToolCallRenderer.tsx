@@ -23,14 +23,18 @@ export const ToolCallRenderer: React.FC<ToolCallRendererProps> = ({
   console.log('🔍 所有消息:', allMessages.map(msg => ({
     id: msg.id,
     role: msg.role,
+    tool_call_id: (msg as any).tool_call_id || (msg as any).toolCallId,
     metadata: msg.metadata,
     content: msg.content?.substring(0, 100) + '...'
   })));
-  
-  const toolResultMessage = allMessages.find(msg => 
-    msg.role === 'tool' && 
-    msg.metadata?.tool_call_id === toolCall.id
-  );
+
+  const toolResultMessage = allMessages.find(msg => {
+    if (msg.role !== 'tool') return false;
+    // 同时检查顶层和metadata中的tool_call_id（兼容不同格式）
+    const topLevelId = (msg as any).tool_call_id || (msg as any).toolCallId;
+    const metadataId = msg.metadata?.tool_call_id || msg.metadata?.toolCallId;
+    return topLevelId === toolCall.id || metadataId === toolCall.id;
+  });
 
   console.log('🔍 找到的工具结果消息:', toolResultMessage);
   console.log('🎨 ToolCallRenderer - 工具调用:', toolCall.id, '结果:', toolCall.result, '工具消息:', toolResultMessage?.content);

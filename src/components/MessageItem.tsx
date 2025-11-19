@@ -81,12 +81,13 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
   };
 
   const attachments = message.metadata?.attachments || [];
-  // 获取工具调用数据 - 优先使用metadata.toolCalls，这是通过WebSocket流式传输存储的数据
-  const toolCalls = message.metadata?.toolCalls || [];
-  
+  // 获取工具调用数据 - 同时检查顶层和metadata中的toolCalls（兼容不同的数据格式）
+  const toolCalls = (message as any).toolCalls || message.metadata?.toolCalls || [];
+
   console.log('🔧 工具调用数据:', {
+        '顶层toolCalls': (message as any).toolCalls,
         'metadata.toolCalls': message.metadata?.toolCalls,
-        'toolCalls长度': toolCalls.length,
+        '最终toolCalls长度': toolCalls.length,
         '消息ID': message.id,
         'contentSegments': message.metadata?.contentSegments,
         'contentSegments长度': message.metadata?.contentSegments?.length || 0
@@ -210,7 +211,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                        } else if (segment.type === 'tool_call') {
                          console.log(`🎨 渲染工具调用分段 ${index}:`, segment);
                          // 根据toolCallId查找对应的工具调用
-                         const toolCall = toolCalls.find(tc => tc.id === segment.toolCallId);
+                         const toolCall = toolCalls.find((tc: any) => tc.id === segment.toolCallId);
                          console.log(`🎨 查找工具调用 ${segment.toolCallId}:`, toolCall);
                          if (toolCall) {
                            console.log(`🎨 找到工具调用，开始渲染:`, toolCall);
@@ -274,7 +275,7 @@ const MessageItemComponent: React.FC<MessageItemProps> = ({
                   {toolCalls.length > 0 && (
                     <div className="space-y-0.5">
                       <div className="text-sm text-muted-foreground font-medium">工具调用:</div>
-                      {toolCalls.map((toolCall) => {
+                      {toolCalls.map((toolCall: any) => {
                          console.log('🎨 传统方式渲染工具调用:', toolCall);
                          return (
                            <div key={`tool-${toolCall.id}`}>

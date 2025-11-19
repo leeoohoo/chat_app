@@ -121,6 +121,7 @@ class ApiClient {
     app_ids?: string[];
   }) {
     console.log('🔍 API client createMcpConfig 调用:', data);
+    console.log('🔍 [关键] app_ids 字段:', data.app_ids, '类型:', typeof data.app_ids, '是否为数组:', Array.isArray(data.app_ids));
     return this.request('/mcp-configs', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -140,6 +141,7 @@ class ApiClient {
     app_ids?: string[];
   }) {
     console.log('🔍 API client updateMcpConfig 调用:', { id, data });
+    console.log('🔍 [关键] app_ids 字段:', data.app_ids, '类型:', typeof data.app_ids, '是否为数组:', Array.isArray(data.app_ids));
     return this.request(`/mcp-configs/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -203,6 +205,8 @@ class ApiClient {
     user_id: string;
     app_ids?: string[];
   }): Promise<any> {
+    console.log('🔍 API client createSystemContext 调用:', data);
+    console.log('🔍 [关键] app_ids 字段:', data.app_ids, '类型:', typeof data.app_ids, '是否为数组:', Array.isArray(data.app_ids));
     return this.request<any>('/system-contexts', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -214,6 +218,8 @@ class ApiClient {
     content: string;
     app_ids?: string[];
   }): Promise<any> {
+    console.log('🔍 API client updateSystemContext 调用:', { id, data });
+    console.log('🔍 [关键] app_ids 字段:', data.app_ids, '类型:', typeof data.app_ids, '是否为数组:', Array.isArray(data.app_ids));
     return this.request<any>(`/system-contexts/${id}`, {
       method: 'PUT',
       body: JSON.stringify(data),
@@ -289,6 +295,8 @@ class ApiClient {
     enabled?: boolean;
     app_ids?: string[];
   }): Promise<any> {
+    console.log('🔍 API client createAgent 调用:', data);
+    console.log('🔍 [关键] app_ids 字段:', data.app_ids, '类型:', typeof data.app_ids, '是否为数组:', Array.isArray(data.app_ids));
     return this.request<any>('/agents', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -305,6 +313,8 @@ class ApiClient {
     enabled?: boolean;
     app_ids?: string[];
   }): Promise<any> {
+    console.log('🔍 API client updateAgent 调用:', { agentId, data });
+    console.log('🔍 [关键] app_ids 字段:', data.app_ids, '类型:', typeof data.app_ids, '是否为数组:', Array.isArray(data.app_ids));
     return this.request<any>(`/agents/${agentId}`, {
       method: 'PUT',
       body: JSON.stringify(data),
