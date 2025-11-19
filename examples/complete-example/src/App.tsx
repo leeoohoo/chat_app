@@ -88,8 +88,7 @@ function App() {
       console.log('[App] Electron detection:', { hasElectronProcess, hasElectronAPI, isElectronEnv });
       setIsElectron(isElectronEnv);
 
-      // 统一使用环境变量控制后端 API 基础地址
-      const apiBase = import.meta.env.VITE_API_BASE || 'http://localhost:8000/api';
+      const apiBase = import.meta.env.VITE_API_BASE || '/api';
 
       // 创建 AiChat 实例 - 完整功能版本
       // 最后一个参数是应用选择回调函数

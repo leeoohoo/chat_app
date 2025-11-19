@@ -33,7 +33,7 @@ function getBackendHostPort() {
     const isDev = !!process.env.VITE_DEV_SERVER_URL;
     const port = selectedBackendPort != null
         ? selectedBackendPort
-        : parseInt(process.env.BACKEND_PORT || (isDev ? '3001' : '8000'), 10);
+        : parseInt(process.env.BACKEND_PORT || '3001', 10);
     return { host, port, isDev };
 }
 
@@ -86,17 +86,31 @@ function findBinaryExecutable() {
         }
     }
 
-    // 优先查找打包目录: server/chat_app_server/dist/chat_app_server/<binaryName>
+    // 优先查找打包的 Node 后端脚本
+    const isDev = !!process.env.VITE_DEV_SERVER_URL;
+    const resRoot = isDev ? repoRoot : (process.resourcesPath || repoRoot);
+    const packagedNodeDir = path.join(resRoot, 'server', 'chat_app_node_server');
+    const packagedNodeEntry = path.join(packagedNodeDir, 'src', 'main.js');
+    console.log('[Electron] Resolving backend node script:', packagedNodeEntry);
+    if (fs.existsSync(packagedNodeEntry)) {
+        try {
+            const stats = fs.statSync(packagedNodeEntry);
+            return {
+                path: packagedNodeEntry,
+                workingDir: packagedNodeDir,
+                size: stats.size,
+                isNodeScript: true,
+            };
+        } catch (err) {}
+    }
+
+    // 兼容原有二进制后端（Python），仅当存在时使用
     const packagedDir = path.join(repoRoot, 'server', 'chat_app_server', 'dist', 'chat_app_server');
     const packagedBinaryPath = path.join(packagedDir, binaryName);
-    console.log('[Electron] Resolving backend binary (packaged dist):', packagedBinaryPath);
     if (fs.existsSync(packagedBinaryPath)) {
         try {
             const stats = fs.statSync(packagedBinaryPath);
-            console.log(`[Electron] ✓ Found packaged binary: ${packagedBinaryPath}`);
-            console.log(`[Electron]   Size: ${stats.size} bytes`);
             if (!isWin && !(stats.mode & parseInt('111', 8))) {
-                console.log(`[Electron]   Setting executable permissions...`);
                 fs.chmodSync(packagedBinaryPath, 0o755);
             }
             return {
@@ -104,47 +118,59 @@ function findBinaryExecutable() {
                 workingDir: packagedDir,
                 size: stats.size,
             };
-        } catch (err) {
-            console.warn(`[Electron] Error checking packaged binary ${packagedBinaryPath}: ${err.message}`);
-        }
-    }
-
-    // 回退方案：根据平台与架构查找 Nuitka 目录
-    const platform = process.platform; // 'darwin' | 'win32' | 'linux'
-    const arch = process.arch; // 'arm64' | 'x64' | ...
-    const nuitkaDirName = `chat_app_server_nuitka_${platform}_${arch}`;
-    const nuitkaDir = path.join(repoRoot, 'server', 'chat_app_server', 'dist', nuitkaDirName);
-    const nuitkaBinaryPath = path.join(nuitkaDir, binaryName);
-    console.log('[Electron] Resolving backend binary (Nuitka fallback):', nuitkaBinaryPath);
-    if (fs.existsSync(nuitkaBinaryPath)) {
-        try {
-            const stats = fs.statSync(nuitkaBinaryPath);
-            console.log(`[Electron] ✓ Found Nuitka binary: ${nuitkaBinaryPath}`);
-            console.log(`[Electron]   Size: ${stats.size} bytes`);
-            if (!isWin && !(stats.mode & parseInt('111', 8))) {
-                console.log(`[Electron]   Setting executable permissions...`);
-                fs.chmodSync(nuitkaBinaryPath, 0o755);
-            }
-            return {
-                path: nuitkaBinaryPath,
-                workingDir: nuitkaDir,
-                size: stats.size,
-            };
-        } catch (err) {
-            console.warn(`[Electron] Error checking Nuitka binary ${nuitkaBinaryPath}: ${err.message}`);
-        }
-    } else {
-        console.error('[Electron] ❌ Backend binary not found at:', nuitkaBinaryPath);
-        console.error('[Electron] Platform/Arch:', { platform, arch });
-        console.error('[Electron] Hint: Ensure Nuitka build output exists at directory:', nuitkaDirName);
-        console.error('[Electron] Or set BACKEND_BIN_PATH to the absolute path of the binary');
+        } catch (err) {}
     }
 
     return null;
 }
 
 async function ensureBackendStarted() {
-    const { host } = getBackendHostPort();
+    const { host, isDev } = getBackendHostPort();
+
+    if (isDev) {
+        const devPort = parseInt(process.env.BACKEND_PORT || '3001', 10);
+        selectedBackendPort = devPort;
+
+        const alreadyUp = await checkPort(host, devPort);
+        if (alreadyUp) {
+            return true;
+        }
+
+        const binaryInfo = findBinaryExecutable();
+        if (binaryInfo && binaryInfo.isNodeScript) {
+            try {
+                backendProcess = spawn('node', [binaryInfo.path], {
+                    cwd: binaryInfo.workingDir,
+                    env: {
+                        ...process.env,
+                        PORT: String(devPort),
+                    },
+                    stdio: ['ignore', 'pipe', 'pipe'],
+                });
+
+                backendProcess.stdout.on('data', (data) => {
+                    process.stdout.write(`[Backend] ${data}`);
+                });
+                backendProcess.stderr.on('data', (data) => {
+                    process.stderr.write(`[Backend] ${data}`);
+                });
+
+                backendProcess.on('error', (err) => {
+                    console.error('[Electron] Backend process error:', err);
+                });
+
+                backendProcess.on('exit', (code, signal) => {
+                    console.log(`[Electron] Backend process exited: code=${code} signal=${signal}`);
+                    backendProcess = null;
+                });
+
+            } catch (err) {
+                console.error('[Electron] Failed to start dev backend process:', err);
+            }
+        }
+
+        return true;
+    }
 
     // 选择可用端口
     const port = await findAvailablePort(host);
@@ -166,22 +192,45 @@ async function ensureBackendStarted() {
         throw new Error('Binary executable not found');
     }
 
-    console.log(`[Electron] Launching binary: ${binaryInfo.path}`);
+    console.log(`[Electron] Launching backend: ${binaryInfo.path}`);
     console.log(`[Electron] Working directory: ${binaryInfo.workingDir}`);
 
     try {
-        backendProcess = spawn(binaryInfo.path, [], {
-            cwd: binaryInfo.workingDir,
-            env: {
-                ...process.env,
-                PORT: String(port),
-                // 确保二进制文件有正确的环境
-                PYTHONUNBUFFERED: '1',
-            },
-            stdio: ['ignore', 'pipe', 'pipe'],
-        });
+        if (binaryInfo.isNodeScript) {
+            const { isDev } = getBackendHostPort();
+            if (isDev) {
+                backendProcess = spawn('node', [binaryInfo.path], {
+                    cwd: binaryInfo.workingDir,
+                    env: {
+                        ...process.env,
+                        PORT: String(port),
+                    },
+                    stdio: ['ignore', 'pipe', 'pipe'],
+                });
+            } else {
+            backendProcess = spawn(process.execPath, [binaryInfo.path], {
+                cwd: binaryInfo.workingDir,
+                env: {
+                    ...process.env,
+                    PORT: String(port),
+                    ELECTRON_RUN_AS_NODE: '1',
+                },
+                stdio: ['ignore', 'pipe', 'pipe'],
+            });
+            }
+        } else {
+            backendProcess = spawn(binaryInfo.path, [], {
+                cwd: binaryInfo.workingDir,
+                env: {
+                    ...process.env,
+                    PORT: String(port),
+                    PYTHONUNBUFFERED: '1',
+                },
+                stdio: ['ignore', 'pipe', 'pipe'],
+            });
+        }
 
-        console.log(`[Electron] ✓ Binary process started with PID: ${backendProcess.pid}`);
+        console.log(`[Electron] ✓ Backend process started with PID: ${backendProcess.pid}`);
 
         // 监听输出
         backendProcess.stdout.on('data', (data) => {
@@ -193,19 +242,19 @@ async function ensureBackendStarted() {
         });
 
         backendProcess.on('error', (err) => {
-            console.error('[Electron] Binary process error:', err);
+            console.error('[Electron] Backend process error:', err);
             throw err;
         });
 
         backendProcess.on('exit', (code, signal) => {
-            console.log(`[Electron] Binary process exited: code=${code} signal=${signal}`);
+            console.log(`[Electron] Backend process exited: code=${code} signal=${signal}`);
             backendProcess = null;
         });
 
         return true;
 
     } catch (err) {
-        console.error('[Electron] Failed to start binary process:', err);
+        console.error('[Electron] Failed to start backend process:', err);
         throw err;
     }
 }
@@ -251,7 +300,7 @@ function findAvailablePort(host, preferred = []) {
             if (!Number.isNaN(p)) candidates.push(p);
         }
         const { isDev } = getBackendHostPort();
-        candidates.push(isDev ? 3001 : 8000);
+        candidates.push(3001);
         candidates.push(...preferred);
 
         for (const p of candidates) {
@@ -265,10 +314,10 @@ function findAvailablePort(host, preferred = []) {
         const server = net.createServer();
         server.listen(0, host, () => {
             const addr = server.address();
-            const freePort = typeof addr === 'object' && addr ? addr.port : (isDev ? 3001 : 8000);
+            const freePort = typeof addr === 'object' && addr ? addr.port : 3001;
             server.close(() => resolve(freePort));
         });
-        server.on('error', () => resolve(isDev ? 3001 : 8000));
+        server.on('error', () => resolve(3001));
     });
 }
 
@@ -288,7 +337,7 @@ function setupApiRewrite() {
             if (isApiPath) {
                 // 重写任何 /api 前缀请求到当前后端端口
                 redirectURL = `${targetBase}${u.pathname}${u.search}`;
-            } else if (isLocal && (u.port === '3001' || u.port === '8000') && u.pathname.startsWith('/api')) {
+            } else if (isLocal && (u.port === '3001') && u.pathname.startsWith('/api')) {
                 redirectURL = `${targetBase}${u.pathname}${u.search}`;
             }
         } catch (_) {}
