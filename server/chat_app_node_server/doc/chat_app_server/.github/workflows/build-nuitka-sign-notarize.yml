@@ -1,0 +1,394 @@
+name: Build with Nuitka, Sign and Notarize (macOS ARM64)
+
+on:
+  workflow_dispatch:
+
+
+jobs:
+  build-macos-nuitka:
+    runs-on: macos-latest
+    timeout-minutes: 90
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Verify Python environment
+      run: |
+        echo "=== Python Environment ==="
+        python --version
+        python -c "import sys; print(f'Python {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')"
+        python -c "import platform; print('Architecture:', platform.machine())"
+        python -c "import sys; print('Executable:', sys.executable)"
+        echo ""
+        echo "=== System Information ==="
+        uname -a
+        sw_vers
+
+    - name: Install Python dependencies
+      run: |
+        echo "=== Installing dependencies ==="
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then
+          pip install -r requirements.txt
+        fi
+        echo "✅ Dependencies installed"
+
+    - name: Install Xcode Command Line Tools (if needed)
+      run: |
+        echo "=== Checking Xcode Command Line Tools ==="
+        if ! xcode-select -p &> /dev/null; then
+          echo "Installing Xcode Command Line Tools..."
+          xcode-select --install
+        else
+          echo "✅ Xcode Command Line Tools already installed"
+          xcode-select -p
+        fi
+
+    - name: Run Nuitka build (using your existing script)
+      run: |
+        echo "=== Starting Nuitka Build ==="
+        python scripts/build_nuitka.py
+        echo "✅ Build completed"
+
+    - name: Analyze build output
+      run: |
+        echo "=== Analyzing Build Output ==="
+        
+        # 检查 dist_nuitka 目录
+        if [ -d "dist_nuitka" ]; then
+          echo "Contents of dist_nuitka/:"
+          ls -la dist_nuitka/
+          echo ""
+        fi
+        
+        # 查找所有可能的输出
+        echo "=== Looking for build outputs ==="
+        
+        # 查找 .app 包
+        find dist_nuitka -name "*.app" -type d 2>/dev/null | while read app; do
+          echo "Found app bundle: $app"
+          ls -la "$app/Contents/" 2>/dev/null || true
+          ls -la "$app/Contents/MacOS/" 2>/dev/null || true
+        done
+        
+        # 查找可执行文件
+        find dist_nuitka -type f -perm +111 2>/dev/null | while read exe; do
+          echo "Found executable: $exe"
+          file "$exe"
+          lipo -info "$exe" 2>/dev/null || true
+        done
+
+    - name: Determine output path
+      id: output
+      run: |
+        echo "=== Determining Output Path ==="
+        
+        # 按优先级查找输出
+        if [ -d "dist_nuitka/ChatAppServer.app" ]; then
+          APP_PATH="dist_nuitka/ChatAppServer.app"
+          OUTPUT_TYPE="app_bundle"
+        elif [ -d "dist_nuitka/chat_app_server.app" ]; then
+          APP_PATH="dist_nuitka/chat_app_server.app"
+          OUTPUT_TYPE="app_bundle"
+        elif [ -f "dist_nuitka/chat_app_server.bin" ]; then
+          APP_PATH="dist_nuitka/chat_app_server.bin"
+          OUTPUT_TYPE="executable"
+        elif [ -f "dist_nuitka/chat_app_server" ]; then
+          APP_PATH="dist_nuitka/chat_app_server"
+          OUTPUT_TYPE="executable"
+        else
+          echo "❌ No build output found"
+          exit 1
+        fi
+        
+        echo "APP_PATH=$APP_PATH" >> $GITHUB_OUTPUT
+        echo "OUTPUT_TYPE=$OUTPUT_TYPE" >> $GITHUB_OUTPUT
+        echo "✅ Found output: $APP_PATH (type: $OUTPUT_TYPE)"
+
+    - name: Create entitlements file
+      run: |
+        cat > entitlements.plist << 'EOF'
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>com.apple.security.cs.allow-jit</key>
+            <true/>
+            <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+            <true/>
+            <key>com.apple.security.cs.disable-library-validation</key>
+            <true/>
+            <key>com.apple.security.network.client</key>
+            <true/>
+            <key>com.apple.security.network.server</key>
+            <true/>
+            <key>com.apple.security.files.user-selected.read-write</key>
+            <true/>
+        </dict>
+        </plist>
+        EOF
+        echo "✅ Entitlements file created"
+
+    - name: Import Developer ID Certificate
+      env:
+        DEVELOPER_ID_APPLICATION_P12_BASE64: ${{ secrets.DEVELOPER_ID_APPLICATION_P12_BASE64 }}
+        DEVELOPER_ID_APPLICATION_P12_PASSWORD: ${{ secrets.DEVELOPER_ID_APPLICATION_P12_PASSWORD }}
+      run: |
+        echo "=== Importing Developer ID Certificate ==="
+        
+        mkdir -p ~/temp-certs
+        echo "$DEVELOPER_ID_APPLICATION_P12_BASE64" | base64 --decode > ~/temp-certs/developer_id.p12
+        
+        security create-keychain -p "temp-password" ~/temp-certs/build.keychain
+        security default-keychain -s ~/temp-certs/build.keychain
+        security unlock-keychain -p "temp-password" ~/temp-certs/build.keychain
+        
+        security import ~/temp-certs/developer_id.p12 \
+          -k ~/temp-certs/build.keychain \
+          -P "$DEVELOPER_ID_APPLICATION_P12_PASSWORD" \
+          -T /usr/bin/codesign
+        
+        security set-key-partition-list \
+          -S apple-tool:,apple:,codesign: \
+          -s -k "temp-password" \
+          ~/temp-certs/build.keychain
+        
+        echo ""
+        echo "=== Available Signing Identities ==="
+        security find-identity -v -p codesigning ~/temp-certs/build.keychain
+        
+        RAW_OUTPUT=$(security find-identity -v -p codesigning ~/temp-certs/build.keychain | grep "Developer ID Application")
+        echo "Raw certificate line: '$RAW_OUTPUT'"
+        
+        CERT_NAME=$(echo "$RAW_OUTPUT" | sed 's/.*"\(.*\)".*/\1/')
+        
+        if [ -z "$CERT_NAME" ] || [[ "$CERT_NAME" == *")"* ]]; then
+          CERT_HASH=$(echo "$RAW_OUTPUT" | grep -o '[A-F0-9]\{40\}' | head -1)
+          if [ -n "$CERT_HASH" ]; then
+            CERT_NAME="$CERT_HASH"
+          fi
+        fi
+        
+        if [ -z "$CERT_NAME" ]; then
+          echo "❌ Failed to extract certificate identifier"
+          exit 1
+        fi
+        
+        echo "CERT_NAME=$CERT_NAME" >> $GITHUB_ENV
+        echo "✅ Certificate identifier: '$CERT_NAME'"
+
+    - name: Sign application
+      run: |
+        echo "=== Signing Application ==="
+        
+        APP_PATH="${{ steps.output.outputs.APP_PATH }}"
+        OUTPUT_TYPE="${{ steps.output.outputs.OUTPUT_TYPE }}"
+        
+        if [ "$OUTPUT_TYPE" = "app_bundle" ]; then
+          echo "Signing app bundle with deep sign..."
+          codesign --deep --force --sign "$CERT_NAME" \
+            --options runtime \
+            --entitlements entitlements.plist \
+            --timestamp \
+            "$APP_PATH"
+        else
+          echo "Signing executable..."
+          codesign --force --sign "$CERT_NAME" \
+            --options runtime \
+            --entitlements entitlements.plist \
+            --timestamp \
+            "$APP_PATH"
+        fi
+        
+        echo "✅ Application signed"
+
+    - name: Verify signature
+      run: |
+        echo "=== Verifying Signature ==="
+        
+        APP_PATH="${{ steps.output.outputs.APP_PATH }}"
+        OUTPUT_TYPE="${{ steps.output.outputs.OUTPUT_TYPE }}"
+        
+        if [ "$OUTPUT_TYPE" = "app_bundle" ]; then
+          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+          echo ""
+          echo "=== Signature Details ==="
+          codesign --display --verbose=4 "$APP_PATH"
+        else
+          codesign --verify --strict --verbose=2 "$APP_PATH"
+          echo ""
+          echo "=== Signature Details ==="
+          codesign --display --verbose=4 "$APP_PATH"
+        fi
+        
+        echo "✅ Signature verified"
+
+    - name: Create ZIP for notarization
+      run: |
+        echo "=== Creating ZIP for Notarization ==="
+        
+        APP_PATH="${{ steps.output.outputs.APP_PATH }}"
+        OUTPUT_TYPE="${{ steps.output.outputs.OUTPUT_TYPE }}"
+        
+        cd dist_nuitka
+        
+        if [ "$OUTPUT_TYPE" = "app_bundle" ]; then
+          APP_NAME=$(basename "$APP_PATH")
+          ditto -c -k --keepParent "$APP_NAME" notarize.zip
+        else
+          EXE_NAME=$(basename "$APP_PATH")
+          zip notarize.zip "$EXE_NAME"
+        fi
+        
+        echo "✅ ZIP created"
+        ls -lh notarize.zip
+
+    - name: Submit for notarization
+      env:
+        APPLE_ID: ${{ secrets.APPLE_ID }}
+        APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+        APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      run: |
+        echo "=== Submitting for Notarization ==="
+        
+        NOTARY_OUTPUT=$(xcrun notarytool submit dist_nuitka/notarize.zip \
+          --apple-id "$APPLE_ID" \
+          --password "$APPLE_ID_PASSWORD" \
+          --team-id "$APPLE_TEAM_ID" \
+          --output-format json 2>&1)
+        
+        echo "$NOTARY_OUTPUT"
+        
+        SUBMISSION_ID=$(echo "$NOTARY_OUTPUT" | jq -r '.id // empty')
+        
+        if [ -z "$SUBMISSION_ID" ]; then
+          echo "❌ Failed to get submission ID"
+          exit 1
+        fi
+        
+        echo "SUBMISSION_ID=$SUBMISSION_ID" >> $GITHUB_ENV
+        echo "✅ Submission ID: $SUBMISSION_ID"
+        
+        echo ""
+        echo "⏳ Waiting for notarization..."
+        xcrun notarytool wait "$SUBMISSION_ID" \
+          --apple-id "$APPLE_ID" \
+          --password "$APPLE_ID_PASSWORD" \
+          --team-id "$APPLE_TEAM_ID" \
+          --timeout 30m
+
+    - name: Check notarization status
+      env:
+        APPLE_ID: ${{ secrets.APPLE_ID }}
+        APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+        APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      run: |
+        echo "=== Checking Notarization Status ==="
+        
+        NOTARY_INFO=$(xcrun notarytool info "$SUBMISSION_ID" \
+          --apple-id "$APPLE_ID" \
+          --password "$APPLE_ID_PASSWORD" \
+          --team-id "$APPLE_TEAM_ID" \
+          --output-format json)
+        
+        echo "$NOTARY_INFO"
+        
+        STATUS=$(echo "$NOTARY_INFO" | jq -r '.status')
+        
+        echo ""
+        echo "=== Detailed Notarization Log ==="
+        xcrun notarytool log "$SUBMISSION_ID" \
+          --apple-id "$APPLE_ID" \
+          --password "$APPLE_ID_PASSWORD" \
+          --team-id "$APPLE_TEAM_ID"
+        
+        if [ "$STATUS" != "Accepted" ]; then
+          echo "❌ Notarization status: $STATUS"
+          exit 1
+        fi
+        
+        echo "✅ Notarization successful!"
+
+    - name: Staple notarization ticket
+      run: |
+        echo "=== Stapling Notarization Ticket ==="
+        
+        APP_PATH="${{ steps.output.outputs.APP_PATH }}"
+        OUTPUT_TYPE="${{ steps.output.outputs.OUTPUT_TYPE }}"
+        
+        if [ "$OUTPUT_TYPE" = "app_bundle" ]; then
+          xcrun stapler staple "$APP_PATH"
+          xcrun stapler validate "$APP_PATH"
+          echo "✅ Stapling completed"
+        else
+          echo "⚠️  Stapling not supported for standalone executables"
+          echo "The notarization ticket will be fetched from Apple's servers when users run the app"
+        fi
+
+    - name: Create final distribution
+      run: |
+        echo "=== Creating Final Distribution ==="
+        
+        APP_PATH="${{ steps.output.outputs.APP_PATH }}"
+        OUTPUT_TYPE="${{ steps.output.outputs.OUTPUT_TYPE }}"
+        
+        cd dist_nuitka
+        
+        if [ "$OUTPUT_TYPE" = "app_bundle" ]; then
+          APP_NAME=$(basename "$APP_PATH")
+          
+          # 创建最终 ZIP
+          ditto -c -k --keepParent "$APP_NAME" ChatAppServer-notarized.zip
+          
+          # 创建 DMG
+          echo "=== Creating DMG ==="
+          hdiutil create -volname "ChatAppServer" \
+            -srcfolder "$APP_NAME" \
+            -ov -format UDZO \
+            ChatAppServer.dmg
+        else
+          EXE_NAME=$(basename "$APP_PATH")
+          zip ChatAppServer-notarized.zip "$EXE_NAME"
+        fi
+        
+        echo ""
+        echo "=== Final Distribution Files ==="
+        ls -lh ChatAppServer-notarized.zip
+        ls -lh ChatAppServer.dmg 2>/dev/null || true
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ChatAppServer-macos-arm64-nuitka
+        path: |
+          dist_nuitka/ChatAppServer-notarized.zip
+          dist_nuitka/ChatAppServer.dmg
+        retention-days: 30
+
+    - name: Create release summary
+      run: |
+        echo "# 🎉 Build Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## ✅ Build Successful" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- **Build Tool**: Nuitka (native compilation)" >> $GITHUB_STEP_SUMMARY
+        echo "- **Platform**: macOS ARM64" >> $GITHUB_STEP_SUMMARY
+        echo "- **Output Type**: ${{ steps.output.outputs.OUTPUT_TYPE }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Signed**: ✅ Yes" >> $GITHUB_STEP_SUMMARY
+        echo "- **Notarized**: ✅ Yes" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## 📦 Artifacts" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Download the notarized application from the Artifacts section above." >> $GITHUB_STEP_SUMMARY
+
+    - name: Cleanup
+      if: always()
+      run: |
+        rm -rf ~/temp-certs
+        security delete-keychain ~/temp-certs/build.keychain 2>/dev/null || true

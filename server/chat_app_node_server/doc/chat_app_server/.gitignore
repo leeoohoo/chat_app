@@ -1,0 +1,11 @@
+/.idea
+/app/models/__pycache__
+/app/api/__pycache__
+/app/services/v2/__pycache__
+/app/utils/__pycache__
+/app/__pycache__
+/dist
+/data
+/data
+/build
+/build

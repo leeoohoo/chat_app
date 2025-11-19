@@ -1,0 +1,522 @@
+name: Build, Sign and Notarize macOS ARM64 Chat App Server
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Verify Python version and architecture
+      run: |
+        echo "=== Python version verification ==="
+        python --version
+        python -c "import sys; print(f'Python {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}')"
+        python -c "import platform; print('Architecture:', platform.machine())"
+        python -c "import sys; print('Executable:', sys.executable)"
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+    - name: Run build script
+      run: |
+        python scripts/build_pyinstaller.py
+
+    - name: Analyze build output structure
+      run: |
+        echo "=== Analyzing build output structure ==="
+        
+        if [ -d "dist/chat_app_server" ]; then
+          echo "=== Build output structure ==="
+          ls -la dist/chat_app_server/
+          
+          echo "=== _internal directory contents ==="
+          if [ -d "dist/chat_app_server/_internal" ]; then
+            ls -la dist/chat_app_server/_internal/ | head -30
+          fi
+          
+          echo "=== Finding all Python-related files ==="
+          find dist/chat_app_server -name "*Python*" -type f -o -name "*Python*" -type l 2>/dev/null | while read file; do
+            echo "Found: $file"
+            if [ -L "$file" ]; then
+              echo "  -> Symbolic link to: $(readlink "$file")"
+            else
+              file "$file"
+            fi
+          done
+        fi
+
+    - name: Create entitlements file
+      run: |
+        cat > entitlements.plist << 'EOF'
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>com.apple.security.cs.allow-jit</key>
+            <true/>
+            <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+            <true/>
+            <key>com.apple.security.cs.disable-library-validation</key>
+            <true/>
+            <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+            <true/>
+            <key>com.apple.security.network.client</key>
+            <true/>
+            <key>com.apple.security.network.server</key>
+            <true/>
+            <key>com.apple.security.files.user-selected.read-write</key>
+            <true/>
+        </dict>
+        </plist>
+        EOF
+
+    - name: Import Developer ID Certificate
+      env:
+        DEVELOPER_ID_APPLICATION_P12_BASE64: ${{ secrets.DEVELOPER_ID_APPLICATION_P12_BASE64 }}
+        DEVELOPER_ID_APPLICATION_P12_PASSWORD: ${{ secrets.DEVELOPER_ID_APPLICATION_P12_PASSWORD }}
+        APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      run: |
+        echo "=== Importing Developer ID Certificate ==="
+        
+        mkdir -p ~/temp-certs
+        echo "$DEVELOPER_ID_APPLICATION_P12_BASE64" | base64 --decode > ~/temp-certs/developer_id.p12
+        
+        security create-keychain -p "temp-password" ~/temp-certs/build.keychain
+        security default-keychain -s ~/temp-certs/build.keychain
+        security unlock-keychain -p "temp-password" ~/temp-certs/build.keychain
+        
+        security import ~/temp-certs/developer_id.p12 \
+          -k ~/temp-certs/build.keychain \
+          -P "$DEVELOPER_ID_APPLICATION_P12_PASSWORD" \
+          -T /usr/bin/codesign
+        
+        security set-key-partition-list \
+          -S apple-tool:,apple:,codesign: \
+          -s -k "temp-password" \
+          ~/temp-certs/build.keychain
+        
+        echo "=== Available signing identities ==="
+        security find-identity -v -p codesigning ~/temp-certs/build.keychain
+        
+        RAW_OUTPUT=$(security find-identity -v -p codesigning ~/temp-certs/build.keychain | grep "Developer ID Application")
+        echo "Raw certificate line: '$RAW_OUTPUT'"
+        
+        # 提取证书名称
+        CERT_NAME=$(echo "$RAW_OUTPUT" | sed 's/.*"\(.*\)".*/\1/')
+        
+        if [ -z "$CERT_NAME" ] || [[ "$CERT_NAME" == *")"* ]]; then
+          CERT_HASH=$(echo "$RAW_OUTPUT" | grep -o '[A-F0-9]\{40\}' | head -1)
+          if [ -n "$CERT_HASH" ]; then
+            CERT_NAME="$CERT_HASH"
+          fi
+        fi
+        
+        if [ -z "$CERT_NAME" ]; then
+          echo "❌ Failed to extract certificate identifier"
+          exit 1
+        fi
+        
+        echo "CERT_NAME=$CERT_NAME" >> $GITHUB_ENV
+        echo "✅ Certificate identifier: '$CERT_NAME'"
+
+    - name: Pre-signing cleanup
+      run: |
+        echo "=== Pre-signing cleanup ==="
+        
+        # 查找所有需要清理的文件
+        find dist/chat_app_server -type f \( -name "*.so" -o -name "*.dylib" -o -perm +111 \) -print0 2>/dev/null | while IFS= read -r -d '' file; do
+          if file "$file" 2>/dev/null | grep -q "Mach-O"; then
+            echo "🧹 Cleaning: $file"
+            codesign --remove-signature "$file" 2>/dev/null || true
+            xattr -cr "$file" 2>/dev/null || true
+          fi
+        done
+        
+        echo "✅ Pre-signing cleanup completed"
+
+    - name: Fix Python binary structure for signing
+      run: |
+        echo "=== Fixing Python binary structure for signing ==="
+        
+        # 查找所有 Python 二进制文件
+        PYTHON_BINARIES=()
+        
+        # 查找 _internal 目录中的 Python 二进制
+        if [ -f "dist/chat_app_server/_internal/Python" ]; then
+          PYTHON_BINARIES+=("dist/chat_app_server/_internal/Python")
+        fi
+        
+        # 查找 Python.framework 中的 Python 二进制
+        while IFS= read -r -d '' file; do
+          PYTHON_BINARIES+=("$file")
+        done < <(find dist/chat_app_server -path "*/Python.framework/*/Python" -type f -print0 2>/dev/null)
+        
+        echo "Found ${#PYTHON_BINARIES[@]} Python binaries to fix"
+        
+        for python_bin in "${PYTHON_BINARIES[@]}"; do
+          echo "🔧 Fixing Python binary: $python_bin"
+          
+          # 检查文件类型
+          echo "File type:"
+          file "$python_bin"
+          
+          # 检查是否为符号链接
+          if [ -L "$python_bin" ]; then
+            echo "⚠️  This is a symbolic link, resolving..."
+            REAL_PATH=$(readlink -f "$python_bin" 2>/dev/null || realpath "$python_bin" 2>/dev/null)
+            if [ -n "$REAL_PATH" ] && [ -f "$REAL_PATH" ]; then
+              echo "Real path: $REAL_PATH"
+              python_bin="$REAL_PATH"
+            fi
+          fi
+          
+          # 移除所有扩展属性
+          echo "Removing extended attributes..."
+          xattr -cr "$python_bin" 2>/dev/null || true
+          
+          # 移除现有签名
+          echo "Removing existing signature..."
+          codesign --remove-signature "$python_bin" 2>/dev/null || true
+          
+          # 确保文件权限正确
+          echo "Setting correct permissions..."
+          chmod 755 "$python_bin"
+          
+          # 验证文件完整性
+          echo "Verifying file integrity..."
+          if ! file "$python_bin" | grep -q "Mach-O"; then
+            echo "❌ Not a valid Mach-O file!"
+            exit 1
+          fi
+          
+          # 检查架构
+          echo "Architecture check:"
+          lipo -info "$python_bin" 2>&1 || file "$python_bin"
+          
+          echo "✅ Python binary prepared: $python_bin"
+        done
+        
+        echo "=== Python binary structure fix completed ==="
+
+    - name: Sign all binaries
+      env:
+        APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      run: |
+        echo "=== Signing all binaries ==="
+        echo "Using certificate: '$CERT_NAME'"
+        
+        # 简化的签名函数
+        sign_binary() {
+          local file="$1"
+          local use_entitlements="$2"
+          
+          echo "🔐 Signing: $file"
+          
+          if [ ! -f "$file" ]; then
+            echo "❌ File not found: $file"
+            return 1
+          fi
+          
+          # 跳过符号链接
+          if [ -L "$file" ]; then
+            echo "⚠️  Skipping symbolic link: $file"
+            return 0
+          fi
+          
+          # 跳过非 Mach-O 文件
+          if ! file "$file" | grep -q "Mach-O"; then
+            echo "⚠️  Skipping non-Mach-O file: $file"
+            return 0
+          fi
+          
+          # 构建签名命令
+          local sign_cmd="codesign --force --sign \"$CERT_NAME\" --options runtime --timestamp"
+          
+          if [ "$use_entitlements" = "true" ]; then
+            sign_cmd="$sign_cmd --entitlements entitlements.plist"
+          fi
+          
+          sign_cmd="$sign_cmd \"$file\""
+          
+          # 执行签名
+          if eval $sign_cmd 2>&1; then
+            # 等待文件系统同步
+            sync
+            sleep 0.5
+            
+            # 验证签名
+            if codesign --verify --strict "$file" 2>&1; then
+              echo "✅ Successfully signed and verified: $(basename "$file")"
+              return 0
+            else
+              echo "❌ Signature verification failed: $(basename "$file")"
+              codesign --display --verbose=4 "$file" 2>&1 || true
+              return 1
+            fi
+          else
+            echo "❌ Signing failed: $(basename "$file")"
+            return 1
+          fi
+        }
+        
+        TOTAL_SIGNED=0
+        TOTAL_FAILED=0
+        
+        # 1. 签名所有 Python 二进制文件（最重要）
+        echo "=== Phase 1: Signing Python binaries ==="
+        
+        # 先签名 _internal 中的 Python
+        if [ -f "dist/chat_app_server/_internal/Python" ]; then
+          echo "🐍 Signing standalone Python binary"
+          if sign_binary "dist/chat_app_server/_internal/Python" "false"; then
+            TOTAL_SIGNED=$((TOTAL_SIGNED + 1))
+          else
+            TOTAL_FAILED=$((TOTAL_FAILED + 1))
+            echo "dist/chat_app_server/_internal/Python" >> /tmp/failed_signing.log
+          fi
+        fi
+        
+        # 签名 Python.framework 中的 Python
+        while IFS= read -r -d '' python_bin; do
+          echo "🐍 Signing framework Python binary: $python_bin"
+          if sign_binary "$python_bin" "false"; then
+            TOTAL_SIGNED=$((TOTAL_SIGNED + 1))
+          else
+            TOTAL_FAILED=$((TOTAL_FAILED + 1))
+            echo "$python_bin" >> /tmp/failed_signing.log
+          fi
+        done < <(find dist/chat_app_server -path "*/Python.framework/*/Python" -type f ! -type l -print0 2>/dev/null)
+        
+        # 2. 签名所有 .so 和 .dylib 文件
+        echo "=== Phase 2: Signing libraries and extensions ==="
+        
+        while IFS= read -r -d '' file; do
+          if sign_binary "$file" "false"; then
+            TOTAL_SIGNED=$((TOTAL_SIGNED + 1))
+          else
+            TOTAL_FAILED=$((TOTAL_FAILED + 1))
+            echo "$file" >> /tmp/failed_signing.log
+          fi
+        done < <(find dist/chat_app_server \( -name "*.so" -o -name "*.dylib" \) -type f ! -type l -print0)
+        
+        # 3. 签名其他可执行文件
+        echo "=== Phase 3: Signing other executables ==="
+        
+        while IFS= read -r -d '' file; do
+          # 跳过主可执行文件和已签名的 Python 二进制
+          if [[ "$(basename "$file")" != "chat_app_server" ]] && \
+             [[ "$(basename "$file")" != "Python" ]] && \
+             file "$file" | grep -q "Mach-O"; then
+            if sign_binary "$file" "false"; then
+              TOTAL_SIGNED=$((TOTAL_SIGNED + 1))
+            else
+              TOTAL_FAILED=$((TOTAL_FAILED + 1))
+              echo "$file" >> /tmp/failed_signing.log
+            fi
+          fi
+        done < <(find dist/chat_app_server -type f -perm +111 ! -type l -print0)
+        
+        # 4. 最后签名主可执行文件（使用 entitlements）
+        echo "=== Phase 4: Signing main executable ==="
+        
+        if [ -f "dist/chat_app_server/chat_app_server" ]; then
+          if sign_binary "dist/chat_app_server/chat_app_server" "true"; then
+            TOTAL_SIGNED=$((TOTAL_SIGNED + 1))
+            echo "✅ Main executable signed successfully"
+          else
+            TOTAL_FAILED=$((TOTAL_FAILED + 1))
+            echo "❌ Failed to sign main executable"
+            echo "dist/chat_app_server/chat_app_server" >> /tmp/failed_signing.log
+          fi
+        fi
+        
+        # 总结
+        echo "=== Signing Summary ==="
+        echo "Total files signed: $TOTAL_SIGNED"
+        echo "Total files failed: $TOTAL_FAILED"
+        
+        if [ $TOTAL_FAILED -gt 0 ]; then
+          echo "❌ Some files failed to sign:"
+          if [ -f /tmp/failed_signing.log ]; then
+            cat /tmp/failed_signing.log
+          fi
+          exit 1
+        else
+          echo "✅ All files signed successfully!"
+        fi
+
+    - name: Comprehensive signature verification
+      run: |
+        echo "=== Comprehensive signature verification ==="
+        
+        VERIFICATION_FAILED=false
+        
+        # 验证 Python 二进制文件
+        echo "=== Verifying Python binaries ==="
+        
+        if [ -f "dist/chat_app_server/_internal/Python" ]; then
+          echo "🔍 Verifying standalone Python binary"
+          if codesign --verify --strict --verbose dist/chat_app_server/_internal/Python 2>&1; then
+            echo "✅ Python binary verified"
+            codesign --display --verbose=4 dist/chat_app_server/_internal/Python 2>&1 | head -10
+          else
+            echo "❌ Python binary verification failed"
+            VERIFICATION_FAILED=true
+          fi
+        fi
+        
+        while IFS= read -r -d '' python_bin; do
+          echo "🔍 Verifying framework Python binary: $python_bin"
+          if codesign --verify --strict --verbose "$python_bin" 2>&1; then
+            echo "✅ Framework Python binary verified"
+            codesign --display --verbose=4 "$python_bin" 2>&1 | head -10
+          else
+            echo "❌ Framework Python binary verification failed"
+            VERIFICATION_FAILED=true
+          fi
+        done < <(find dist/chat_app_server -path "*/Python.framework/*/Python" -type f ! -type l -print0 2>/dev/null)
+        
+        # 验证主可执行文件
+        echo "=== Verifying main executable ==="
+        if codesign --verify --strict --verbose dist/chat_app_server/chat_app_server 2>&1; then
+          echo "✅ Main executable verified"
+          codesign --display --verbose=4 dist/chat_app_server/chat_app_server 2>&1 | head -10
+        else
+          echo "❌ Main executable verification failed"
+          VERIFICATION_FAILED=true
+        fi
+        
+        if [ "$VERIFICATION_FAILED" = true ]; then
+          echo "❌ Signature verification failed!"
+          exit 1
+        else
+          echo "✅ All signatures verified successfully"
+        fi
+
+    - name: Create ZIP archive for notarization
+      run: |
+        cd dist
+        echo "=== Creating ZIP archive for notarization ==="
+        
+        # 创建干净的 ZIP 文件
+        zip -r chat_app_server.zip chat_app_server/ -x "*.DS_Store" "*/__pycache__/*"
+        
+        echo "=== ZIP file created ==="
+        ls -lh chat_app_server.zip
+        
+        # 验证 ZIP 文件内容
+        echo "=== Verifying critical files in ZIP ==="
+        unzip -l chat_app_server.zip | grep -E "(Python|chat_app_server)$" || true
+
+    - name: Submit for notarization
+      env:
+        APPLE_ID: ${{ secrets.APPLE_ID }}
+        APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+        APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      run: |
+        echo "=== Submitting for notarization ==="
+        
+        NOTARY_OUTPUT=$(xcrun notarytool submit dist/chat_app_server.zip \
+          --apple-id "$APPLE_ID" \
+          --password "$APPLE_ID_PASSWORD" \
+          --team-id "$APPLE_TEAM_ID" \
+          --output-format json 2>&1)
+        
+        echo "Notary service response:"
+        echo "$NOTARY_OUTPUT"
+        
+        SUBMISSION_ID=$(echo "$NOTARY_OUTPUT" | jq -r '.id // empty')
+        
+        if [ -z "$SUBMISSION_ID" ] || [ "$SUBMISSION_ID" = "null" ]; then
+          echo "❌ Failed to get submission ID"
+          exit 1
+        fi
+        
+        echo "✅ Submission ID: $SUBMISSION_ID"
+        echo "SUBMISSION_ID=$SUBMISSION_ID" >> $GITHUB_ENV
+        
+        echo "⏳ Waiting for notarization..."
+        xcrun notarytool wait "$SUBMISSION_ID" \
+          --apple-id "$APPLE_ID" \
+          --password "$APPLE_ID_PASSWORD" \
+          --team-id "$APPLE_TEAM_ID" \
+          --timeout 30m
+
+    - name: Check notarization status and get detailed logs
+      env:
+        APPLE_ID: ${{ secrets.APPLE_ID }}
+        APPLE_ID_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+        APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      run: |
+        echo "=== Checking notarization status ==="
+        
+        NOTARY_INFO=$(xcrun notarytool info "$SUBMISSION_ID" \
+          --apple-id "$APPLE_ID" \
+          --password "$APPLE_ID_PASSWORD" \
+          --team-id "$APPLE_TEAM_ID" \
+          --output-format json 2>&1)
+        
+        echo "Notarization info:"
+        echo "$NOTARY_INFO"
+        
+        STATUS=$(echo "$NOTARY_INFO" | jq -r '.status // "Unknown"')
+        echo "Notarization status: $STATUS"
+        
+        # 无论成功还是失败，都获取详细日志
+        echo "=== Notarization detailed log ==="
+        xcrun notarytool log "$SUBMISSION_ID" \
+          --apple-id "$APPLE_ID" \
+          --password "$APPLE_ID_PASSWORD" \
+          --team-id "$APPLE_TEAM_ID"
+        
+        if [ "$STATUS" = "Accepted" ]; then
+          echo "✅ Notarization successful!"
+        else
+          echo "❌ Notarization failed with status: $STATUS"
+          exit 1
+        fi
+
+    - name: Staple and finalize
+      continue-on-error: true
+      run: |
+        echo "=== Stapling notarization ticket ==="
+        
+        sleep 10
+        
+        if xcrun stapler staple dist/chat_app_server/chat_app_server 2>&1; then
+          echo "✅ Stapling successful"
+          xcrun stapler validate dist/chat_app_server/chat_app_server 2>&1
+        else
+          echo "⚠️  Stapling failed, but app is still notarized"
+        fi
+        
+        echo "=== Final Gatekeeper test ==="
+        spctl --assess --type execute --verbose dist/chat_app_server/chat_app_server 2>&1 || echo "Gatekeeper test completed"
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: chat-app-server-macos-arm64-signed-notarized
+        path: |
+          dist/chat_app_server.zip
+          dist/chat_app_server/
+        retention-days: 30
+
+    - name: Cleanup
+      if: always()
+      run: |
+        rm -rf ~/temp-certs
+        security delete-keychain ~/temp-certs/build.keychain 2>/dev/null || true
+        rm -f /tmp/failed_*.log
