@@ -217,8 +217,8 @@ export class AiClient {
       model,
       temperature,
       maxTokens,
-      null,  // 后续迭代不再流式输出 chunk
-      null,  // 后续迭代不再流式输出 thinking
+      onChunk,
+      onThinkingChunk,
       systemPrompt,
       onToolsStart,
       onToolsStream,
