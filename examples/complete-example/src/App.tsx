@@ -10,7 +10,7 @@ import '@leeoohoo/aichat/styles';
 // 应用窗口缩放配置：调整此值来控制应用内容的缩放比例
 // 值越大，内容显示越小；值越小，内容显示越大
 // 建议范围：1600-2400
-const WEBVIEW_BASE_WIDTH = 1920;
+const WEBVIEW_BASE_WIDTH = 1080;
 
 /**
  * 完整使用示例 - 使用 AiChat 类实例化
