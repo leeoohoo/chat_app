@@ -2,10 +2,12 @@
 /// <reference types="react-dom" />
 /// <reference types="vite/client" />
 
-import  { useEffect, useState, useRef } from 'react';
+import  { useEffect, useState, useRef, ReactNode } from 'react';
 import { AiChat } from '@leeoohoo/aichat';
 import type { Application } from '@leeoohoo/aichat';
 import '@leeoohoo/aichat/styles';
+import { registerMcpManagerPlugin } from './plugins/McpManagerPlugin';
+import PluginLauncher from './components/PluginLauncher';
 
 // 应用窗口缩放配置：调整此值来控制应用内容的缩放比例
 // 值越大，内容显示越小；值越小，内容显示越大
@@ -29,6 +31,35 @@ function App() {
   // webview 引用与嵌入错误状态（仅 Electron 环境使用）
   const webviewRef = useRef<any>(null);
   const [embedError, setEmbedError] = useState<string | null>(null);
+
+  // =============== 插件机制：注入自定义组件 ===============
+  // 允许用户在运行时向窗口挂载 __AICHAT_PLUGINS 或通过 registerAiChatPlugin 动态注册
+  type ChatPlugin = {
+    id: string;
+    name: string;
+    icon?: ReactNode;
+    render: (ctx: { aiChat: AiChat }) => ReactNode;
+  };
+
+  const [plugins, setPlugins] = useState<ChatPlugin[]>(() => {
+    const injected = (typeof window !== 'undefined' && (window as any).__AICHAT_PLUGINS) || [];
+    return Array.isArray(injected) ? injected : [];
+  });
+
+  // 提供全局注册函数，便于外部注入组件
+  useEffect(() => {
+    (window as any).registerAiChatPlugin = (plugin: ChatPlugin) => {
+      setPlugins((prev: ChatPlugin[]) => {
+        if (prev.some(p => p.id === plugin.id)) return prev; // 去重
+        return [...prev, plugin];
+      });
+    };
+    // 在注册函数可用后，注入 MCP 管理插件（去重）
+    try { registerMcpManagerPlugin(); } catch {}
+  }, []);
+
+  // 无内联：插件 UI 由 PluginLauncher 组件负责
+
 
   // 处理拖动调整左侧面板宽度
   useEffect(() => {
@@ -100,7 +131,7 @@ function App() {
         'custom_project_456',
         apiBase,
         'h-full w-full',
-        true,  // showMcpManager
+        false, // showMcpManager（由插件替代原生面板）
         true,  // showAiModelManager
         true,  // showSystemContextEditor
         true,  // showAgentManager
@@ -148,6 +179,7 @@ function App() {
         }
       );
 
+      
       // 其他配置示例：
 
       // 1. 简化聊天版本（隐藏所有管理模块）
@@ -177,6 +209,12 @@ function App() {
       setAiChatInstance(aiChat);
       setIsInitialized(true);
       setError(null);
+
+      // 如果用户通过 window.__AICHAT_PLUGINS 注入了插件但没有图标，默认生成一个文本图标
+      setPlugins((prev) => prev.map(p => ({
+        ...p,
+        icon: p.icon || <span className="text-xs">{p.name}</span>
+      })));
 
       console.log('🎉 AiChat 实例创建成功！');
       console.log('配置信息:', aiChat.getConfig());
@@ -267,6 +305,8 @@ function App() {
     return () => cancelAnimationFrame(id);
   }, [isElectron, selectedApp, isAppLoading]);
 
+  // 插件按钮/菜单逻辑已移动到 PluginLauncher 组件
+
   // 浏览器环境的兜底超时处理（例如被 X-Frame-Options/CSP 拒绝时）
   useEffect(() => {
     if (isElectron || !selectedApp) return;
@@ -306,6 +346,8 @@ function App() {
 
   return (
     <div className="h-screen w-full bg-gray-50">
+      {/* 插件入口/菜单/弹窗（独立组件） */}
+      <PluginLauncher aiChat={aiChatInstance} plugins={plugins} />
       {/* 拖动时的遮罩层，防止iframe捕获鼠标事件 */}
       {isDragging && (
         <div className="fixed inset-0 z-50 cursor-col-resize" />
@@ -467,6 +509,11 @@ function App() {
           {aiChatInstance.render()}
         </div>
       </div>
+
+      {/* Header 内的插件按钮（Portal 注入到主题按钮左侧） */}
+      {/* 插件 UI 已交由 PluginLauncher 组件处理 */}
+
+      {/* 插件 UI 已交由 PluginLauncher 组件处理 */}
 
       {/* 应用信息 */}
       {process.env.NODE_ENV === 'development' && (
