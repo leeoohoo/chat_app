@@ -478,7 +478,12 @@ app.whenReady().then(async () => {
         }
 
         console.log('[Electron] ✓ Backend ready, creating window...');
-        setupApiRewrite();
+        // 在开发模式下，Vite 已经对 /api 做了代理，避免 Electron 级别再做一次重写导致跨域/重定向问题
+        if (!process.env.VITE_DEV_SERVER_URL) {
+            setupApiRewrite();
+        } else {
+            console.log('[Electron] Dev mode detected, skip setupApiRewrite() (use Vite proxy)');
+        }
         if (splashWindow) {
             try { splashWindow.close(); } catch (_) {}
             splashWindow = null;
@@ -556,8 +561,9 @@ function createOrFocusAppWindow(appData) {
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
-            webSecurity: true,
-            allowRunningInsecureContent: false,
+            // 在开发环境下放宽安全策略以避免部分站点在新窗口中加载资源失败
+            webSecurity: !process.env.VITE_DEV_SERVER_URL,
+            allowRunningInsecureContent: !!process.env.VITE_DEV_SERVER_URL,
         },
         icon: iconUrl, // 可选：设置窗口图标
     });

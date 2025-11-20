@@ -26,6 +26,9 @@ function App() {
   const [isDragging, setIsDragging] = useState(false);
   const [isAppLoading, setIsAppLoading] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  // webview 引用与嵌入错误状态（仅 Electron 环境使用）
+  const webviewRef = useRef<any>(null);
+  const [embedError, setEmbedError] = useState<string | null>(null);
 
   // 处理拖动调整左侧面板宽度
   useEffect(() => {
@@ -105,6 +108,7 @@ function App() {
           console.log('[App] 📢 应用被选择:', app);
           setSelectedApp(app);
           setIsAppLoading(true); // 开始加载
+          setEmbedError(null);
 
           // 检测 Electron 环境并处理
           const hasElectronAPI = typeof (window as any).electronAPI !== 'undefined';
@@ -209,6 +213,75 @@ function App() {
     }
   }, []);
 
+  // 监听 Electron webview 的加载事件，正确关闭加载动画并捕获失败
+  useEffect(() => {
+    if (!isElectron || !selectedApp) return;
+
+    // 等待 webview 元素渲染到 DOM
+    const id = requestAnimationFrame(() => {
+      const el = webviewRef.current as any | null;
+      if (!el) return;
+
+      const onDomReady = () => {
+        console.log('[webview] dom-ready');
+        setIsAppLoading(false);
+      };
+      const onDidFinish = () => {
+        console.log('[webview] did-finish-load');
+        setIsAppLoading(false);
+      };
+      const onDidFail = (e: any) => {
+        // 常见原因：X-Frame-Options / CSP frame-ancestors 限制
+        const code = e?.errorCode;
+        const desc = e?.errorDescription || 'unknown';
+        console.warn('[webview] did-fail-load', code, desc);
+        setIsAppLoading(false);
+        setEmbedError(`无法在内嵌窗口中加载（${desc}）。可尝试在新窗口打开。`);
+      };
+
+      try {
+        el.addEventListener('dom-ready', onDomReady);
+        el.addEventListener('did-finish-load', onDidFinish);
+        el.addEventListener('did-fail-load', onDidFail);
+
+        // 超时兜底：10 秒仍未完成则提示外部打开
+        const timeout = setTimeout(() => {
+          if (isAppLoading) {
+            console.warn('[webview] load timeout');
+            setIsAppLoading(false);
+            setEmbedError('加载超时，可能被目标站点禁止内嵌。可尝试在新窗口打开。');
+          }
+        }, 10000);
+
+        return () => {
+          clearTimeout(timeout);
+          try { el.removeEventListener('dom-ready', onDomReady); } catch {}
+          try { el.removeEventListener('did-finish-load', onDidFinish); } catch {}
+          try { el.removeEventListener('did-fail-load', onDidFail); } catch {}
+        };
+      } catch (err) {
+        console.warn('[webview] attach listeners failed:', err);
+      }
+    });
+
+    return () => cancelAnimationFrame(id);
+  }, [isElectron, selectedApp, isAppLoading]);
+
+  // 浏览器环境的兜底超时处理（例如被 X-Frame-Options/CSP 拒绝时）
+  useEffect(() => {
+    if (isElectron || !selectedApp) return;
+
+    const timeout = setTimeout(() => {
+      if (isAppLoading) {
+        console.warn('[iframe] load timeout');
+        setIsAppLoading(false);
+        setEmbedError('加载超时，目标站点可能禁止被 iframe 内嵌。可尝试在新窗口打开。');
+      }
+    }, 10000);
+
+    return () => clearTimeout(timeout);
+  }, [isElectron, selectedApp, isAppLoading]);
+
   if (error) {
     return (
       <div className="h-screen w-full bg-gray-50 flex items-center justify-center">
@@ -262,11 +335,44 @@ function App() {
               </div>
               <div className="flex-1 bg-gray-50 relative overflow-hidden">
                 {/* 加载动画 */}
-                {isAppLoading && (
-                  <div className="absolute inset-0 bg-white z-20 flex items-center justify-center">
+                {(isAppLoading || embedError) && (
+                  <div className="absolute inset-0 bg-white/90 z-20 flex items-center justify-center px-4">
                     <div className="text-center">
-                      <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                      <p className="text-gray-600 text-sm">正在加载应用...</p>
+                      {isAppLoading && (
+                        <>
+                          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                          <p className="text-gray-600 text-sm">正在加载应用...</p>
+                        </>
+                      )}
+                      {embedError && (
+                        <>
+                          <p className="text-red-600 text-sm mb-3">{embedError}</p>
+                          <div className="flex items-center justify-center space-x-3">
+                            <button
+                              className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm"
+                              onClick={() => {
+                                if (!selectedApp) return;
+                                // Electron：建议走原生窗口；浏览器：新标签页
+                                const hasAPI = typeof (window as any).electronAPI !== 'undefined';
+                                if (hasAPI) {
+                                  (window as any).electronAPI.openAppWindow({
+                                    id: selectedApp.id,
+                                    name: selectedApp.name,
+                                    url: selectedApp.url,
+                                    iconUrl: selectedApp.iconUrl,
+                                  });
+                                } else {
+                                  window.open(selectedApp.url, '_blank', 'noopener,noreferrer');
+                                }
+                              }}
+                            >在新窗口打开</button>
+                            <button
+                              className="px-3 py-1.5 bg-gray-200 text-gray-700 rounded text-sm"
+                              onClick={() => setEmbedError(null)}
+                            >关闭提示</button>
+                          </div>
+                        </>
+                      )}
                       <p className="text-gray-400 text-xs mt-2">{selectedApp?.name}</p>
                     </div>
                   </div>
@@ -283,6 +389,7 @@ function App() {
                         {/* @ts-ignore - 定义已在全局 d.ts 中 */}
                         <webview
                           key={selectedApp.url}
+                          ref={webviewRef}
                           src={selectedApp.url}
                           style={{
                             width: `${baseWidth}px`,
@@ -290,14 +397,9 @@ function App() {
                             transform: `scale(${scale})`,
                             transformOrigin: 'top left'
                           }}
-                          {...({
-                            allowpopups: 'true',
-                            // @ts-ignore
-                            onContentLoad: () => {
-                              console.log('[webview] Content loaded');
-                              setIsAppLoading(false);
-                            }
-                          } as any)}
+                          // 伪装为常见 Chrome UA，避免部分站点拒绝 Electron UA
+                          useragent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                          allowpopups
                         />
                       </div>
                     );
