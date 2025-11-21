@@ -131,7 +131,7 @@ function App() {
         'custom_project_456',
         apiBase,
         'h-full w-full',
-        false, // showMcpManager（由插件替代原生面板）
+        true, // showMcpManager（由插件替代原生面板）
         true,  // showAiModelManager
         true,  // showSystemContextEditor
         true,  // showAgentManager
