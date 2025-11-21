@@ -216,6 +216,8 @@ export interface MessageListProps {
   messages: Message[];
   isLoading?: boolean;
   isStreaming?: boolean;
+  hasMore?: boolean;
+  onLoadMore?: () => void;
   onMessageEdit?: (messageId: string, content: string) => void;
   onMessageDelete?: (messageId: string) => void;
   customRenderer?: {

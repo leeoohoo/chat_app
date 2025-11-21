@@ -146,7 +146,11 @@ export class MessageManager {
    */
   async getSessionMessages(sessionId, limit = null) {
     try {
-      const messages = await MessageService.getBySession(sessionId, limit);
+      // 期望行为：当传入 limit 时，应该返回“最近”的 N 条消息
+      // 之前实现是按 created_at 升序再 LIMIT，导致返回的是“最早”的 N 条
+      const messages = limit
+        ? await MessageService.getRecentBySession(sessionId, limit)
+        : await MessageService.getBySession(sessionId, null);
       this.stats.messages_retrieved += messages.length;
       return messages;
     } catch (error) {
@@ -161,15 +165,19 @@ export class MessageManager {
   getSessionMessagesSync(sessionId, limit = null) {
     try {
       const db = require('../../models/database-factory.js').getDatabaseSync();
-      let query = 'SELECT * FROM messages WHERE session_id = ? ORDER BY created_at ASC';
-      const params = [sessionId];
-
+      // 与异步版本语义保持一致：limit 时取“最近”的 N 条，然后按时间升序返回
+      let rows;
       if (limit) {
-        query += ' LIMIT ?';
-        params.push(limit);
+        rows = db.fetchallSync(
+          'SELECT * FROM messages WHERE session_id = ? ORDER BY created_at DESC LIMIT ?',
+          [sessionId, limit]
+        ).reverse();
+      } else {
+        rows = db.fetchallSync(
+          'SELECT * FROM messages WHERE session_id = ? ORDER BY created_at ASC',
+          [sessionId]
+        );
       }
-
-      const rows = db.fetchallSync(query, params);
       const messages = rows.map(row => {
         return {
           id: row.id,

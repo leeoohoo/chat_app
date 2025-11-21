@@ -8,6 +8,8 @@ export const MessageList: React.FC<MessageListProps> = ({
   messages,
   isLoading = false,
   isStreaming = false,
+  hasMore = false,
+  onLoadMore,
   onMessageEdit,
   onMessageDelete,
   customRenderer,
@@ -92,6 +94,17 @@ export const MessageList: React.FC<MessageListProps> = ({
           transform: 'translateZ(0)',
         }}
       >
+        {hasMore && (
+          <div className="flex justify-center mb-2">
+            <button
+              type="button"
+              onClick={onLoadMore}
+              className="text-sm px-3 py-1 rounded border border-border text-foreground hover:bg-accent"
+            >
+              加载更多
+            </button>
+          </div>
+        )}
         {messages.map((message, index) => (
           <MessageItem
             key={message.id}

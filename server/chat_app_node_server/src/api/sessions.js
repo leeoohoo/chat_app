@@ -195,7 +195,7 @@ import { MessageService } from '../models/message.js';
 router.get('/:session_id/messages', async (req, res) => {
   try {
     const { session_id } = req.params;
-    let { limit } = req.query;
+    let { limit, offset } = req.query;
 
     // 兼容前端可能传入的 limit=0（表示不限制）
     if (limit !== undefined && parseInt(limit, 10) === 0) {
@@ -204,8 +204,26 @@ router.get('/:session_id/messages', async (req, res) => {
       limit = parseInt(limit, 10);
     }
 
-    const messages = await MessageService.getBySession(session_id, limit);
-    logger.info(`获取会话 ${session_id} 的 ${messages.length} 条消息`);
+    // 解析偏移量（用于分页“加载更多”）
+    if (offset !== undefined) {
+      offset = parseInt(offset, 10);
+      if (Number.isNaN(offset) || offset < 0) offset = 0;
+    }
+
+    let messages;
+    if (limit) {
+      // 当提供 limit 时，按“最近”分页返回
+      if (offset) {
+        messages = await MessageService.getRecentPageBySession(session_id, limit, offset);
+      } else {
+        messages = await MessageService.getRecentBySession(session_id, limit);
+      }
+    } else {
+      // 未提供 limit，保持历史行为：返回全部，按时间升序
+      messages = await MessageService.getBySession(session_id, null);
+    }
+
+    logger.info(`获取会话 ${session_id} 的 ${messages.length} 条消息 (limit=${limit || 'all'}, offset=${offset || 0})`);
     res.json(messages);
   } catch (error) {
     logger.error('获取会话消息失败:', error);

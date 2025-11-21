@@ -76,8 +76,12 @@ class ApiClient {
     });
   }
 
-  async getSessionMessages(sessionId: string): Promise<any[]> {
-    return this.request<any[]>(`/sessions/${sessionId}/messages`);
+  async getSessionMessages(sessionId: string, params?: { limit?: number; offset?: number }): Promise<any[]> {
+    const qs: string[] = [];
+    if (params?.limit !== undefined) qs.push(`limit=${encodeURIComponent(String(params.limit))}`);
+    if (params?.offset !== undefined) qs.push(`offset=${encodeURIComponent(String(params.offset))}`);
+    const query = qs.length ? `?${qs.join('&')}` : '';
+    return this.request<any[]>(`/sessions/${sessionId}/messages${query}`);
   }
 
   // 消息相关API
@@ -550,9 +554,13 @@ class ApiClient {
     }
   }
 
-  async getMessages(conversationId: string, _params: any = {}) {
+  async getMessages(conversationId: string, params: { limit?: number; offset?: number } = {}) {
     try {
-      const messages = await this.request<any[]>(`/sessions/${conversationId}/messages`);
+      const qs: string[] = [];
+      if (params.limit !== undefined) qs.push(`limit=${encodeURIComponent(String(params.limit))}`);
+      if (params.offset !== undefined) qs.push(`offset=${encodeURIComponent(String(params.offset))}`);
+      const query = qs.length ? `?${qs.join('&')}` : '';
+      const messages = await this.request<any[]>(`/sessions/${conversationId}/messages${query}`);
       return {
         data: {
           messages: messages

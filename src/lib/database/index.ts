@@ -143,8 +143,11 @@ export class DatabaseService {
     };
   }
 
-  async getSessionMessages(sessionId: string): Promise<Message[]> {
-    const messages = await this.client.getSessionMessages(sessionId);
+  async getSessionMessages(sessionId: string, options: { limit?: number; offset?: number } = { limit: 10, offset: 0 }): Promise<Message[]> {
+    // 默认只加载最近10条，支持传入 offset 实现“加载更多”
+    const limit = options.limit ?? 10;
+    const offset = options.offset ?? 0;
+    const messages = await this.client.getSessionMessages(sessionId, { limit, offset });
     
     // 第一步：解析所有消息并收集工具调用和结果
     const parsedMessages = messages.map(message => {

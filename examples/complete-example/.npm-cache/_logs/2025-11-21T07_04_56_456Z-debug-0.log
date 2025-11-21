@@ -1,0 +1,241 @@
+0 verbose cli /usr/local/bin/node /usr/local/bin/npm
+1 info using npm@10.8.2
+2 info using node@v20.18.3
+3 silly config load:file:/usr/local/lib/node_modules/npm/npmrc
+4 silly config load:file:/Users/lilei/project/learn/chat_app/examples/complete-example/.npmrc
+5 silly config load:file:/Users/lilei/.npmrc
+6 silly config load:file:/Users/lilei/.npm-global/etc/npmrc
+7 verbose title npm install ../../leeoohoo-aichat-1.0.7.tgz
+8 verbose argv "install" "--no-audit" "--no-fund" "--prefer-offline" "../../leeoohoo-aichat-1.0.7.tgz"
+9 verbose logfile logs-max:10 dir:/Users/lilei/project/learn/chat_app/examples/complete-example/.npm-cache/_logs/2025-11-21T07_04_56_456Z-
+10 verbose logfile /Users/lilei/project/learn/chat_app/examples/complete-example/.npm-cache/_logs/2025-11-21T07_04_56_456Z-debug-0.log
+11 silly packumentCache heap:4345298944 maxSize:1086324736 maxEntrySize:543162368
+12 silly logfile done cleaning log files
+13 http fetch GET https://registry.npmjs.org/npm attempt 1 failed with ENOTFOUND
+14 verbose shrinkwrap failed to load node_modules/.package-lock.json out of date, updated: node_modules/@leeoohoo
+15 silly idealTree buildDeps
+16 silly fetch manifest @leeoohoo/aichat@file:../../leeoohoo-aichat-1.0.7.tgz
+17 silly placeDep ROOT @leeoohoo/aichat@1.0.7 REPLACE for: ai-chat-example@1.0.0 want: file:../../leeoohoo-aichat-1.0.7.tgz
+18 silly reify moves {}
+19 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-win32-x64-msvc
+20 silly reify mark deleted [
+20 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-win32-x64-msvc'
+20 silly reify ]
+21 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-win32-x64-gnu
+22 silly reify mark deleted [
+22 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-win32-x64-gnu'
+22 silly reify ]
+23 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-win32-ia32-msvc
+24 silly reify mark deleted [
+24 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-win32-ia32-msvc'
+24 silly reify ]
+25 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-win32-arm64-msvc
+26 silly reify mark deleted [
+26 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-win32-arm64-msvc'
+26 silly reify ]
+27 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-openharmony-arm64
+28 silly reify mark deleted [
+28 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-openharmony-arm64'
+28 silly reify ]
+29 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-linux-x64-musl
+30 silly reify mark deleted [
+30 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-linux-x64-musl'
+30 silly reify ]
+31 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-linux-x64-gnu
+32 silly reify mark deleted [
+32 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-linux-x64-gnu'
+32 silly reify ]
+33 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-linux-s390x-gnu
+34 silly reify mark deleted [
+34 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-linux-s390x-gnu'
+34 silly reify ]
+35 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-linux-riscv64-musl
+36 silly reify mark deleted [
+36 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-linux-riscv64-musl'
+36 silly reify ]
+37 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-linux-riscv64-gnu
+38 silly reify mark deleted [
+38 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-linux-riscv64-gnu'
+38 silly reify ]
+39 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-linux-ppc64-gnu
+40 silly reify mark deleted [
+40 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-linux-ppc64-gnu'
+40 silly reify ]
+41 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-linux-loong64-gnu
+42 silly reify mark deleted [
+42 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-linux-loong64-gnu'
+42 silly reify ]
+43 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-linux-arm64-musl
+44 silly reify mark deleted [
+44 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-linux-arm64-musl'
+44 silly reify ]
+45 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-linux-arm64-gnu
+46 silly reify mark deleted [
+46 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-linux-arm64-gnu'
+46 silly reify ]
+47 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-linux-arm-musleabihf
+48 silly reify mark deleted [
+48 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-linux-arm-musleabihf'
+48 silly reify ]
+49 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-linux-arm-gnueabihf
+50 silly reify mark deleted [
+50 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-linux-arm-gnueabihf'
+50 silly reify ]
+51 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-freebsd-x64
+52 silly reify mark deleted [
+52 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-freebsd-x64'
+52 silly reify ]
+53 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-freebsd-arm64
+54 silly reify mark deleted [
+54 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-freebsd-arm64'
+54 silly reify ]
+55 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-darwin-x64
+56 silly reify mark deleted [
+56 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-darwin-x64'
+56 silly reify ]
+57 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-android-arm64
+58 silly reify mark deleted [
+58 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-android-arm64'
+58 silly reify ]
+59 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-android-arm-eabi
+60 silly reify mark deleted [
+60 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@rollup/rollup-android-arm-eabi'
+60 silly reify ]
+61 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/win32-x64
+62 silly reify mark deleted [
+62 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/win32-x64'
+62 silly reify ]
+63 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/win32-ia32
+64 silly reify mark deleted [
+64 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/win32-ia32'
+64 silly reify ]
+65 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/win32-arm64
+66 silly reify mark deleted [
+66 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/win32-arm64'
+66 silly reify ]
+67 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/sunos-x64
+68 silly reify mark deleted [
+68 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/sunos-x64'
+68 silly reify ]
+69 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/openharmony-arm64
+70 silly reify mark deleted [
+70 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/openharmony-arm64'
+70 silly reify ]
+71 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/openbsd-x64
+72 silly reify mark deleted [
+72 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/openbsd-x64'
+72 silly reify ]
+73 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/openbsd-arm64
+74 silly reify mark deleted [
+74 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/openbsd-arm64'
+74 silly reify ]
+75 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/netbsd-x64
+76 silly reify mark deleted [
+76 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/netbsd-x64'
+76 silly reify ]
+77 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/netbsd-arm64
+78 silly reify mark deleted [
+78 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/netbsd-arm64'
+78 silly reify ]
+79 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/linux-x64
+80 silly reify mark deleted [
+80 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/linux-x64'
+80 silly reify ]
+81 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/linux-s390x
+82 silly reify mark deleted [
+82 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/linux-s390x'
+82 silly reify ]
+83 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/linux-riscv64
+84 silly reify mark deleted [
+84 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/linux-riscv64'
+84 silly reify ]
+85 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/linux-ppc64
+86 silly reify mark deleted [
+86 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/linux-ppc64'
+86 silly reify ]
+87 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/linux-mips64el
+88 silly reify mark deleted [
+88 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/linux-mips64el'
+88 silly reify ]
+89 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/linux-loong64
+90 silly reify mark deleted [
+90 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/linux-loong64'
+90 silly reify ]
+91 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/linux-ia32
+92 silly reify mark deleted [
+92 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/linux-ia32'
+92 silly reify ]
+93 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/linux-arm64
+94 silly reify mark deleted [
+94 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/linux-arm64'
+94 silly reify ]
+95 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/linux-arm
+96 silly reify mark deleted [
+96 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/linux-arm'
+96 silly reify ]
+97 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/freebsd-x64
+98 silly reify mark deleted [
+98 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/freebsd-x64'
+98 silly reify ]
+99 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/freebsd-arm64
+100 silly reify mark deleted [
+100 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/freebsd-arm64'
+100 silly reify ]
+101 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/darwin-x64
+102 silly reify mark deleted [
+102 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/darwin-x64'
+102 silly reify ]
+103 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/android-x64
+104 silly reify mark deleted [
+104 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/android-x64'
+104 silly reify ]
+105 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/android-arm64
+106 silly reify mark deleted [
+106 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/android-arm64'
+106 silly reify ]
+107 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/android-arm
+108 silly reify mark deleted [
+108 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/android-arm'
+108 silly reify ]
+109 verbose reify failed optional dependency /Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/aix-ppc64
+110 silly reify mark deleted [
+110 silly reify   '/Users/lilei/project/learn/chat_app/examples/complete-example/node_modules/@esbuild/aix-ppc64'
+110 silly reify ]
+111 silly tarball no local data for date-fns@https://registry.npmjs.org/date-fns/-/date-fns-4.1.0.tgz. Extracting by manifest.
+112 silly tarball no local data for drizzle-orm@https://registry.npmjs.org/drizzle-orm/-/drizzle-orm-0.44.7.tgz. Extracting by manifest.
+113 http fetch GET https://registry.npmjs.org/date-fns/-/date-fns-4.1.0.tgz attempt 1 failed with ENOTFOUND
+114 http fetch GET https://registry.npmjs.org/drizzle-orm/-/drizzle-orm-0.44.7.tgz attempt 1 failed with ENOTFOUND
+115 http fetch GET https://registry.npmjs.org/npm attempt 2 failed with ENOTFOUND
+116 http fetch GET https://registry.npmjs.org/date-fns/-/date-fns-4.1.0.tgz attempt 2 failed with ENOTFOUND
+117 http fetch GET https://registry.npmjs.org/drizzle-orm/-/drizzle-orm-0.44.7.tgz attempt 2 failed with ENOTFOUND
+118 http fetch GET https://registry.npmjs.org/npm attempt 3 failed with ENOTFOUND
+119 http fetch GET https://registry.npmjs.org/date-fns/-/date-fns-4.1.0.tgz attempt 3 failed with ENOTFOUND
+120 http fetch GET https://registry.npmjs.org/drizzle-orm/-/drizzle-orm-0.44.7.tgz attempt 3 failed with ENOTFOUND
+121 verbose type system
+122 verbose stack FetchError: request to https://registry.npmjs.org/drizzle-orm/-/drizzle-orm-0.44.7.tgz failed, reason: getaddrinfo ENOTFOUND registry.npmjs.org
+122 verbose stack     at ClientRequest.<anonymous> (/usr/local/lib/node_modules/npm/node_modules/minipass-fetch/lib/index.js:130:14)
+122 verbose stack     at ClientRequest.emit (node:events:518:28)
+122 verbose stack     at emitErrorEvent (node:_http_client:101:11)
+122 verbose stack     at _destroy (node:_http_client:884:9)
+122 verbose stack     at onSocketNT (node:_http_client:904:5)
+122 verbose stack     at process.processTicksAndRejections (node:internal/process/task_queues:83:21)
+123 error code ENOTFOUND
+124 error syscall getaddrinfo
+125 error errno ENOTFOUND
+126 error network request to https://registry.npmjs.org/drizzle-orm/-/drizzle-orm-0.44.7.tgz failed, reason: getaddrinfo ENOTFOUND registry.npmjs.org
+127 error network This is a problem related to network connectivity.
+127 error network In most cases you are behind a proxy or have bad network settings.
+127 error network
+127 error network If you are behind a proxy, please make sure that the
+127 error network 'proxy' config is set properly.  See: 'npm help config'
+128 silly unfinished npm timer reify 1763708696640
+129 silly unfinished npm timer reify:unpack 1763708696975
+130 silly unfinished npm timer reifyNode:node_modules/@leeoohoo/aichat/node_modules/drizzle-orm 1763708696975
+131 silly unfinished npm timer reifyNode:node_modules/@leeoohoo/aichat/node_modules/date-fns 1763708696975
+132 verbose cwd /Users/lilei/project/learn/chat_app/examples/complete-example
+133 verbose os Darwin 25.1.0
+134 verbose node v20.18.3
+135 verbose npm  v10.8.2
+136 verbose exit 1
+137 verbose code 1
+138 error A complete log of this run can be found in: /Users/lilei/project/learn/chat_app/examples/complete-example/.npm-cache/_logs/2025-11-21T07_04_56_456Z-debug-0.log

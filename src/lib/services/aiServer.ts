@@ -148,8 +148,8 @@ class AiServer {
             // 用户消息已经在store中保存了，这里不需要重复保存
             console.log('Processing user message:', userMessage);
 
-            //2. 获取历史消息
-            const messagesResponse = await conversationsApi.getMessages(this.conversationId);
+            //2. 获取历史消息（只取最近2条，避免一次性拉取所有）
+            const messagesResponse = await conversationsApi.getMessages(this.conversationId, { limit: 2 });
             const rawMessages = messagesResponse.data.messages || [];
 
             // 确保消息按时间顺序排列（最早的在前面，最新的在后面）

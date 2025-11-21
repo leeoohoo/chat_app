@@ -23,9 +23,11 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
     messages,
     isLoading,
     isStreaming,
+    hasMoreMessages,
     error,
     loadSessions,
     // selectSession,
+    loadMoreMessages,
     sendMessage,
     clearError,
     aiModelConfigs,
@@ -187,6 +189,8 @@ export const ChatInterface: React.FC<ChatInterfaceProps> = ({
               messages={messages}
               isLoading={isLoading}
               isStreaming={isStreaming}
+              hasMore={hasMoreMessages}
+              onLoadMore={() => currentSession && loadMoreMessages(currentSession.id)}
               customRenderer={customRenderer}
             />
           ) : (

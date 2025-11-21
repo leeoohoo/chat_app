@@ -20,6 +20,7 @@ interface ChatState {
     isLoading: boolean;
     isStreaming: boolean;
     streamingMessageId: string | null;
+    hasMoreMessages: boolean;
 
     // UI状态
     sidebarOpen: boolean;
@@ -48,6 +49,7 @@ interface ChatActions {
 
     // 消息操作
     loadMessages: (sessionId: string) => Promise<void>;
+    loadMoreMessages: (sessionId: string) => Promise<void>;
     sendMessage: (content: string, attachments?: any[]) => Promise<void>;
     updateMessage: (messageId: string, updates: Partial<Message>) => Promise<void>;
     deleteMessage: (messageId: string) => Promise<void>;
@@ -122,19 +124,20 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
     const chatService = new ChatService(userId, projectId, messageManager, configUrl);
     console.log("chatService:", chatService)
     
-    return create<ChatState & ChatActions>()
-    (subscribeWithSelector(
-        immer(
-            persist(
-                (set, get) => ({
+                return create<ChatState & ChatActions>()
+                (subscribeWithSelector(
+                    immer(
+                        persist(
+                            (set, get) => ({
                     // 初始状态
                     sessions: [],
                     currentSessionId: null,
                     currentSession: null,
-                    messages: [],
-                    isLoading: false,
-                    isStreaming: false,
-                    streamingMessageId: null,
+                                messages: [],
+                                isLoading: false,
+                                isStreaming: false,
+                                streamingMessageId: null,
+                                hasMoreMessages: true,
                     sidebarOpen: true,
                     theme: 'light',
                     chatConfig: {
@@ -280,13 +283,14 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
                             });
 
                             const session = await databaseService.getSession(sessionId);
-                            const messages = await databaseService.getSessionMessages(sessionId);
+                            const messages = await databaseService.getSessionMessages(sessionId, { limit: 10, offset: 0 });
                             
                             set((state) => {
                             state.currentSessionId = sessionId;
                             (state as any).currentSession = session; // Type assertion to handle immer WritableDraft issue
                             state.messages = messages;
                             state.isLoading = false;
+                            state.hasMoreMessages = messages.length === 10;
                             if (!session) {
                                 state.error = 'Session not found';
                             }
@@ -356,17 +360,39 @@ export function createChatStore(customApiClient?: ApiClient, config?: ChatStoreC
                                 state.error = null;
                             });
 
-                            const messages = await databaseService.getSessionMessages(sessionId);
+                            const messages = await databaseService.getSessionMessages(sessionId, { limit: 10, offset: 0 });
                             
                             set((state) => {
                                 state.messages = messages;
                                 state.isLoading = false;
+                                state.hasMoreMessages = messages.length === 10;
                             });
                         } catch (error) {
                             console.error('Failed to load messages:', error);
                             set((state) => {
                                 state.error = error instanceof Error ? error.message : 'Failed to load messages';
                                 state.isLoading = false;
+                            });
+                        }
+                    },
+
+                    // 加载更多历史消息（向上分页）
+                    loadMoreMessages: async (sessionId: string) => {
+                        try {
+                            const current = get();
+                            const offset = current.messages.length;
+                            const page = await databaseService.getSessionMessages(sessionId, { limit: 10, offset });
+                            set((state) => {
+                                // 去重后前置合并（更早的消息放前面）
+                                const existingIds = new Set(state.messages.map(m => m.id));
+                                const older = page.filter(m => !existingIds.has(m.id));
+                                state.messages = [...older, ...state.messages];
+                                state.hasMoreMessages = page.length === 10;
+                            });
+                        } catch (error) {
+                            console.error('Failed to load more messages:', error);
+                            set((state) => {
+                                state.error = error instanceof Error ? error.message : 'Failed to load more messages';
                             });
                         }
                     },

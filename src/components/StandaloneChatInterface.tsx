@@ -101,6 +101,7 @@ const StandaloneChatContent: React.FC<{
     messages,
     isLoading,
     isStreaming,
+    hasMoreMessages,
     error,
     loadSessions,
     sendMessage,
@@ -114,6 +115,7 @@ const StandaloneChatContent: React.FC<{
     setSelectedAgent,
     loadAgents,
     abortCurrentConversation,
+    loadMoreMessages,
   } = store();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -276,7 +278,13 @@ const StandaloneChatContent: React.FC<{
         {/* 右侧消息列表 */}
         <div className="flex-1 overflow-hidden">
           {currentSession ? (
-            <MessageList messages={messages} isLoading={isLoading} isStreaming={isStreaming} />
+            <MessageList
+              messages={messages}
+              isLoading={isLoading}
+              isStreaming={isStreaming}
+              hasMore={hasMoreMessages}
+              onLoadMore={() => currentSession && loadMoreMessages(currentSession.id)}
+            />
           ) : (
             <div className="flex items-center justify-center h-full text-muted-foreground">
               <div className="text-center">

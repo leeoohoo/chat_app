@@ -187,6 +187,22 @@ export class MessageService {
   }
 
   /**
+   * 获取会话的最近 N 条消息（支持偏移量，用于分页“加载更多”）
+   * 语义：按 created_at DESC 做分页，再反转为 ASC 返回
+   */
+  static async getRecentPageBySession(sessionId, limit = 10, offset = 0) {
+    const db = getDatabaseSync();
+    const rows = await db.fetchall(
+      `SELECT * FROM messages
+       WHERE session_id = ?
+       ORDER BY created_at DESC
+       LIMIT ? OFFSET ?`,
+      [sessionId, limit, offset]
+    );
+    return rows.reverse().map(row => Message.fromDb(row));
+  }
+
+  /**
    * 删除消息（异步）
    */
   static async delete(messageId) {
